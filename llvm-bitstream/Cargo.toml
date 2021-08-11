@@ -1,6 +1,7 @@
 [package]
 name = "llvm-bitstream"
 description = "A content-agnostic parser for LLVM's bitstream container format"
+license = "MIT"
 homepage = "https://github.com/woodruffw/mollusc/tree/main/llvm-bitstream"
 repository = "https://github.com/woodruffw/mollusc"
 authors = ["William Woodruff <william@yossarian.net>"]
