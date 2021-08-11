@@ -11,10 +11,6 @@ categories = ["compilers", "encoding", "parsing"]
 edition = "2018"
 version = "0.0.2-rc.6"
 
-[package.metadata.release]
-no-dev-version = true
-disable-publish = true # handled by GitHub Actions
-
 [features]
 default = ["vbr"]
 vbr = []
