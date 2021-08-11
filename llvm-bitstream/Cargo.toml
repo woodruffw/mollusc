@@ -1,0 +1,21 @@
+[package]
+name = "llvm-bitstream"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[example]]
+name = "dump-bitstream"
+
+[dependencies]
+llvm-bitcursor = { path = "../llvm-bitcursor" }
+log = "0.4"
+num = "0.4"
+num_enum = "0.5.3"
+thiserror = "1.0"
+
+[dev-dependencies]
+anyhow = "1.0"
+clap = "3.0.0-beta.2"
+env_logger = "0.9"

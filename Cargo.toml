@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+  "llvm-bitcursor",
+  "llvm-bitstream",
+]
