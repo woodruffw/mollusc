@@ -9,7 +9,7 @@ readme = "README.md"
 keywords = ["llvm", "parsing", "binary", "encoding"]
 categories = ["compilers", "encoding", "parsing"]
 edition = "2018"
-version = "0.0.1"
+version = "0.0.2-rc.1"
 
 [dependencies]
 num_enum = "0.5.3"
