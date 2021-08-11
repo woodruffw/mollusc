@@ -16,7 +16,7 @@ version = "0.0.2-rc.2"
 name = "dump-bitstream"
 
 [dependencies]
-llvm-bitcursor = { version = "0.0.2-rc.6", path = "../llvm-bitcursor" }
+llvm-bitcursor = { version = "0.0.2-rc.10", path = "../llvm-bitcursor" }
 log = "0.4"
 num = "0.4"
 num_enum = "0.5.3"
