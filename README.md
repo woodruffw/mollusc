@@ -1,6 +1,8 @@
 mollusc
 =======
 
+[![Build Status](https://img.shields.io/github/workflow/status/woodruffw/mollusc/CI/main)](https://github.com/woodruffw/mollusc/actions?query=workflow%3ACI)
+
 ⚠️This is a work in progress! Many parts are incomplete or only partially functional!⚠️
 
 *mollusc* is a collection of pure-Rust libraries for parsing, interpreting, and analyzing LLVM.

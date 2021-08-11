@@ -1,7 +1,6 @@
 llvm-bitcursor.rs
 =================
 
-[![Build Status](https://img.shields.io/github/workflow/status/woodruffw/llvm-bitcursor.rs/CI/main)](https://github.com/woodruffw/llvm-bitcursor.rs/actions?query=workflow%3ACI)
 [![Crates.io](https://img.shields.io/crates/v/llvm-bitcursor)](https://crates.io/crates/llvm-bitcursor)
 
 A no-frills cursor library that supports reading unaligned fields from
