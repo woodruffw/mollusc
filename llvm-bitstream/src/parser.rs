@@ -124,6 +124,7 @@ impl<T: AsRef<[u8]>> StreamParser<T> {
     fn scope(&self) -> &Scope {
         // Unwrap safety: `scopes` is always created with at least one scope, so
         // `last()` cannot fail.
+        #[allow(clippy::unwrap_used)]
         self.scopes.last().unwrap()
     }
 
@@ -131,6 +132,7 @@ impl<T: AsRef<[u8]>> StreamParser<T> {
     fn scope_mut(&mut self) -> &mut Scope {
         // Unwrap safety: `scopes` is always created with at least one scope, so
         // `last()` cannot fail.
+        #[allow(clippy::unwrap_used)]
         self.scopes.last_mut().unwrap()
     }
 
@@ -198,6 +200,7 @@ impl<T: AsRef<[u8]>> StreamParser<T> {
         }
 
         // Unwrap safety: we check for at least one scope above, so this cannot fail.
+        #[allow(clippy::unwrap_used)]
         let scope = self.scopes.pop().unwrap();
 
         log::debug!("exit_block: new active scope is {:?}", self.scope());
