@@ -402,10 +402,10 @@ impl<T: AsRef<[u8]>> io::Seek for BitCursor<T> {
         Ok(self.tell_byte() as u64)
     }
 
-    #[rustversion::nightly]
-    fn stream_len(&mut self) -> io::Result<u64> {
-        Ok(self.byte_len() as u64)
-    }
+    // TODO(ww): Supply this when it's stabilized.
+    // fn stream_len(&mut self) -> io::Result<u64> {
+    //     Ok(self.byte_len() as u64)
+    // }
 }
 
 #[cfg(test)]

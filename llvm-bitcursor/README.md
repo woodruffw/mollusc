@@ -2,6 +2,7 @@ llvm-bitcursor.rs
 =================
 
 [![Crates.io](https://img.shields.io/crates/v/llvm-bitcursor)](https://crates.io/crates/llvm-bitcursor)
+[![Documentation](https://docs.rs/llvm-bitcursor/badge.svg)](https://docs.rs/llvm-bitcursor)
 
 A no-frills cursor library that supports reading unaligned fields from
 a bitstream.
