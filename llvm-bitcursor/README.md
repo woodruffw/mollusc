@@ -1,5 +1,5 @@
-llvm-bitcursor.rs
-=================
+llvm-bitcursor
+==============
 
 [![Crates.io](https://img.shields.io/crates/v/llvm-bitcursor)](https://crates.io/crates/llvm-bitcursor)
 [![Documentation](https://docs.rs/llvm-bitcursor/badge.svg)](https://docs.rs/llvm-bitcursor)

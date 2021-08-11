@@ -1,5 +1,5 @@
-llvm-bitstream.rs
-=================
+llvm-bitstream
+==============
 
 [![Crates.io](https://img.shields.io/crates/v/llvm-bitstream)](https://crates.io/crates/llvm-bitstream)
 [![Documentation](https://docs.rs/llvm-bitstream/badge.svg)](https://docs.rs/llvm-bitstream)
