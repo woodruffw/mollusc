@@ -1,13 +1,6 @@
-//! Constants for `llvm-bitstream`.
+//! Enum constants for `llvm-constants`.
 
 use num_enum::TryFromPrimitive;
-
-/// The 32-bit magic that indicates a raw LLVM IR bitcode stream.
-pub const LLVM_IR_MAGIC: u32 = 0xdec04342;
-
-/// The 32-bit magic that indicates a bitcode wrapper, which in
-/// turn points to the start of the actual bitcode stream.
-pub const BITCODE_WRAPPER_MAGIC: u32 = 0x0b17c0de;
 
 /// Block IDs that are reserved by LLVM.
 // NOTE(ww): Block IDs 0 through 7 are reserved, but only 0 (BLOCKINFO)

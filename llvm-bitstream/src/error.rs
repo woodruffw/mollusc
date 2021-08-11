@@ -1,6 +1,7 @@
 //! Errors for `llvm-bitstream`.
 
 use llvm_bitcursor::error::Error as CursorError;
+use llvm_constants::BlockInfoCode;
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error as ThisError;
 
@@ -21,7 +22,7 @@ pub enum Error {
     /// `BLOCKINFO` must be fully interpreted in order to correctly parse the remainder of
     /// the bitstream, so this is a hard error.
     #[error("bad record code for BLOCKINFO block")]
-    BadBlockInfoCode(#[from] TryFromPrimitiveError<crate::constants::BlockInfoCode>),
+    BadBlockInfoCode(#[from] TryFromPrimitiveError<BlockInfoCode>),
     /// An operand in a `DEFINE_ABBREV` definition has a code that we don't know.
     /// This indicates either a malformed bitstream or a new operand format that
     /// we don't yet support, so it's a hard error.

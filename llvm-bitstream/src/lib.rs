@@ -7,7 +7,6 @@
 #![forbid(unsafe_code)]
 
 pub mod abbrev;
-pub mod constants;
 pub mod error;
 pub mod parser;
 pub mod record;
@@ -15,8 +14,8 @@ pub mod record;
 use std::io::{Seek, SeekFrom};
 
 use llvm_bitcursor::BitCursor;
+use llvm_constants::BITCODE_WRAPPER_MAGIC;
 
-use crate::constants::BITCODE_WRAPPER_MAGIC;
 use crate::error::Error;
 use crate::parser::StreamEntry;
 

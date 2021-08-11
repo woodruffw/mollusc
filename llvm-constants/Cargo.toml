@@ -1,0 +1,7 @@
+[package]
+name = "llvm-constants"
+version = "0.0.1"
+edition = "2018"
+
+[dependencies]
+num_enum = "0.5.3"
