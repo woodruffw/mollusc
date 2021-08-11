@@ -5,15 +5,13 @@ use std::convert::TryInto;
 use std::iter;
 
 use llvm_bitcursor::BitCursor;
+use llvm_constants::{
+    BlockId, BlockInfoCode, FIRST_APPLICATION_ABBREV_ID, INITIAL_ABBREV_ID_WIDTH,
+};
 
 use crate::abbrev::{self, AbbrevId, ReservedAbbrevId};
-use crate::constants::{BlockId, BlockInfoCode};
 use crate::error::Error;
 use crate::record::{Block, Record, Value};
-
-/// All abbreviation IDs before this are defined by the bitstream format,
-/// rather than the stream itself.
-const FIRST_APPLICATION_ABBREV_ID: usize = 4;
 
 /// The kinds of entries we can see while advancing through the bitstream.
 /// Abbreviations are handled transparently by the parser, and thus are
@@ -64,8 +62,7 @@ impl Scope {
     /// Returns the current width used for abbreviation IDs.
     pub(self) fn abbrev_id_width(&self) -> u64 {
         match self {
-            // The initial abbreviation ID width is always 2.
-            Scope::Initial => 2,
+            Scope::Initial => INITIAL_ABBREV_ID_WIDTH,
             Scope::Block {
                 abbrev_id_width, ..
             } => *abbrev_id_width,

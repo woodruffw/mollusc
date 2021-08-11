@@ -11,5 +11,6 @@ mollusc
 | ------- | ------- | ----------- |
 | [`llvm-bitcursor`](./llvm-bitcursor) | [![Crates.io](https://img.shields.io/crates/v/llvm-bitcursor)](https://crates.io/crates/llvm-bitcursor) | A no-frills cursor library for reading fields from a bitstream. |
 | [`llvm-bitstream`](./llvm-bitstream) | [![Crates.io](https://img.shields.io/crates/v/llvm-bitstream)](https://crates.io/crates/llvm-bitstream) | A content-agnostic parser for LLVM's bitstream container format. |
-| **Not implemented.** | N/A | A collection of constants and structures for mapping bitstream data into LLVM IR representations. |
+| [`llvm-constants`](./llvm-constants) | N/A | A collection of numeric and enum constants useful across multiple crates in the *mollusc* ecosystem. |
+| **Not implemented.** | N/A | A collection of structures for mapping bitstream data into LLVM IR representations. |
 | **Not implemented.** | N/A | A high level interface for interacting with LLVM IR. |

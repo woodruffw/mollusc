@@ -4,6 +4,7 @@ on:
       # This is slightly annoying. Is there a better way to do this?
       - 'llvm-bitcursor-v*'
       - 'llvm-bitstream-v*'
+      - 'llvm-constants-v*'
 
 name: release
 
