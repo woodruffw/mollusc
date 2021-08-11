@@ -3,8 +3,7 @@ llvm-bitstream.rs
 
 [![Crates.io](https://img.shields.io/crates/v/llvm-bitstream)](https://crates.io/crates/llvm-bitstream)
 
-A pure-Rust library for interpreting files in LLVM's
-[bitstream format](https://llvm.org/docs/BitCodeFormat.html).
+A content-agnostic parser for LLVM's [bitstream container format](https://llvm.org/docs/BitCodeFormat.html).
 
 Conceptually, this library is one step below a full LLVM bitcode parser:
 it can interpret the entries in a bitstream, but isn't aware of their semantics
