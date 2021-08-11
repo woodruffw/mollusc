@@ -1,7 +1,9 @@
 on:
   push:
     tags:
-      - 'v*'
+      # This is slightly annoying. Is there a better way to do this?
+      - 'llvm-bitcursor-v*'
+      - 'llvm-bitstream-v*'
 
 name: release
 
@@ -17,3 +19,9 @@ jobs:
           release_name: Release ${{ github.ref }}
           draft: false
           prerelease: ${{ contains(github.ref, 'pre') || contains(github.ref, 'rc') }}
+      - name: publish release
+        run: |
+          echo ${{ secrets.CRATES_IO_TOKEN }} | cargo login
+          tag="${GITHUB_REF#refs/tags/}"
+          package_being_published="${tag%-v*}"
+          cd "${package_being_published}" && cargo publish
