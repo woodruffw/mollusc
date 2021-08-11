@@ -41,5 +41,5 @@ pub enum Error {
     BadAbbrev(u64),
     /// An error occurred during block scope entrance or exit.
     #[error("error while parsing block scope: {0}")]
-    Scope(String),
+    BadScope(String),
 }
