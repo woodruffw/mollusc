@@ -1,9 +1,15 @@
 [package]
 name = "llvm-bitstream"
-version = "0.1.0"
+description = "A content-agnostic parser for LLVM's bitstream container format"
+homepage = "https://github.com/woodruffw/mollusc/tree/main/llvm-bitstream"
+repository = "https://github.com/woodruffw/mollusc"
+authors = ["William Woodruff <william@yossarian.net>"]
+readme = "README.md"
+keywords = ["llvm", "parsing", "binary", "encoding"]
+categories = ["compilers", "encoding", "parsing"]
 edition = "2018"
+version = "0.0.1"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [[example]]
 name = "dump-bitstream"

@@ -2,8 +2,8 @@
 name = "llvm-bitcursor"
 description = "A no-frills bitstream cursor library for Rust"
 license = "MIT"
-homepage = "https://github.com/woodruffw/llvm-bitcursor.rs"
-repository = "https://github.com/woodruffw/llvm-bitcursor.rs"
+homepage = "https://github.com/woodruffw/mollusc/tree/main/llvm-bitcursor"
+repository = "https://github.com/woodruffw/mollusc"
 authors = ["William Woodruff <william@yossarian.net>"]
 readme = "README.md"
 keywords = ["llvm", "parsing", "binary", "encoding"]
