@@ -64,6 +64,7 @@ impl Scope {
     /// Returns the current width used for abbreviation IDs.
     pub(self) fn abbrev_id_width(&self) -> u64 {
         match self {
+            // The initial abbreviation ID width is always 2.
             Scope::Initial => 2,
             Scope::Block {
                 abbrev_id_width, ..
