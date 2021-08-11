@@ -21,6 +21,12 @@ jobs:
           release_name: Release ${{ github.ref }}
           draft: false
           prerelease: ${{ contains(github.ref, 'pre') || contains(github.ref, 'rc') }}
+
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
       - name: publish release
         run: |
           echo ${{ secrets.CRATES_IO_TOKEN }} | cargo login
