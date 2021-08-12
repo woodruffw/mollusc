@@ -6,7 +6,7 @@ use crate::error::Error;
 
 /// A higher-level representation of the individual values potentially found
 /// in a `Record`. The members here correspond roughly to
-/// [`AbbrevOpEnc`](crate::abbrev::AbbrevOpEnc).
+/// [`AbbrevOpEnc`](llvm_constants::AbbrevOpEnc).
 #[derive(Clone, Debug)]
 pub enum Value {
     /// An unsigned value, which may have come from a fixed field or a VBR.
