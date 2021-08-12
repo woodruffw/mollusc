@@ -6,10 +6,11 @@ use std::iter;
 
 use llvm_bitcursor::BitCursor;
 use llvm_constants::{
-    BlockId, BlockInfoCode, FIRST_APPLICATION_ABBREV_ID, INITIAL_ABBREV_ID_WIDTH,
+    BlockInfoCode, ReservedAbbrevId, ReservedBlockId, FIRST_APPLICATION_ABBREV_ID,
+    INITIAL_ABBREV_ID_WIDTH,
 };
 
-use crate::abbrev::{self, AbbrevId, ReservedAbbrevId};
+use crate::abbrev::{self, AbbrevId};
 use crate::error::Error;
 use crate::record::{Block, Record, Value};
 
@@ -111,7 +112,7 @@ impl Scope {
     pub(self) fn is_blockinfo(&self) -> bool {
         match self {
             Scope::Initial => false,
-            Scope::Block { block_id, .. } => *block_id == BlockId::BlockInfo as u64,
+            Scope::Block { block_id, .. } => *block_id == ReservedBlockId::BlockInfo as u64,
         }
     }
 

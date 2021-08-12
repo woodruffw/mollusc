@@ -3,24 +3,10 @@
 use std::convert::{From, TryFrom, TryInto};
 
 use llvm_bitcursor::BitCursor;
-use num_enum::TryFromPrimitive;
+use llvm_constants::{AbbrevOpEnc, ReservedAbbrevId};
 
 use crate::error::Error;
 use crate::record::Value;
-
-/// Abbreviation IDs that are reserved by LLVM.
-#[derive(Clone, Copy, Debug, TryFromPrimitive)]
-#[repr(u64)]
-pub enum ReservedAbbrevId {
-    /// Identifies an `END_BLOCK` record.
-    EndBlock = 0,
-    /// Identifies an `ENTER_SUBBLOCK` record.
-    EnterSubBlock,
-    /// Identifies a `DEFINE_ABBREV` record.
-    DefineAbbrev,
-    /// Identifies an `UNABBREV_RECORD` record.
-    UnabbrevRecord,
-}
 
 /// An abbreviation ID, whether reserved or defined by the stream itself.
 #[derive(Clone, Copy, Debug)]
@@ -35,29 +21,6 @@ impl From<u64> for AbbrevId {
     fn from(value: u64) -> Self {
         ReservedAbbrevId::try_from(value)
             .map_or_else(|_| AbbrevId::Defined(value), AbbrevId::Reserved)
-    }
-}
-
-/// Codes for each operand encoding type supported by `DEFINE_ABBREV`.
-#[derive(Clone, Copy, Debug, PartialEq, TryFromPrimitive)]
-#[repr(u64)]
-pub enum AbbrevOpEnc {
-    /// A fixed-length, unsigned operand.
-    Fixed = 1,
-    /// A variable-length, unsigned operand.
-    Vbr,
-    /// An array of values.
-    Array,
-    /// A single 6-bit-encoded character.
-    Char6,
-    /// A blob of bytes.
-    Blob,
-}
-
-impl AbbrevOpEnc {
-    /// Whether this `AbbrecOpEnc` has associated data needed for operand parsing.
-    pub fn has_encoding_data(&self) -> bool {
-        matches!(self, AbbrevOpEnc::Fixed | AbbrevOpEnc::Vbr)
     }
 }
 

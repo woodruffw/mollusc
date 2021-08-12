@@ -1,7 +1,7 @@
 //! Errors for `llvm-bitstream`.
 
 use llvm_bitcursor::error::Error as CursorError;
-use llvm_constants::BlockInfoCode;
+use llvm_constants::{AbbrevOpEnc, BlockInfoCode};
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error as ThisError;
 
@@ -27,7 +27,7 @@ pub enum Error {
     /// This indicates either a malformed bitstream or a new operand format that
     /// we don't yet support, so it's a hard error.
     #[error("bad operand code for DEFINE_ABBREV operand")]
-    BadAbbrevOpEnc(#[from] TryFromPrimitiveError<crate::abbrev::AbbrevOpEnc>),
+    BadAbbrevOpEnc(#[from] TryFromPrimitiveError<AbbrevOpEnc>),
     /// A field value is either invalid or the incorrect type for a particular context.
     #[error("bad value for context: {0}")]
     BadValue(String),
