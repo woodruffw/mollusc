@@ -23,14 +23,14 @@ impl TryFrom<Value> for u64 {
     type Error = Error;
 
     fn try_from(value: Value) -> Result<u64, Self::Error> {
-        if let Value::Unsigned(val) = value {
-            return Ok(val);
+        match value {
+            Value::Unsigned(val) => Ok(val),
+            Value::Char6(val) => Ok(val.into()),
+            _ => Err(Error::BadValue(format!(
+                "non-scalar field can't be made into a single number: {:?}",
+                value
+            ))),
         }
-
-        Err(Error::BadValue(format!(
-            "expected Unsigned, but was {:?}",
-            value
-        )))
     }
 }
 
