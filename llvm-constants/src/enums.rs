@@ -53,3 +53,32 @@ pub enum BlockInfoCode {
     /// SETRECORDNAME: `[SETRECORDNAME, recordid, ...name...]`
     SetRecordName,
 }
+
+/// Codes for each record in `MODULE_BLOCK`.
+#[derive(Debug, TryFromPrimitive)]
+#[repr(u64)]
+pub enum ModuleCode {
+    /// MODULE_CODE_VERSION: `[VERSION, version#]`
+    Version = 1,
+    /// MODULE_CODE_TRIPLE: `[TRIPLE, ...string...]`
+    Triple,
+    /// MODULE_CODE_DATALAYOUT: `[DATALAYOUT, ...string...]`
+    DataLayout,
+    /// MODULE_CODE_ASM: `[ASM, ...string...]`
+    Asm,
+    /// MODULE_CODE_SECTIONNAME: `[SECTIONNAME, ...string...]`
+    SectionName,
+    /// MODULE_CODE_DEPLIB: `[DEPLIB, ...string...]`
+    DepLib,
+    /// MODULE_CODE_GLOBALVAR: `[GLOBALVAR, ...fields...]`
+    /// See: https://llvm.org/docs/BitCodeFormat.html#module-code-globalvar-record
+    GlobalVar,
+    /// MODULE_CODE_FUNCTION: `[FUNCTION, ...fields...]`
+    /// See: https://llvm.org/docs/BitCodeFormat.html#module-code-function-record
+    Function,
+    /// MODULE_CODE_ALIAS: `[ALIAS, ...fields...]`
+    /// See: https://llvm.org/docs/BitCodeFormat.html#module-code-alias-record
+    Alias,
+    /// MODULE_CODE_GCNAME: `[GCNAME, ...string...]`
+    GcName,
+}
