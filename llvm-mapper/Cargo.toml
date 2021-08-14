@@ -7,7 +7,6 @@ edition = "2018"
 name = "unroll-bitstream"
 
 [dependencies]
-itertools = "0.10.1"
 llvm-bitstream = { version = "0.0.2-rc.3", path = "../llvm-bitstream" }
 llvm-constants = { version = "0.0.2-rc.2", path = "../llvm-constants" }
 thiserror = "1.0"
