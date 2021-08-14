@@ -13,3 +13,7 @@ pub const INITIAL_ABBREV_ID_WIDTH: u64 = 2;
 /// All abbreviation IDs before this are defined by the bitstream format,
 /// rather than the stream itself.
 pub const FIRST_APPLICATION_ABBREV_ID: usize = 4;
+
+/// All block IDs before this have their semantics defined by the bitstream
+/// format, rather than the stream itself.
+pub const FIRST_APPLICATION_BLOCK_ID: u64 = 8;
