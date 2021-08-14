@@ -30,7 +30,7 @@ fn main() -> Result<()> {
     let (_, bitstream) = Bitstream::from(&input)?;
 
     let unrolled = UnrolledBitstream::try_from(bitstream)?;
-    println!("{:?}", unrolled);
+    println!("{:#?}", unrolled);
 
     Ok(())
 }
