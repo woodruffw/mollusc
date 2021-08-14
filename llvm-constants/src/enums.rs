@@ -10,6 +10,20 @@ use num_enum::TryFromPrimitive;
 pub enum ReservedBlockId {
     /// The `BLOCKINFO` block ID.
     BlockInfo = 0,
+    /// Reserved; no semantics.
+    Reserved1 = 1,
+    /// Reserved; no semantics.
+    Reserved2 = 2,
+    /// Reserved; no semantics.
+    Reserved3 = 3,
+    /// Reserved; no semantics.
+    Reserved4 = 4,
+    /// Reserved; no semantics.
+    Reserved5 = 5,
+    /// Reserved; no semantics.
+    Reserved6 = 6,
+    /// Reserved; no semantics.
+    Reserved7 = 7,
 }
 
 /// Abbreviation IDs that are reserved by LLVM.

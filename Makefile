@@ -14,3 +14,5 @@ lint:
 		-D clippy::expect_used \
 		-D clippy::unwrap_used \
 		-D clippy::panic
+	@# NOTE(ww): run docs here too, since they can fail the CI when links are broken
+	cargo doc
