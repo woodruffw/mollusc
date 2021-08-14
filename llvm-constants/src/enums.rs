@@ -120,13 +120,13 @@ pub enum ModuleCode {
     /// MODULE_CODE_DEPLIB: `[DEPLIB, ...string...]`
     DepLib,
     /// MODULE_CODE_GLOBALVAR: `[GLOBALVAR, ...fields...]`
-    /// See: https://llvm.org/docs/BitCodeFormat.html#module-code-globalvar-record
+    /// See: <https://llvm.org/docs/BitCodeFormat.html#module-code-globalvar-record>
     GlobalVar,
     /// MODULE_CODE_FUNCTION: `[FUNCTION, ...fields...]`
-    /// See: https://llvm.org/docs/BitCodeFormat.html#module-code-function-record
+    /// See: <https://llvm.org/docs/BitCodeFormat.html#module-code-function-record>
     Function,
     /// MODULE_CODE_ALIAS: `[ALIAS, ...fields...]`
-    /// See: https://llvm.org/docs/BitCodeFormat.html#module-code-alias-record
+    /// See: <https://llvm.org/docs/BitCodeFormat.html#module-code-alias-record>
     Alias,
     /// MODULE_CODE_GCNAME: `[GCNAME, ...string...]`
     GcName,
