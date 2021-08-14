@@ -4,7 +4,7 @@ use std::fs;
 use anyhow::Result;
 use clap::{App, Arg};
 use llvm_bitstream::Bitstream;
-use llvm_mapper::UnrolledBitstream;
+use llvm_mapper::unroll::UnrolledBitstream;
 
 fn app<'a>() -> App<'a> {
     App::new(env!("CARGO_PKG_NAME"))
