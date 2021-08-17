@@ -20,6 +20,8 @@ pub enum BlockId {
 
 impl From<u64> for BlockId {
     fn from(value: u64) -> Self {
+        // Try to turn `value` into each of our known kinds of block IDs, in order
+        // of precedence.
         ReservedBlockId::try_from(value).map_or_else(
             |_| IrBlockId::try_from(value).map_or_else(|_| BlockId::Unknown(value), BlockId::Ir),
             BlockId::Reserved,
@@ -28,34 +30,46 @@ impl From<u64> for BlockId {
 }
 
 trait IrBlock {
-    const ID: IrBlockId;
+    const BLOCK_ID: IrBlockId;
+
+    fn try_map_inner(block: UnrolledBlock) -> Result<Self, Error>
+    where
+        Self: Sized;
+}
+
+trait MappableBlock {
+    fn try_map(block: UnrolledBlock) -> Result<Self, Error>
+    where
+        Self: Sized;
+}
+
+impl<T: IrBlock> MappableBlock for T {
+    fn try_map(block: UnrolledBlock) -> Result<Self, Error> {
+        if block.id != BlockId::Ir(T::BLOCK_ID) {
+            return Err(Error::BadBlockMap(format!(
+                "can't map {:?} into {:?}",
+                block.id,
+                Identification::BLOCK_ID
+            )));
+        }
+
+        IrBlock::try_map_inner(block)
+    }
 }
 
 /// Models the `IDENTIFICATION_BLOCK` block.
+#[non_exhaustive]
 pub struct Identification {
     /// The name of the "producer" for this bitcode.
     pub code: String,
     /// The compatibility epoch.
     pub epoch: u64,
-    _private: (),
 }
 
 impl IrBlock for Identification {
-    const ID: IrBlockId = IrBlockId::Identification;
-}
+    const BLOCK_ID: IrBlockId = IrBlockId::Identification;
 
-impl TryFrom<UnrolledBlock> for Identification {
-    type Error = Error;
-
-    fn try_from(block: UnrolledBlock) -> Result<Self, Self::Error> {
-        if block.id != BlockId::Ir(Identification::ID) {
-            return Err(Error::BadBlockMap(format!(
-                "can't map {:?} into {:?}",
-                block.id,
-                Identification::ID
-            )));
-        }
-
+    fn try_map_inner(block: UnrolledBlock) -> Result<Self, Error> {
         // Scan our records, looking for ones we know.
         // We don't expect any sub-blocks in the IDENTIFICATION_BLOCK, so we don't scanning them.
         for _record in block.records {}
