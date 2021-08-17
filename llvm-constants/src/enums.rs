@@ -7,7 +7,7 @@ use crate::constants::FIRST_APPLICATION_BLOCK_ID;
 /// Block IDs that are reserved by LLVM.
 // NOTE(ww): Block IDs 0 through 7 are reserved, but only 0 (BLOCKINFO)
 // is actually currently used.
-#[derive(Debug, TryFromPrimitive)]
+#[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum ReservedBlockId {
     /// The `BLOCKINFO` block ID.
@@ -30,7 +30,7 @@ pub enum ReservedBlockId {
 
 /// Block IDs that are used by LLVM for bitcode (i.e., IR bitstreams).
 /// See: `enum BlockIDs` in `Bitcode/LLVMBitCodes.h`,
-#[derive(Debug, TryFromPrimitive)]
+#[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum IrBlockId {
     /// `MODULE_BLOCK_ID`
@@ -74,7 +74,7 @@ pub enum IrBlockId {
 }
 
 /// Abbreviation IDs that are reserved by LLVM.
-#[derive(Clone, Copy, Debug, TryFromPrimitive)]
+#[derive(Clone, Copy, Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum ReservedAbbrevId {
     /// Identifies an `END_BLOCK` record.
@@ -104,7 +104,7 @@ pub enum AbbrevOpEnc {
 }
 
 /// Calling conventions supported by LLVM.
-#[derive(Debug, TryFromPrimitive)]
+#[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 #[allow(missing_docs)]
 pub enum CallingConvention {
@@ -153,7 +153,7 @@ pub enum CallingConvention {
 }
 
 /// Codes for each `UNABBREV_RECORD` in `BLOCKINFO`.
-#[derive(Debug, TryFromPrimitive)]
+#[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum BlockInfoCode {
     /// SETBID: `[SETBID, blockid]`
@@ -165,7 +165,7 @@ pub enum BlockInfoCode {
 }
 
 /// Codes for each record in `MODULE_BLOCK`.
-#[derive(Debug, TryFromPrimitive)]
+#[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum ModuleCode {
     /// MODULE_CODE_VERSION: `[VERSION, version#]`
