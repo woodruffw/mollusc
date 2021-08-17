@@ -12,4 +12,10 @@ pub enum Error {
     /// We couldn't unroll the stream because of a structural error.
     #[error("error while unrolling the bitstream: {0}")]
     BadUnroll(String),
+    /// We couldn't map a record, for any number of reasons.
+    #[error("error while mapping record: {0}")]
+    BadRecordMap(String),
+    /// We couldn't map a block, for any number of reasons.
+    #[error("error while mapping block: {0}")]
+    BadBlockMap(String),
 }

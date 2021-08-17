@@ -6,7 +6,9 @@
 #![allow(clippy::redundant_field_names)]
 #![forbid(unsafe_code)]
 
+pub mod block;
 pub mod error;
+pub mod record;
 pub mod unroll;
 
 #[cfg(test)]

@@ -7,6 +7,7 @@ use llvm_bitstream::parser::StreamEntry;
 use llvm_bitstream::record::{Block, Record};
 use llvm_bitstream::Bitstream;
 
+use crate::block::BlockId;
 use crate::error::Error;
 
 /// A fully unrolled block within the bitstream, with potential records
@@ -14,7 +15,7 @@ use crate::error::Error;
 #[derive(Debug)]
 pub struct UnrolledBlock {
     /// This block's ID.
-    pub id: u64,
+    pub id: BlockId,
     /// The [`Record`](llvm_bitstream::record::Record)s directly contained by this block.
     pub records: Vec<Record>,
     /// The blocks directly contained by this block.
@@ -24,7 +25,7 @@ pub struct UnrolledBlock {
 impl UnrolledBlock {
     pub(self) fn new(id: u64) -> Self {
         Self {
-            id: id,
+            id: id.into(),
             records: vec![],
             blocks: vec![],
         }
