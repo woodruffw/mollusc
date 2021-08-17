@@ -29,14 +29,20 @@ impl From<u64> for BlockId {
     }
 }
 
-trait IrBlock {
+/// A trait implemented by all blocks that correspond to IR models, allowing them
+/// to be mapped into their corresponding model.
+pub(self) trait IrBlock {
     const BLOCK_ID: IrBlockId;
 
+    /// Attempt to map the given block to the implementing type, returning an error if mapping fails.
+    ///
+    /// This is an interior trait that shouldn't be used directly.
     fn try_map_inner(block: UnrolledBlock) -> Result<Self, Error>
     where
         Self: Sized;
 }
 
+/// A blanket trait for blocks that can be mapped into IR.
 trait MappableBlock {
     fn try_map(block: UnrolledBlock) -> Result<Self, Error>
     where
