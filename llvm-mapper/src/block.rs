@@ -6,6 +6,7 @@ use llvm_constants::{IrBlockId, ReservedBlockId};
 
 use crate::error::Error;
 use crate::unroll::UnrolledBlock;
+use crate::map::Mappable;
 
 /// A holistic model of all possible block IDs, spanning reserved, IR, and unknown IDs.
 #[derive(Debug, PartialEq)]
@@ -31,7 +32,8 @@ impl From<u64> for BlockId {
 
 /// A trait implemented by all blocks that correspond to IR models, allowing them
 /// to be mapped into their corresponding model.
-pub(self) trait IrBlock: Sized {
+pub trait IrBlock: Sized {
+    /// The `IrBlockId` that corresponds to this IR model.
     const BLOCK_ID: IrBlockId;
 
     /// Attempt to map the given block to the implementing type, returning an error if mapping fails.
@@ -40,12 +42,7 @@ pub(self) trait IrBlock: Sized {
     fn try_map_inner(block: UnrolledBlock) -> Result<Self, Error>;
 }
 
-/// A blanket trait for blocks that can be mapped into IR.
-trait MappableBlock: IrBlock {
-    fn try_map(block: UnrolledBlock) -> Result<Self, Error>;
-}
-
-impl<T: IrBlock> MappableBlock for T {
+impl<T: IrBlock> Mappable<UnrolledBlock> for T {
     fn try_map(block: UnrolledBlock) -> Result<Self, Error> {
         if block.id != BlockId::Ir(T::BLOCK_ID) {
             return Err(Error::BadBlockMap(format!(
