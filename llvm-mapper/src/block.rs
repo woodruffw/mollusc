@@ -32,7 +32,7 @@ impl From<u64> for BlockId {
 
 /// A trait implemented by all blocks that correspond to IR models, allowing them
 /// to be mapped into their corresponding model.
-pub trait IrBlock: Sized {
+pub(crate) trait IrBlock: Sized {
     /// The `IrBlockId` that corresponds to this IR model.
     const BLOCK_ID: IrBlockId;
 

@@ -3,7 +3,7 @@
 use crate::error::Error;
 
 /// A trait for mapping some raw `T` into a model type.
-pub trait Mappable<T>: Sized {
+pub(crate) trait Mappable<T>: Sized {
     /// Attempt to map `T` into `Self`.
     fn try_map(raw: T) -> Result<Self, Error>;
 }
