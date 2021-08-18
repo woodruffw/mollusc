@@ -8,7 +8,7 @@
 
 pub mod block;
 pub mod error;
-pub mod map;
+mod map;
 pub mod record;
 pub mod unroll;
 

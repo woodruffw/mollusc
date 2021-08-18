@@ -5,8 +5,8 @@ use std::convert::TryFrom;
 use llvm_constants::{IrBlockId, ReservedBlockId};
 
 use crate::error::Error;
-use crate::unroll::UnrolledBlock;
 use crate::map::Mappable;
+use crate::unroll::UnrolledBlock;
 
 /// A holistic model of all possible block IDs, spanning reserved, IR, and unknown IDs.
 #[derive(Debug, PartialEq)]
