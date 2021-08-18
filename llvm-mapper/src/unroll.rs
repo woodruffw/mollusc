@@ -17,6 +17,10 @@ pub struct UnrolledBlock {
     /// This block's ID.
     pub id: BlockId,
     /// The [`Record`](llvm_bitstream::record::Record)s directly contained by this block.
+    // TODO(ww): This should instead be some sort of space efficient record map,
+    // so that we can go from individual record codes to one or more concrete records.
+    // It needs to be one or more, since a block can conceivably have multiple records
+    // of the same code.
     pub records: Vec<Record>,
     /// The blocks directly contained by this block.
     pub blocks: Vec<UnrolledBlock>,
@@ -31,6 +35,9 @@ impl UnrolledBlock {
         }
     }
 }
+
+// TODO(ww): UnrolledRecord here, where UnrolledRecord is basically Record
+// with a reified code (instead of just a u64).
 
 /// A fully unrolled bitstream, with a hierarchy of sub-blocks.
 #[derive(Debug)]
