@@ -79,3 +79,22 @@ impl IrBlock for Identification {
         unimplemented!();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_blockid_from_u64() {
+        assert_eq!(
+            BlockId::from(0),
+            BlockId::Reserved(ReservedBlockId::BlockInfo)
+        );
+        assert_eq!(
+            BlockId::from(7),
+            BlockId::Reserved(ReservedBlockId::Reserved7)
+        );
+        assert_eq!(BlockId::from(8), BlockId::Ir(IrBlockId::Module));
+        assert_eq!(BlockId::from(2384629342), BlockId::Unknown(2384629342));
+    }
+}
