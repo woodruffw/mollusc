@@ -3,7 +3,7 @@
 use std::convert::{From, TryFrom, TryInto};
 
 use llvm_bitcursor::BitCursor;
-use llvm_constants::{AbbrevOpEnc, ReservedAbbrevId};
+use llvm_constants::{AbbrevOpEnc, ReservedAbbrevId, CHAR6_ALPHABET};
 
 use crate::error::Error;
 use crate::record::Fields;
@@ -42,6 +42,16 @@ pub enum AbbrevOp {
 }
 
 impl AbbrevOp {
+    /// Given a Char6 value, map it back to its ASCII printable equivalent.
+    ///
+    /// This function is private because it requires caller-upheld invariants
+    /// for panic safety.
+    fn decode_char6(char6: u8) -> u8 {
+        // Panic safety: the caller is expected to constrain char6 to a valid
+        // index within CHAR6_ALPHABET.
+        CHAR6_ALPHABET[char6 as usize]
+    }
+
     /// Parse a single abbreviation operand from the stream, returning a
     /// vector of one or more fields for that operand.
     pub(self) fn parse<T: AsRef<[u8]>>(&self, cur: &mut BitCursor<T>) -> Result<Fields, Error> {
@@ -74,7 +84,7 @@ impl AbbrevOp {
 
                 fields
             }
-            AbbrevOp::Char6 => vec![cur.read_as::<u64>(6)?],
+            AbbrevOp::Char6 => vec![Self::decode_char6(cur.read_as::<u8>(6)?).into()],
             AbbrevOp::Blob => {
                 // A blob operand is encoded as a length (VBR6), followed by a 32-bit aligned
                 // sequence of bytes, followed by another alignment back to 32 bits.
