@@ -20,5 +20,5 @@ pub const FIRST_APPLICATION_BLOCK_ID: u64 = 8;
 
 /// The lookup alphabet for the [`AbbrevOp::Char6`](llvm_bitstream::abbrev::AbbrevOp::Char6)
 /// operand encoding.
-pub const CHAR6_ALPHABET: &'static [u8] =
+pub const CHAR6_ALPHABET: &[u8] =
     b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._";
