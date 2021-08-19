@@ -18,7 +18,6 @@ pub const FIRST_APPLICATION_ABBREV_ID: usize = 4;
 /// format, rather than the stream itself.
 pub const FIRST_APPLICATION_BLOCK_ID: u64 = 8;
 
-/// The lookup alphabet for the [`AbbrevOp::Char6`](llvm_bitstream::abbrev::AbbrevOp::Char6)
-/// operand encoding.
+/// The lookup alphabet for the Char6 operand encoding.
 pub const CHAR6_ALPHABET: &[u8] =
     b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._";
