@@ -184,6 +184,7 @@ mod tests {
         });
 
         assert_eq!(record.try_string(2).unwrap(), "valid string!");
+        assert_eq!(record.try_string(8).unwrap(), "string!");
 
         assert!(record.try_string(0).is_err());
         assert!(record.try_string(record.0.fields.len()).is_err());
