@@ -170,3 +170,23 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitstream {
         Ok(unrolled)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_unrolled_record_try_string() {
+        let record = UnrolledRecord(Record {
+            abbrev_id: None,
+            code: 0,
+            fields: b"\xff\xffvalid string!".iter().map(|b| *b as u64).collect(),
+        });
+
+        assert_eq!(record.try_string(2).unwrap(), "valid string!");
+
+        assert!(record.try_string(0).is_err());
+        assert!(record.try_string(record.0.fields.len()).is_err());
+        assert!(record.try_string(record.0.fields.len() - 1).is_err());
+    }
+}
