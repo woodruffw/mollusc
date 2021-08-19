@@ -18,4 +18,7 @@ pub enum Error {
     /// We couldn't map a block, for any number of reasons.
     #[error("error while mapping block: {0}")]
     BadBlockMap(String),
+    /// We couldn't interpret a record field, for any number of reasons.
+    #[error("error while decoding record field: {0}")]
+    BadField(String),
 }

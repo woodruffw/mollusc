@@ -11,17 +11,56 @@ use llvm_bitstream::Bitstream;
 use crate::block::BlockId;
 use crate::error::Error;
 
+/// An "unrolled" record. This is internally indistinguishable from a raw bitstream
+/// [`Record`](llvm_bitstream::record::Record), but is newtyped to enforce proper
+/// isolation of concerns.
+#[derive(Debug)]
+pub struct UnrolledRecord(Record);
+
+impl AsRef<Record> for UnrolledRecord {
+    fn as_ref(&self) -> &Record {
+        &self.0
+    }
+}
+
+impl UnrolledRecord {
+    /// Attempt to pull a UTF-8 string from this record's fields.
+    ///
+    /// Strings are always the last fields in a record, so only the start
+    /// index is required.
+    pub fn try_string(&self, idx: usize) -> Result<String, Error> {
+        // If our start index lies beyond the record fields or would produce
+        // an empty string, it's invalid.
+        if idx >= self.0.fields.len() - 1 {
+            return Err(Error::BadField(format!(
+                "impossible string index: {} exceeds record fields",
+                idx
+            )));
+        }
+
+        // Each individual field in our string must fit into a byte.
+        let raw = self.0.fields[idx..]
+            .iter()
+            .map(|f| u8::try_from(*f))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| Error::BadField("impossible character value in string".into()))?;
+
+        // Finally, the buffer itself must decode correctly.
+        String::from_utf8(raw).map_err(|_| Error::BadField("invalid string encoding".into()))
+    }
+}
+
 /// A fully unrolled block within the bitstream, with potential records
 /// and sub-blocks.
 #[derive(Debug)]
 pub struct UnrolledBlock {
     /// This block's ID.
     pub id: BlockId,
-    /// The [`Record`](llvm_bitstream::record::Record)s directly contained by this block,
+    /// The [`UnrolledRecord`](UnrolledRecord)s directly contained by this block,
     /// mapped by their codes. Blocks can have multiple records of the same code, hence
     /// the multiple values.
     // TODO(ww): Evaluate HashMap's performance. We might be better off with a specialized int map.
-    pub records: HashMap<u64, Vec<Record>>,
+    pub records: HashMap<u64, Vec<UnrolledRecord>>,
     /// The blocks directly contained by this block.
     pub blocks: Vec<UnrolledBlock>,
 }
@@ -83,7 +122,7 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitstream {
                         .records
                         .entry(record.code)
                         .or_insert_with(Vec::new)
-                        .push(record),
+                        .push(UnrolledRecord(record)),
                     StreamEntry::SubBlock(block) => {
                         let unrolled_child = enter_block(bitstream, block)?;
                         unrolled_block.blocks.push(unrolled_child);
