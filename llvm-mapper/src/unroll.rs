@@ -1,6 +1,7 @@
 //! Routines and structures for "unrolling" a [`Bitstream`](llvm_bitstream::Bitstream)
 //! into a block-and-record hierarchy.
 
+use std::collections::HashMap;
 use std::convert::TryFrom;
 
 use llvm_bitstream::parser::StreamEntry;
@@ -16,12 +17,11 @@ use crate::error::Error;
 pub struct UnrolledBlock {
     /// This block's ID.
     pub id: BlockId,
-    /// The [`Record`](llvm_bitstream::record::Record)s directly contained by this block.
-    // TODO(ww): This should instead be some sort of space efficient record map,
-    // so that we can go from individual record codes to one or more concrete records.
-    // It needs to be one or more, since a block can conceivably have multiple records
-    // of the same code.
-    pub records: Vec<Record>,
+    /// The [`Record`](llvm_bitstream::record::Record)s directly contained by this block,
+    /// mapped by their codes. Blocks can have multiple records of the same code, hence
+    /// the multiple values.
+    // TODO(ww): Evaluate HashMap's performance. We might be better off with a specialized int map.
+    pub records: HashMap<u64, Vec<Record>>,
     /// The blocks directly contained by this block.
     pub blocks: Vec<UnrolledBlock>,
 }
@@ -30,7 +30,7 @@ impl UnrolledBlock {
     pub(self) fn new(id: u64) -> Self {
         Self {
             id: id.into(),
-            records: vec![],
+            records: HashMap::new(), // TODO(ww): Figure out a default capacity here.
             blocks: vec![],
         }
     }
@@ -39,15 +39,19 @@ impl UnrolledBlock {
 // TODO(ww): UnrolledRecord here, where UnrolledRecord is basically Record
 // with a reified code (instead of just a u64).
 
-/// A fully unrolled bitstream, with a hierarchy of sub-blocks.
+/// A fully unrolled bitstream.
+///
+/// Every bitstream has a collection of top-level blocks, each with a sub-block hierarchy.
 #[derive(Debug)]
 pub struct UnrolledBitstream {
-    blocks: Vec<UnrolledBlock>,
+    tops: HashMap<BlockId, Vec<UnrolledBlock>>,
 }
 
 impl Default for UnrolledBitstream {
     fn default() -> Self {
-        Self { blocks: vec![] }
+        Self {
+            tops: HashMap::new(),
+        }
     }
 }
 
@@ -75,7 +79,11 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitstream {
                 })?;
 
                 match entry? {
-                    StreamEntry::Record(record) => unrolled_block.records.push(record),
+                    StreamEntry::Record(record) => unrolled_block
+                        .records
+                        .entry(record.code)
+                        .or_insert_with(Vec::new)
+                        .push(record),
                     StreamEntry::SubBlock(block) => {
                         let unrolled_child = enter_block(bitstream, block)?;
                         unrolled_block.blocks.push(unrolled_child);
@@ -106,7 +114,11 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitstream {
             let entry = entry.unwrap();
 
             if let StreamEntry::SubBlock(block) = entry? {
-                unrolled.blocks.push(enter_block(&mut bitstream, block)?);
+                unrolled
+                    .tops
+                    .entry(block.block_id.into())
+                    .or_insert_with(Vec::new)
+                    .push(enter_block(&mut bitstream, block)?);
             } else {
                 // NOTE(ww): Other parts of the parser should be defensive against this,
                 // but it's difficult to represent that fact at the type level here.
