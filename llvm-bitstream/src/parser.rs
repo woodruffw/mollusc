@@ -12,7 +12,7 @@ use llvm_constants::{
 
 use crate::abbrev::{self, AbbrevId};
 use crate::error::Error;
-use crate::record::{Block, Record, Value};
+use crate::record::{Block, Fields, Record};
 
 /// The kinds of entries we can see while advancing through the bitstream.
 /// Abbreviations are handled transparently by the parser, and thus are
@@ -311,17 +311,17 @@ impl<T: AsRef<[u8]>> StreamParser<T> {
 
         log::debug!("unabbrev record code={}, num_opnds={}", code, num_opnds);
 
-        let mut values = vec![];
+        let mut fields: Fields = Vec::with_capacity(num_opnds as usize);
         for _ in 0..num_opnds {
-            values.push(Value::Unsigned(self.cursor.read_vbr(6)?));
+            fields.push(self.cursor.read_vbr(6)?);
         }
 
-        let record = Record::from_unabbrev(code, values);
+        let record = Record::from_unabbrev(code, fields);
         if self.scope().is_blockinfo() {
             let code: BlockInfoCode = record.code.try_into()?;
             match code {
                 BlockInfoCode::SetBid => {
-                    let block_id: u64 = record.values[0].clone().try_into()?;
+                    let block_id: u64 = record.fields[0];
                     log::debug!("SETBID: BLOCKINFO block ID is now {}", block_id);
                     self.scope_mut().set_blockinfo_block_id(block_id)?;
                 }
@@ -346,12 +346,12 @@ impl<T: AsRef<[u8]>> StreamParser<T> {
         // There is absolutely a better way to do that.
         let abbrev = self.scope().get_abbrev(abbrev_id)?.clone();
 
-        let mut values = abbrev.parse(&mut self.cursor)?;
-        log::debug!("parsed values: {:?}", values);
+        let mut fields = abbrev.parse(&mut self.cursor)?;
+        log::debug!("parsed fields: {:?}", fields);
 
         // Panic safety: every abbrev contains at least one operand, so this cannot panic.
         // We also expect the first operand to always be a u64, indicating the record code.
-        let code: u64 = values.remove(0).try_into()?;
+        let code: u64 = fields.remove(0);
 
         if self.scope().is_blockinfo() {
             return Ok(None);
@@ -360,7 +360,7 @@ impl<T: AsRef<[u8]>> StreamParser<T> {
         Ok(Some(StreamEntry::Record(Record {
             abbrev_id: Some(abbrev_id),
             code: code,
-            values: values,
+            fields: fields,
         })))
     }
 

@@ -2,10 +2,12 @@
 
 use num_enum::TryFromPrimitive;
 
+use crate::constants::FIRST_APPLICATION_BLOCK_ID;
+
 /// Block IDs that are reserved by LLVM.
 // NOTE(ww): Block IDs 0 through 7 are reserved, but only 0 (BLOCKINFO)
 // is actually currently used.
-#[derive(Debug)]
+#[derive(Debug, Eq, Hash, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum ReservedBlockId {
     /// The `BLOCKINFO` block ID.
@@ -26,8 +28,53 @@ pub enum ReservedBlockId {
     Reserved7 = 7,
 }
 
+/// Block IDs that are used by LLVM for bitcode (i.e., IR bitstreams).
+/// See: `enum BlockIDs` in `Bitcode/LLVMBitCodes.h`,
+#[derive(Debug, Eq, Hash, PartialEq, TryFromPrimitive)]
+#[repr(u64)]
+pub enum IrBlockId {
+    /// `MODULE_BLOCK_ID`
+    Module = FIRST_APPLICATION_BLOCK_ID,
+    /// `PARAM_ATTR_BLOCK_ID`
+    ParamAttr,
+    /// `PARAM_ATTR_GROUP_BLOCK_ID`
+    ParamAttrGroup,
+    /// `CONSTANTS_BLOCK_ID`
+    Constants,
+    /// `FUNCTION_BLOCK_ID`
+    Function,
+    /// `IDENTIFICATION_BLOCK_ID`.
+    Identification,
+    /// `VALUE_SYMTAB_BLOCK_ID`.
+    ValueSymtab,
+    /// `METADATA_BLOCK_ID`.
+    Metadata,
+    /// `METADATA_ATTACHMENT_BLOCK_ID`.
+    MetadataAttachment,
+    /// `TYPE_BLOCK_ID_NEW`.
+    Type,
+    /// `USELIST_BLOCK_ID`.
+    Uselist,
+    /// `MODULE_STRTAB_BLOCK_ID`.
+    ModuleStrtab,
+    /// `GLOBAL_VAL_SUMMARY_BLOCK_ID`.
+    GlobalValSummary,
+    /// `OPERAND_BUNDLE_TAGS_BLOCK_ID`.
+    OperandBundleTags,
+    /// `METADATA_KIND_BLOCK_ID`.
+    MetadataKind,
+    /// `STRTAB_BLOCK_ID`.
+    Strtab,
+    /// `FULL_LTO_GLOBAL_VAL_SUMMARY_BLOCK_ID`.
+    FullLtoGlobalValSummary,
+    /// `SYMTAB_BLOCK_ID`.
+    Symtab,
+    /// `SYNC_SCOPE_NAMES_BLOCK_ID`.
+    SyncScopeNames,
+}
+
 /// Abbreviation IDs that are reserved by LLVM.
-#[derive(Clone, Copy, Debug, TryFromPrimitive)]
+#[derive(Clone, Copy, Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum ReservedAbbrevId {
     /// Identifies an `END_BLOCK` record.
@@ -57,7 +104,7 @@ pub enum AbbrevOpEnc {
 }
 
 /// Calling conventions supported by LLVM.
-#[derive(Debug, TryFromPrimitive)]
+#[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 #[allow(missing_docs)]
 pub enum CallingConvention {
@@ -106,7 +153,7 @@ pub enum CallingConvention {
 }
 
 /// Codes for each `UNABBREV_RECORD` in `BLOCKINFO`.
-#[derive(Debug, TryFromPrimitive)]
+#[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum BlockInfoCode {
     /// SETBID: `[SETBID, blockid]`
@@ -118,7 +165,7 @@ pub enum BlockInfoCode {
 }
 
 /// Codes for each record in `MODULE_BLOCK`.
-#[derive(Debug, TryFromPrimitive)]
+#[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum ModuleCode {
     /// MODULE_CODE_VERSION: `[VERSION, version#]`

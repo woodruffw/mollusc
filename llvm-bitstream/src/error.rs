@@ -28,9 +28,6 @@ pub enum Error {
     /// we don't yet support, so it's a hard error.
     #[error("bad operand code for DEFINE_ABBREV operand")]
     BadAbbrevOpEnc(#[from] TryFromPrimitiveError<AbbrevOpEnc>),
-    /// A field value is either invalid or the incorrect type for a particular context.
-    #[error("bad value for context: {0}")]
-    BadValue(String),
     /// A generic error occurred while parsing the bitstream.
     #[error("error while parsing stream: {0}")]
     StreamParse(String),

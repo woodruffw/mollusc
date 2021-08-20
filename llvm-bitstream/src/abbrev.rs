@@ -3,10 +3,10 @@
 use std::convert::{From, TryFrom, TryInto};
 
 use llvm_bitcursor::BitCursor;
-use llvm_constants::{AbbrevOpEnc, ReservedAbbrevId};
+use llvm_constants::{AbbrevOpEnc, ReservedAbbrevId, CHAR6_ALPHABET};
 
 use crate::error::Error;
-use crate::record::Value;
+use crate::record::Fields;
 
 /// An abbreviation ID, whether reserved or defined by the stream itself.
 #[derive(Clone, Copy, Debug)]
@@ -42,27 +42,49 @@ pub enum AbbrevOp {
 }
 
 impl AbbrevOp {
-    /// Parse a single abbreviation operand from the stream, returning an
-    /// appropriate [`Value`](crate::record::Value).
-    pub(self) fn parse<T: AsRef<[u8]>>(&self, cur: &mut BitCursor<T>) -> Result<Value, Error> {
+    /// Given a Char6 value, map it back to its ASCII printable equivalent.
+    ///
+    /// This function is private because it requires caller-upheld invariants
+    /// for panic safety.
+    fn decode_char6(char6: u8) -> u8 {
+        // Panic safety: the caller is expected to constrain char6 to a valid
+        // index within CHAR6_ALPHABET.
+        CHAR6_ALPHABET[char6 as usize]
+    }
+
+    /// Parse a single abbreviation operand from the stream, returning a
+    /// vector of one or more fields for that operand.
+    pub(self) fn parse<T: AsRef<[u8]>>(&self, cur: &mut BitCursor<T>) -> Result<Fields, Error> {
+        // A sad thing happens in this function: we parse by iterating over
+        // each operand, collecting the field(s) in the bitstream that correspond to it.
+        // Operands are typed and carry detailed information about their semantics:
+        // for example, an `AbbrevOp::Char6` is exactly 6 bits and maps directly
+        // to a printable character. It would be really nice if we could expose this structure
+        // at a higher level, i.e. by returning a `Value` enum with different variants
+        // for each operand, and higher levels could take advantage of it.
+        // Unfortunately, LLVM does not let us do this: bitstream consumers **must**
+        // be agnostic to how the bitstream is emitted, which means that an emitter's
+        // decision to use a Char6 vs. a VBR6 cannot affect later, higher-level interpretation.
+        // As a result, we have to discard all of our nice structure here in favor of
+        // sequences of "fields," which are really just individual `u64`s.
         Ok(match self {
-            AbbrevOp::Literal(val) => Value::Unsigned(*val),
-            AbbrevOp::Vbr(width) => Value::Unsigned(cur.read_vbr(*width as usize)?),
-            AbbrevOp::Fixed(width) => Value::Unsigned(cur.read_as::<u64>(*width as usize)?),
+            AbbrevOp::Literal(val) => vec![*val],
+            AbbrevOp::Vbr(width) => vec![cur.read_vbr(*width as usize)?],
+            AbbrevOp::Fixed(width) => vec![cur.read_as::<u64>(*width as usize)?],
             AbbrevOp::Array(elem) => {
                 // An array operand is encoded as a length (VBR6), followed by
                 // each encoded element of the array.
                 // TODO(ww): Sanity check array_len here.
                 let array_len = cur.read_vbr(6)? as usize;
 
-                let mut array = Vec::with_capacity(array_len);
+                let mut fields: Fields = Vec::with_capacity(array_len);
                 for _ in 0..array_len {
-                    array.push(elem.parse(cur)?);
+                    fields.extend(elem.parse(cur)?);
                 }
 
-                Value::Array(array)
+                fields
             }
-            AbbrevOp::Char6 => Value::Char6(cur.read_as::<u8>(6)?),
+            AbbrevOp::Char6 => vec![Self::decode_char6(cur.read_as::<u8>(6)?).into()],
             AbbrevOp::Blob => {
                 // A blob operand is encoded as a length (VBR6), followed by a 32-bit aligned
                 // sequence of bytes, followed by another alignment back to 32 bits.
@@ -75,13 +97,13 @@ impl AbbrevOp {
                 // TODO(ww): This read loop is probably slower than it needs to be;
                 // `BitCursor` could probably learn a `read_bytes` API that's
                 // only allowed when the stream is byte-aligned.
-                let mut blob = Vec::with_capacity(blob_len);
+                let mut fields: Fields = Vec::with_capacity(blob_len);
                 for _ in 0..blob_len {
-                    blob.push(cur.read_exact::<u8>()?);
+                    fields.push(cur.read_exact::<u8>()?.into());
                 }
                 cur.align32();
 
-                Value::Blob(blob)
+                fields
             }
         })
     }
@@ -203,8 +225,15 @@ impl Abbrev {
         Ok(Self { operands: operands })
     }
 
-    /// Parse an abbreviated record from this stream, returning its values.
-    pub fn parse<T: AsRef<[u8]>>(&self, cur: &mut BitCursor<T>) -> Result<Vec<Value>, Error> {
-        self.operands.iter().map(|opnd| opnd.parse(cur)).collect()
+    /// Parse an abbreviated record from this stream, returning its fields.
+    pub fn parse<T: AsRef<[u8]>>(&self, cur: &mut BitCursor<T>) -> Result<Fields, Error> {
+        Ok(self
+            .operands
+            .iter()
+            .map(|opnd| opnd.parse(cur))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect())
     }
 }

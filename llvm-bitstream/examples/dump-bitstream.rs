@@ -47,10 +47,10 @@ fn main() -> Result<()> {
             }
             StreamEntry::Record(record) => {
                 println!(
-                    "{}RECORD {{ code: {}, values: {:?} }}",
+                    "{}RECORD {{ code: {}, fields: {:?} }}",
                     "\t".repeat(scope),
                     record.code,
-                    record.values
+                    record.fields
                 )
             }
         };
