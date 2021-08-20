@@ -2,7 +2,7 @@ llvm-mapper
 ===========
 
 [![Crates.io](https://img.shields.io/crates/v/llvm-mapper)](https://crates.io/crates/llvm-mapper)
-[![Documentation](https://docs.rs/llvm-mapper/badge.svg)](https://docs.rs/llvm-bitstream)
+[![Documentation](https://docs.rs/llvm-mapper/badge.svg)](https://docs.rs/llvm-mapper)
 
 A library for mapping the contents of bitstreams into LLVM IR models.
 
