@@ -1,14 +1,22 @@
 [package]
 name = "llvm-mapper"
-version = "0.1.0"
+description = "A library for mapping the contents of bitstreams into LLVM IR models"
+license = "MIT"
+homepage = "https://github.com/woodruffw/mollusc/tree/main/llvm-mapper"
+repository = "https://github.com/woodruffw/mollusc"
+authors = ["William Woodruff <william@yossarian.net>"]
+readme = "README.md"
+keywords = ["llvm", "parsing", "binary", "encoding"]
+categories = ["compilers", "encoding", "parsing"]
 edition = "2018"
+version = "0.0.1"
 
 [[example]]
 name = "unroll-bitstream"
 
 [dependencies]
-llvm-bitstream = { version = "0.0.2-rc.3", path = "../llvm-bitstream" }
-llvm-constants = { version = "0.0.2-rc.2", path = "../llvm-constants" }
+llvm-bitstream = { version = "0.0.2-rc.4", path = "../llvm-bitstream" }
+llvm-constants = { version = "0.0.2-rc.3", path = "../llvm-constants" }
 thiserror = "1.0"
 
 [dev-dependencies]
