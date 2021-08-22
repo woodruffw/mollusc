@@ -7,7 +7,7 @@ use crate::constants::FIRST_APPLICATION_BLOCK_ID;
 /// Block IDs that are reserved by LLVM.
 // NOTE(ww): Block IDs 0 through 7 are reserved, but only 0 (BLOCKINFO)
 // is actually currently used.
-#[derive(Debug, Eq, Hash, PartialEq, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum ReservedBlockId {
     /// The `BLOCKINFO` block ID.
@@ -30,7 +30,7 @@ pub enum ReservedBlockId {
 
 /// Block IDs that are used by LLVM for bitcode (i.e., IR bitstreams).
 /// See: `enum BlockIDs` in `Bitcode/LLVMBitCodes.h`,
-#[derive(Debug, Eq, Hash, PartialEq, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum IrBlockId {
     /// `MODULE_BLOCK_ID`
