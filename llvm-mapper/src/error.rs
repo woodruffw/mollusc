@@ -26,4 +26,7 @@ pub enum Error {
     /// We expected exactly one record with this code in this block.
     #[error("expected exactly one record of code {0} in block {1:?}")]
     BlockRecordMismatch(u64, BlockId),
+    /// We expected exactly one sub-block with this ID in this block.
+    #[error("expected exactly one block of ID {0:?} in block {1:?}")]
+    BlockBlockMismatch(BlockId, BlockId),
 }

@@ -95,6 +95,26 @@ impl UnrolledBlock {
         // Panic safety: we check for exactly one member directly above.
         Ok(&records_for_code[0])
     }
+
+    /// Get a single sub-block from this block by its block ID.
+    ///
+    /// Returns an error if the block either lacks an appropriate block or has more than one.
+    pub fn one_block(&self, id: BlockId) -> Result<&UnrolledBlock, Error> {
+        let blocks_for_id = self
+            .blocks
+            .get(&id)
+            .ok_or(Error::BlockBlockMismatch(id, self.id))?;
+
+        // The empty case here would indicate API misuse, since we should only
+        // create the vector upon inserting at least one block for a given ID.
+        // But it doesn't hurt (much) to be cautious.
+        if blocks_for_id.is_empty() || blocks_for_id.len() > 1 {
+            return Err(Error::BlockBlockMismatch(id, self.id));
+        }
+
+        // Panic safety: we check for exactly one member directly above.
+        Ok(&blocks_for_id[0])
+    }
 }
 
 // TODO(ww): UnrolledRecord here, where UnrolledRecord is basically Record
