@@ -61,17 +61,39 @@ pub struct UnrolledBlock {
     /// the multiple values.
     // TODO(ww): Evaluate HashMap's performance. We might be better off with a specialized int map.
     pub records: HashMap<u64, Vec<UnrolledRecord>>,
-    /// The blocks directly contained by this block.
-    pub blocks: Vec<UnrolledBlock>,
+    /// The blocks directly contained by this block, mapped by their IDs. Like with records,
+    /// a block can contain multiple sub-blocks of the same ID.
+    pub blocks: HashMap<BlockId, Vec<UnrolledBlock>>,
 }
 
 impl UnrolledBlock {
     pub(self) fn new(id: u64) -> Self {
         Self {
             id: id.into(),
-            records: HashMap::new(), // TODO(ww): Figure out a default capacity here.
-            blocks: vec![],
+            // TODO(ww): Figure out a default capacity here.
+            records: HashMap::new(),
+            blocks: HashMap::new(),
         }
+    }
+
+    /// Get a single record from this block by its record code.
+    ///
+    /// Returns an error if the block either lacks an appropriate record or has more than one.
+    pub fn one_record(&self, code: u64) -> Result<&UnrolledRecord, Error> {
+        let records_for_code = self
+            .records
+            .get(&code)
+            .ok_or(Error::BlockRecordMismatch(code, self.id))?;
+
+        // The empty case here would indicate API misuse, since we should only
+        // create the vector upon inserting at least one record for a given code.
+        // But it doesn't hurt (much) to be cautious.
+        if records_for_code.is_empty() || records_for_code.len() > 1 {
+            return Err(Error::BlockRecordMismatch(code, self.id));
+        }
+
+        // Panic safety: we check for exactly one member directly above.
+        Ok(&records_for_code[0])
     }
 }
 
@@ -108,10 +130,10 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitstream {
 
             // Once we're in a block, we do the following:
             // 1. Take records, and add them to the current unrolled block;
-            // 2. Take sub-blocks, and enter them, adding them to our sub-block list;
+            // 2. Take sub-blocks, and enter them, adding them to our sub-block map;
             // 3. Visit the end of our own block and return so that the caller
             //    (which is either the bitstream context or another parent block)
-            //    can add us to its block list.
+            //    can add us to its block map.
             loop {
                 let entry = bitstream.next().ok_or_else(|| {
                     Error::BadUnroll("unexpected stream end during unroll".into())
@@ -125,7 +147,11 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitstream {
                         .push(UnrolledRecord(record)),
                     StreamEntry::SubBlock(block) => {
                         let unrolled_child = enter_block(bitstream, block)?;
-                        unrolled_block.blocks.push(unrolled_child);
+                        unrolled_block
+                            .blocks
+                            .entry(unrolled_child.id)
+                            .or_insert_with(Vec::new)
+                            .push(unrolled_child);
                     }
                     StreamEntry::EndBlock => {
                         // End our current block scope.

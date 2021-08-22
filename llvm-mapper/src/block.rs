@@ -9,7 +9,7 @@ use crate::map::Mappable;
 use crate::unroll::UnrolledBlock;
 
 /// A holistic model of all possible block IDs, spanning reserved, IR, and unknown IDs.
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub enum BlockId {
     /// A block ID that's been reserved by LLVM. Reserved IDs are internal, and cannot be mapped here.
     Reserved(ReservedBlockId),

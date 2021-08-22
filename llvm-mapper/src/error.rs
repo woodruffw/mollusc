@@ -3,6 +3,8 @@
 use llvm_bitstream::error::Error as BitstreamError;
 use thiserror::Error as ThisError;
 
+use crate::block::BlockId;
+
 /// All possible errors that can occur while mapping a bitstream.
 #[derive(Debug, ThisError)]
 pub enum Error {
@@ -21,4 +23,7 @@ pub enum Error {
     /// We couldn't interpret a record field, for any number of reasons.
     #[error("error while decoding record field: {0}")]
     BadField(String),
+    /// We expected exactly one record with this code in this block.
+    #[error("expected exactly one record of code {0} in block {1:?}")]
+    BlockRecordMismatch(u64, BlockId),
 }
