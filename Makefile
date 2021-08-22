@@ -1,11 +1,17 @@
+HAS_NIGHTLY := $(shell rustup toolchain list | grep nightly)
+ifeq ($(HAS_NIGHTLY),)
+	FMT_FLAG :=
+else
+	FMT_FLAG := +nightly
+endif
+
 .PHONY: all
 all:
 	@echo "This is not a real build system."
 
 .PHONY: fmt
 fmt:
-	@# TODO(ww): Add +nightly here if available by checking `rustup toolchain list`
-	cargo fmt
+	cargo $(FMT_FLAG) fmt
 
 .PHONY: lint
 lint:
