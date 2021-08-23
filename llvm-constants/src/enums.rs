@@ -192,3 +192,19 @@ pub enum ModuleCode {
     /// MODULE_CODE_GCNAME: `[GCNAME, ...string...]`
     GcName,
 }
+
+/// Codes for each record in `STRTAB_BLOCK`.
+#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[repr(u64)]
+pub enum StrtabCode {
+    /// STRTAB_BLOB: `[BLOB, ...string...]`
+    Blob = 1,
+}
+
+/// Codes for each record in `SYMTAB_BLOCK`.
+#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[repr(u64)]
+pub enum SymtabCode {
+    /// SYMTAB_BLOB: `[BLOB, ...string...]`
+    Blob = 1,
+}
