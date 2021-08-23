@@ -13,15 +13,12 @@ mod map;
 pub mod record;
 pub mod unroll;
 
-#[cfg(test)]
-mod tests {}
-
 /// Represents a string table.
 #[derive(Debug)]
-pub struct Strtab(String);
+pub struct Strtab(Vec<u8>);
 
-impl AsRef<str> for Strtab {
-    fn as_ref(&self) -> &str {
+impl AsRef<[u8]> for Strtab {
+    fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
@@ -32,16 +29,22 @@ impl Strtab {
     /// Returns `None` if either the index or size is invalid, or if the
     /// requested slice isn't a valid string.
     pub fn get(&self, idx: usize, size: usize) -> Option<&str> {
-        unimplemented!();
+        let inner = self.as_ref();
+
+        if size == 0 || idx >= inner.len() || idx + size > inner.len() {
+            return None;
+        }
+
+        std::str::from_utf8(&inner[idx..idx + size]).ok()
     }
 }
 
 /// Represents a symbol table.
 #[derive(Debug)]
-pub struct Symtab(String);
+pub struct Symtab(Vec<u8>);
 
-impl AsRef<str> for Symtab {
-    fn as_ref(&self) -> &str {
+impl AsRef<[u8]> for Symtab {
+    fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
@@ -52,7 +55,13 @@ impl Symtab {
     /// Returns `None` if either the index or size is invalid, or if the
     /// requested slice isn't a valid string.
     pub fn get(&self, idx: usize, size: usize) -> Option<&str> {
-        unimplemented!();
+        let inner = self.as_ref();
+
+        if size == 0 || idx >= inner.len() || idx + size > inner.len() {
+            return None;
+        }
+
+        std::str::from_utf8(&inner[idx..idx + size]).ok()
     }
 }
 
@@ -68,4 +77,26 @@ pub struct BitstreamModule {
 
     /// The symbol table associated with this module, if it has one.
     pub symtab: Option<Symtab>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_strtab() {
+        let inner = "this is a string table";
+        let strtab = Strtab(inner.into());
+        assert_eq!(strtab.get(0, 4).unwrap(), "this");
+        assert_eq!(strtab.get(0, 7).unwrap(), "this is");
+        assert_eq!(strtab.get(8, 14).unwrap(), "a string table");
+        assert_eq!(
+            strtab.get(0, inner.len()).unwrap(),
+            "this is a string table"
+        );
+
+        assert!(strtab.get(inner.len(), 0).is_none());
+        assert!(strtab.get(0, inner.len() + 1).is_none());
+        assert!(strtab.get(0, 0).is_none());
+    }
 }
