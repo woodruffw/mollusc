@@ -33,9 +33,7 @@ impl TryFrom<&UnrolledBitstream> for Context {
             let strtab_block = unrolled
                 .tops
                 .get(&BlockId::Ir(IrBlockId::Strtab))
-                .ok_or_else(|| Error::Context(
-                    "no string table block to use for context".into(),
-                ))?
+                .ok_or_else(|| Error::Context("no string table block to use for context".into()))?
                 .get(0)
                 .unwrap();
 
