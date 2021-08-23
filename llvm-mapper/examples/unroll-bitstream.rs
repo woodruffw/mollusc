@@ -32,6 +32,7 @@ fn main() -> Result<()> {
 
     let unrolled = UnrolledBitstream::try_from(bitstream)?;
     let context = Context::try_from(&unrolled)?;
+    println!("{:#?}", context);
 
     Ok(())
 }

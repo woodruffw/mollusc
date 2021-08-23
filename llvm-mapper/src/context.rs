@@ -13,6 +13,7 @@ use crate::unroll::UnrolledBitstream;
 ///
 /// This structure is roughly analogous to LLVM's
 /// [llvm::LLVMContext](https://llvm.org/doxygen/classllvm_1_1LLVMContext.html).
+#[derive(Debug)]
 pub struct Context {
     strtab: String,
     symtab: Option<String>,
