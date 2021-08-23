@@ -4,6 +4,7 @@ use std::fs;
 use anyhow::Result;
 use clap::{App, Arg};
 use llvm_bitstream::Bitstream;
+use llvm_mapper::context::Context;
 use llvm_mapper::unroll::UnrolledBitstream;
 
 fn app<'a>() -> App<'a> {
@@ -30,7 +31,7 @@ fn main() -> Result<()> {
     let (_, bitstream) = Bitstream::from(&input)?;
 
     let unrolled = UnrolledBitstream::try_from(bitstream)?;
-    println!("{:#?}", unrolled);
+    let context = Context::try_from(&unrolled)?;
 
     Ok(())
 }

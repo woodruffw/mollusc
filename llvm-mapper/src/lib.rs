@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 pub mod block;
+pub mod context;
 pub mod error;
 mod map;
 pub mod record;

@@ -125,7 +125,7 @@ impl UnrolledBlock {
 /// Every bitstream has a collection of top-level blocks, each with a sub-block hierarchy.
 #[derive(Debug)]
 pub struct UnrolledBitstream {
-    tops: HashMap<BlockId, Vec<UnrolledBlock>>,
+    pub(crate) tops: HashMap<BlockId, Vec<UnrolledBlock>>,
 }
 
 impl Default for UnrolledBitstream {

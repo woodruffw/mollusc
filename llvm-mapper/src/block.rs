@@ -2,7 +2,7 @@
 
 use std::convert::TryFrom;
 
-use llvm_constants::{IrBlockId, ReservedBlockId};
+use llvm_constants::{IrBlockId, ModuleCode, ReservedBlockId};
 
 use crate::error::Error;
 use crate::map::Mappable;
@@ -74,6 +74,49 @@ impl IrBlock for Identification {
         for _record in block.records {}
 
         unimplemented!();
+    }
+}
+
+/// Models the `MODULE_BLOCK` block.
+#[non_exhaustive]
+pub struct Module {
+    /// The format version.
+    version: u64,
+    /// The target triple specification.
+    pub triple: String,
+    /// The data layout specification.
+    pub datalayout: String,
+    /// Any assembly blocks in the module.
+    pub asm: Vec<String>,
+}
+
+impl IrBlock for Module {
+    const BLOCK_ID: IrBlockId = IrBlockId::Module;
+
+    fn try_map_inner(block: UnrolledBlock) -> Result<Self, Error> {
+        let version = {
+            let version = block.one_record(ModuleCode::Version as u64)?;
+
+            version.as_ref().fields[0]
+        };
+
+        let triple = block.one_record(ModuleCode::Triple as u64)?.try_string(0)?;
+        let datalayout = block
+            .one_record(ModuleCode::DataLayout as u64)?
+            .try_string(0)?;
+        let asm = block
+            .one_record(ModuleCode::Asm as u64)?
+            .try_string(0)?
+            .split('\n')
+            .map(String::from)
+            .collect::<Vec<_>>();
+
+        Ok(Self {
+            version,
+            triple,
+            datalayout,
+            asm,
+        })
     }
 }
 

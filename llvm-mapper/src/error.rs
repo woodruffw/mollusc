@@ -29,4 +29,7 @@ pub enum Error {
     /// We expected exactly one sub-block with this ID in this block.
     #[error("expected exactly one block of ID {0:?} in block {1:?}")]
     BlockBlockMismatch(BlockId, BlockId),
+    /// We encountered an error while creating an appropriate mapping context.
+    #[error("error while constructing context: {0}")]
+    Context(String),
 }
