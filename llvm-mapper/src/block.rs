@@ -122,6 +122,58 @@ impl IrBlock for Module {
     }
 }
 
+/// Models the `STRTAB_BLOCK` block.
+#[derive(Debug)]
+pub struct Strtab(Vec<u8>);
+
+impl AsRef<[u8]> for Strtab {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl Strtab {
+    /// Get a string in the string table by its index and length.
+    ///
+    /// Returns `None` if either the index or size is invalid, or if the
+    /// requested slice isn't a valid string.
+    pub fn get(&self, idx: usize, size: usize) -> Option<&str> {
+        let inner = self.as_ref();
+
+        if size == 0 || idx >= inner.len() || idx + size > inner.len() {
+            return None;
+        }
+
+        std::str::from_utf8(&inner[idx..idx + size]).ok()
+    }
+}
+
+/// Models the `SYMTAB_BLOCK` block.
+#[derive(Debug)]
+pub struct Symtab(Vec<u8>);
+
+impl AsRef<[u8]> for Symtab {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl Symtab {
+    /// Get a symbol in the symbol table by its index and length.
+    ///
+    /// Returns `None` if either the index or size is invalid, or if the
+    /// requested slice isn't a valid string.
+    pub fn get(&self, idx: usize, size: usize) -> Option<&str> {
+        let inner = self.as_ref();
+
+        if size == 0 || idx >= inner.len() || idx + size > inner.len() {
+            return None;
+        }
+
+        std::str::from_utf8(&inner[idx..idx + size]).ok()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

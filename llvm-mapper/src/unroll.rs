@@ -8,7 +8,7 @@ use llvm_bitstream::parser::StreamEntry;
 use llvm_bitstream::record::{Block, Record};
 use llvm_bitstream::Bitstream;
 
-use crate::block::BlockId;
+use crate::block::{BlockId, Identification, Module, Strtab, Symtab};
 use crate::error::Error;
 
 /// An "unrolled" record. This is internally indistinguishable from a raw bitstream
@@ -224,6 +224,52 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
         Ok(unrolled)
     }
 }
+
+/// A `BitcodeModule` encapsulates the top-level pieces of bitstream state needed for
+/// a single LLVM bitcode module: the `IDENTIFICATION_BLOCK`, the `MODULE_BLOCK` itself,
+/// a `STRTAB_BLOCK`, and a `SYMTAB_BLOCK` (if the last is present). A bitstream can
+/// contain multiple LLVM modules (e.g. if produced by `llvm-cat -b`), so parsing a bitstream
+/// can result in multiple `BitcodeModule`s.
+#[derive(Debug)]
+pub struct BitcodeModule {
+    /// The identification block associated with this module.
+    pub identification: Identification,
+
+    /// The module block associated with this module.
+    pub module: Module,
+
+    /// The string table associated with this module.
+    pub strtab: Strtab,
+
+    /// The symbol table associated with this module, if it has one.
+    pub symtab: Option<Symtab>,
+}
+
+// impl BitcodeModule {
+//     /// Parse a `BitcodeModule` from the given `UnrolledBitstream` by index.
+//     ///
+//     /// The index here is an index into the list of `MODULE_BLOCK`s, which are treated
+//     /// as the "definitive"
+//     fn parse_index(unrolled: &UnrolledBitstream, idx: usize) -> Result<Self, Error> {
+//         unimplemented!();
+//     }
+
+//     /// Parse exactly one `BitcodeModule` from the input.
+//     ///
+//     /// Ignores any blocks that would form a subsequent `BitcodeModule`, if present.
+//     pub fn parse_one(buf: impl AsRef<[u8]>) -> Result<Self, Error> {
+//         let unrolled = UnrolledBitstream::try_from(buf.as_ref())?;
+
+//         Self::parse_index(&unrolled, 0)
+//     }
+
+//     /// Parse all `BitcodeModule`s from the input.
+//     pub fn parse_all(buf: impl AsRef<[u8]>) -> Result<Vec<Self>, Error> {
+//         let unrolled = UnrolledBitstream::try_from(buf.as_ref())?;
+
+//         unimplemented!();
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
