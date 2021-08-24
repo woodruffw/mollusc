@@ -2,7 +2,7 @@
 //! into a block-and-record hierarchy.
 
 use std::collections::HashMap;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 
 use llvm_bitstream::parser::StreamEntry;
 use llvm_bitstream::record::{Block, Record};
@@ -117,18 +117,16 @@ impl UnrolledBlock {
     }
 }
 
-// TODO(ww): UnrolledRecord here, where UnrolledRecord is basically Record
-// with a reified code (instead of just a u64).
-
-/// A fully unrolled bitstream.
+/// A fully unrolled bitcode structure, taken from a bitstream.
 ///
-/// Every bitstream has a collection of top-level blocks, each with a sub-block hierarchy.
+/// Every `UnrolledBitcode` has a list of `BitstreamModule`s that it contains, each of
+/// which corresponds to a single LLVM IR module. In the simplest case, there will only be one.
 #[derive(Debug)]
-pub struct UnrolledBitstream {
+pub struct UnrolledBitcode {
     pub(crate) tops: HashMap<BlockId, Vec<UnrolledBlock>>,
 }
 
-impl Default for UnrolledBitstream {
+impl Default for UnrolledBitcode {
     fn default() -> Self {
         Self {
             tops: HashMap::new(),
@@ -136,11 +134,21 @@ impl Default for UnrolledBitstream {
     }
 }
 
-impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitstream {
+impl TryFrom<&[u8]> for UnrolledBitcode {
     type Error = Error;
 
-    fn try_from(mut bitstream: Bitstream<T>) -> Result<UnrolledBitstream, Self::Error> {
-        let mut unrolled = UnrolledBitstream::default();
+    fn try_from(buf: &[u8]) -> Result<UnrolledBitcode, Self::Error> {
+        let (_, bitstream) = Bitstream::from(buf)?;
+
+        bitstream.try_into()
+    }
+}
+
+impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
+    type Error = Error;
+
+    fn try_from(mut bitstream: Bitstream<T>) -> Result<UnrolledBitcode, Self::Error> {
+        let mut unrolled = UnrolledBitcode::default();
 
         fn enter_block<T: AsRef<[u8]>>(
             bitstream: &mut Bitstream<T>,

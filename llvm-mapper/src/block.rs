@@ -58,6 +58,7 @@ impl<T: IrBlock> Mappable<UnrolledBlock> for T {
 
 /// Models the `IDENTIFICATION_BLOCK` block.
 #[non_exhaustive]
+#[derive(Debug)]
 pub struct Identification {
     /// The name of the "producer" for this bitcode.
     pub code: String,
@@ -79,6 +80,7 @@ impl IrBlock for Identification {
 
 /// Models the `MODULE_BLOCK` block.
 #[non_exhaustive]
+#[derive(Debug)]
 pub struct Module {
     /// The format version.
     version: u64,
