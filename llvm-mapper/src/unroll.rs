@@ -83,10 +83,10 @@ pub struct UnrolledBlock {
     /// mapped by their codes. Blocks can have multiple records of the same code, hence
     /// the multiple values.
     // TODO(ww): Evaluate HashMap's performance. We might be better off with a specialized int map.
-    pub records: HashMap<u64, Vec<UnrolledRecord>>,
+    records: HashMap<u64, Vec<UnrolledRecord>>,
     /// The blocks directly contained by this block, mapped by their IDs. Like with records,
     /// a block can contain multiple sub-blocks of the same ID.
-    pub blocks: HashMap<BlockId, Vec<UnrolledBlock>>,
+    blocks: HashMap<BlockId, Vec<UnrolledBlock>>,
 }
 
 impl UnrolledBlock {
@@ -96,6 +96,21 @@ impl UnrolledBlock {
             // TODO(ww): Figure out a default capacity here.
             records: HashMap::new(),
             blocks: HashMap::new(),
+        }
+    }
+
+    /// Get zero or one records from this block by the given record code.
+    ///
+    /// Returns an error if the block has more than one record for this code.
+    pub fn one_record_or_none(&self, code: u64) -> Result<Option<&UnrolledRecord>, Error> {
+        match self.records.get(&code) {
+            Some(recs) => match recs.len() {
+                // NOTE(ww): The empty case here indicates API misuse, but we handle it out of caution.
+                0 => Ok(None),
+                1 => Ok(Some(&recs[0])),
+                _ => Err(Error::BlockRecordMismatch(code, self.id)),
+            },
+            None => Ok(None),
         }
     }
 
@@ -117,6 +132,11 @@ impl UnrolledBlock {
 
         // Panic safety: we check for exactly one member directly above.
         Ok(&records_for_code[0])
+    }
+
+    /// Get all records that share the given record code, or `None` if none exist.
+    pub fn records(&self, code: u64) -> Option<&[UnrolledRecord]> {
+        self.records.get(&code).map(Vec::as_slice)
     }
 
     /// Get a single sub-block from this block by its block ID.
@@ -331,6 +351,7 @@ struct PartialBitcodeModule {
 }
 
 impl PartialBitcodeModule {
+    /// Create a new `PartialBitcodeModule`.
     pub(self) fn new(identification: UnrolledBlock) -> Self {
         Self {
             identification: identification,
@@ -340,6 +361,11 @@ impl PartialBitcodeModule {
         }
     }
 
+    /// Reify this `PartialBitcodeModule into a concrete `BitcodeModule`, mapping
+    /// each block along the way.
+    ///
+    /// Returns an error if the `PartialBitcodeModule` is lacking necessary state, or if
+    /// block and record mapping fails for any reason.
     pub(self) fn reify(self) -> Result<BitcodeModule, Error> {
         Ok(BitcodeModule {
             identification: Identification::try_map(self.identification)?,

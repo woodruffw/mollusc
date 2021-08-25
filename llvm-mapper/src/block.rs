@@ -98,7 +98,7 @@ pub struct Module {
     pub triple: String,
     /// The data layout specification.
     pub datalayout: String,
-    /// Any assembly blocks in the module.
+    /// Any assembly block lines in the module.
     pub asm: Vec<String>,
 }
 
@@ -118,16 +118,14 @@ impl IrBlock for Module {
             .one_record(ModuleCode::DataLayout as u64)?
             .try_string(0)?;
 
-        // TODO(ww): Ugly.
-        let asm = if block.records.contains_key(&(ModuleCode::Asm as u64)) {
-            block
-                .one_record(ModuleCode::Asm as u64)?
+        // Each module has zero or exactly one MODULE_CODE_ASM records.
+        let asm = match block.one_record_or_none(ModuleCode::Asm as u64)? {
+            Some(rec) => rec
                 .try_string(0)?
                 .split('\n')
                 .map(String::from)
-                .collect::<Vec<_>>()
-        } else {
-            Vec::new()
+                .collect::<Vec<_>>(),
+            None => Vec::new(),
         };
 
         Ok(Self {
