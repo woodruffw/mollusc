@@ -2,7 +2,9 @@
 
 use std::convert::TryFrom;
 
-use llvm_constants::{IrBlockId, ModuleCode, ReservedBlockId};
+use llvm_constants::{
+    IdentificationCode, IrBlockId, ModuleCode, ReservedBlockId, StrtabCode, SymtabCode,
+};
 
 use crate::error::Error;
 use crate::map::Mappable;
@@ -61,7 +63,7 @@ impl<T: IrBlock> Mappable<UnrolledBlock> for T {
 #[derive(Debug)]
 pub struct Identification {
     /// The name of the "producer" for this bitcode.
-    pub code: String,
+    pub producer: String,
     /// The compatibility epoch.
     pub epoch: u64,
 }
@@ -70,11 +72,19 @@ impl IrBlock for Identification {
     const BLOCK_ID: IrBlockId = IrBlockId::Identification;
 
     fn try_map_inner(block: UnrolledBlock) -> Result<Self, Error> {
-        // Scan our records, looking for ones we know.
-        // We don't expect any sub-blocks in the IDENTIFICATION_BLOCK, so we don't scanning them.
-        for _record in block.records {}
+        let producer = {
+            let producer = block.one_record(IdentificationCode::ProducerString as u64)?;
 
-        unimplemented!();
+            producer.try_string(0)?
+        };
+
+        let epoch = {
+            let epoch = block.one_record(IdentificationCode::Epoch as u64)?;
+
+            epoch.as_ref().fields[0]
+        };
+
+        Ok(Self { producer, epoch })
     }
 }
 
@@ -103,15 +113,22 @@ impl IrBlock for Module {
         };
 
         let triple = block.one_record(ModuleCode::Triple as u64)?.try_string(0)?;
+
         let datalayout = block
             .one_record(ModuleCode::DataLayout as u64)?
             .try_string(0)?;
-        let asm = block
-            .one_record(ModuleCode::Asm as u64)?
-            .try_string(0)?
-            .split('\n')
-            .map(String::from)
-            .collect::<Vec<_>>();
+
+        // TODO(ww): Ugly.
+        let asm = if block.records.contains_key(&(ModuleCode::Asm as u64)) {
+            block
+                .one_record(ModuleCode::Asm as u64)?
+                .try_string(0)?
+                .split('\n')
+                .map(String::from)
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
 
         Ok(Self {
             version,
@@ -132,6 +149,24 @@ impl AsRef<[u8]> for Strtab {
     }
 }
 
+impl IrBlock for Strtab {
+    const BLOCK_ID: IrBlockId = IrBlockId::Strtab;
+
+    fn try_map_inner(block: UnrolledBlock) -> Result<Self, Error> {
+        // TODO(ww): The docs also claim that there's only one STRTAB_BLOB per STRTAB_BLOCK,
+        // but at least one person has reported otherwise here:
+        // https://lists.llvm.org/pipermail/llvm-dev/2020-August/144327.html
+        // Needs investigation.
+        let strtab = {
+            let strtab = block.one_record(StrtabCode::Blob as u64)?;
+
+            strtab.try_blob(0)?
+        };
+
+        Ok(Self(strtab))
+    }
+}
+
 impl Strtab {
     /// Get a string in the string table by its index and length.
     ///
@@ -149,6 +184,9 @@ impl Strtab {
 }
 
 /// Models the `SYMTAB_BLOCK` block.
+///
+/// For now, this is an opaque block: it's really only used to accelerate LTO,
+/// so we don't attempt to expand its fields here.
 #[derive(Debug)]
 pub struct Symtab(Vec<u8>);
 
@@ -158,19 +196,17 @@ impl AsRef<[u8]> for Symtab {
     }
 }
 
-impl Symtab {
-    /// Get a symbol in the symbol table by its index and length.
-    ///
-    /// Returns `None` if either the index or size is invalid, or if the
-    /// requested slice isn't a valid string.
-    pub fn get(&self, idx: usize, size: usize) -> Option<&str> {
-        let inner = self.as_ref();
+impl IrBlock for Symtab {
+    const BLOCK_ID: IrBlockId = IrBlockId::Symtab;
 
-        if size == 0 || idx >= inner.len() || idx + size > inner.len() {
-            return None;
-        }
+    fn try_map_inner(block: UnrolledBlock) -> Result<Self, Error> {
+        let symtab = {
+            let symtab = block.one_record(SymtabCode::Blob as u64)?;
 
-        std::str::from_utf8(&inner[idx..idx + size]).ok()
+            symtab.try_blob(0)?
+        };
+
+        Ok(Self(symtab))
     }
 }
 
@@ -190,5 +226,22 @@ mod tests {
         );
         assert_eq!(BlockId::from(8), BlockId::Ir(IrBlockId::Module));
         assert_eq!(BlockId::from(2384629342), BlockId::Unknown(2384629342));
+    }
+
+    #[test]
+    fn test_strtab() {
+        let inner = "this is a string table";
+        let strtab = Strtab(inner.into());
+        assert_eq!(strtab.get(0, 4).unwrap(), "this");
+        assert_eq!(strtab.get(0, 7).unwrap(), "this is");
+        assert_eq!(strtab.get(8, 14).unwrap(), "a string table");
+        assert_eq!(
+            strtab.get(0, inner.len()).unwrap(),
+            "this is a string table"
+        );
+
+        assert!(strtab.get(inner.len(), 0).is_none());
+        assert!(strtab.get(0, inner.len() + 1).is_none());
+        assert!(strtab.get(0, 0).is_none());
     }
 }

@@ -7,14 +7,16 @@ use std::convert::{TryFrom, TryInto};
 use llvm_bitstream::parser::StreamEntry;
 use llvm_bitstream::record::{Block, Record};
 use llvm_bitstream::Bitstream;
+use llvm_constants::IrBlockId;
 
 use crate::block::{BlockId, Identification, Module, Strtab, Symtab};
 use crate::error::Error;
+use crate::map::Mappable;
 
 /// An "unrolled" record. This is internally indistinguishable from a raw bitstream
 /// [`Record`](llvm_bitstream::record::Record), but is newtyped to enforce proper
 /// isolation of concerns.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct UnrolledRecord(Record);
 
 impl AsRef<Record> for UnrolledRecord {
@@ -48,11 +50,32 @@ impl UnrolledRecord {
         // Finally, the buffer itself must decode correctly.
         String::from_utf8(raw).map_err(|_| Error::BadField("invalid string encoding".into()))
     }
+
+    /// Attempt to pull a blob of bytes from this record's fields.
+    ///
+    /// Blobs are always the last fields in a record, so only the start index is required.
+    pub fn try_blob(&self, idx: usize) -> Result<Vec<u8>, Error> {
+        // If our start index lies beyond the record fields or would produce
+        // an empty string, it's invalid.
+        if idx >= self.0.fields.len() - 1 {
+            return Err(Error::BadField(format!(
+                "impossible blob index: {} exceeds record fields",
+                idx
+            )));
+        }
+
+        // Each individual field in our blob must fit into a byte.
+        self.0.fields[idx..]
+            .iter()
+            .map(|f| u8::try_from(*f))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| Error::BadField("impossible byte value in blob".into()))
+    }
 }
 
 /// A fully unrolled block within the bitstream, with potential records
 /// and sub-blocks.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct UnrolledBlock {
     /// This block's ID.
     pub id: BlockId,
@@ -123,15 +146,7 @@ impl UnrolledBlock {
 /// which corresponds to a single LLVM IR module. In the simplest case, there will only be one.
 #[derive(Debug)]
 pub struct UnrolledBitcode {
-    pub(crate) tops: HashMap<BlockId, Vec<UnrolledBlock>>,
-}
-
-impl Default for UnrolledBitcode {
-    fn default() -> Self {
-        Self {
-            tops: HashMap::new(),
-        }
-    }
+    pub(crate) modules: Vec<BitcodeModule>,
 }
 
 impl TryFrom<&[u8]> for UnrolledBitcode {
@@ -148,8 +163,6 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
     type Error = Error;
 
     fn try_from(mut bitstream: Bitstream<T>) -> Result<UnrolledBitcode, Self::Error> {
-        let mut unrolled = UnrolledBitcode::default();
-
         fn enter_block<T: AsRef<[u8]>>(
             bitstream: &mut Bitstream<T>,
             block: Block,
@@ -191,10 +204,13 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
             Ok(unrolled_block)
         }
 
-        // A bitstream can have more than one top-level block, so we loop
-        // here to collect and fully unroll each top-level block.
-        // Any entry that isn't a block entrance in this context indicates
-        // a malformed bitstream, so fail fast if we see anything unusual.
+        let mut partial_modules = Vec::new();
+
+        // Unrolling a bitstream into an `UnrolledBitcode` is a little involved:
+        //
+        // 1. There are multiple top-level blocks, each of which needs to be consumed.
+        // 2. Certain top-level blocks need to be grouped together to form a single BitcodeModule.
+        // 3. There can be multiple BitcodeModules-worth of top-level blocks in the stream.
         loop {
             // `None` means that we've exhausted the bitstream; we're done.
             let entry = bitstream.next();
@@ -202,26 +218,139 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
                 break;
             }
 
-            // Unwrap safety: we explicitly check the `None` case above.
-            #[allow(clippy::unwrap_used)]
-            let entry = entry.unwrap();
+            // Take a top-level block from the stream.
+            let top_block = {
+                // Unwrap safety: we explicitly check the `None` case above.
+                // NOTE(ww): Other parts of the parser should be defensive against a malformed
+                // bitstream here, but it's difficult to represent that at the type level during unrolling.
+                #[allow(clippy::unwrap_used)]
+                let block = entry.unwrap()?.as_block().ok_or_else(|| {
+                    Error::BadUnroll("bitstream has non-blocks at the top-level scope".into())
+                })?;
 
-            if let StreamEntry::SubBlock(block) = entry? {
-                unrolled
-                    .tops
-                    .entry(block.block_id.into())
-                    .or_insert_with(Vec::new)
-                    .push(enter_block(&mut bitstream, block)?);
-            } else {
-                // NOTE(ww): Other parts of the parser should be defensive against this,
-                // but it's difficult to represent that fact at the type level here.
-                return Err(Error::BadUnroll(
-                    "bitstream has non-blocks at the top-level scope".into(),
-                ));
+                enter_block(&mut bitstream, block)?
+            };
+
+            // Our top-level block can be one of four cases, if it's valid.
+            //
+            // Handle each accordingly.
+            match top_block.id {
+                BlockId::Ir(IrBlockId::Identification) => {
+                    // We've unrolled an IDENTIFICATION_BLOCK; this indicates the start of a new
+                    // bitcode module. Create a fresh PartialBitcodeModule to fill in, as more
+                    // top-level blocks become available.
+                    partial_modules.push(PartialBitcodeModule::new(top_block));
+                }
+                BlockId::Ir(IrBlockId::Module) => {
+                    // We've unrolled a MODULE_BLOCK; this contains the vast majority of the
+                    // state associated with an LLVM IR module. Grab the most recent
+                    // PartialBitcodeModule and fill it in, erroring appropriately if it already
+                    // has a module.
+                    //
+                    // NOTE(ww): We could encounter a top-level sequence that looks like this:
+                    //   [IDENTIFICATION_BLOCK, IDENTIFICATION_BLOCK, MODULE_BLOCK]
+                    // This would be malformed and in principle we should catch it here by searching
+                    // for the first PartialBitcodeModule lacking a module instead of taking
+                    // the most recent one, but the PartialBitcodeModule -> BitcodeModule reification
+                    // step will take care of that for us.
+                    let last_partial = partial_modules.last_mut().ok_or_else(|| {
+                        Error::BadUnroll("malformed bitstream: MODULE_BLOCK with no preceding IDENTIFICATION_BLOCK".into())
+                    })?;
+
+                    match &last_partial.module {
+                        Some(_) => {
+                            return Err(Error::BadUnroll(
+                                "malformed bitstream: adjacent MODULE_BLOCKs".into(),
+                            ))
+                        }
+                        None => last_partial.module = Some(top_block),
+                    }
+                }
+                BlockId::Ir(IrBlockId::Strtab) => {
+                    // We've unrolled a STRTAB_BLOCK; this contains the string table for one or
+                    // more preceding modules. Any modules that don't already have their own string
+                    // table are given their own copy of this one.
+                    //
+                    // NOTE(ww): Again, we could encounter a sequence that looks like this:
+                    //   [..., STRTAB_BLOCK, STRTAB_BLOCK]
+                    // This actually wouldn't be malformed, but is *is* nonsense: the second
+                    // STRTAB_BLOCK would have no effect on any BitcodeModule, since the first one
+                    // in sequence would already have been used for every prior module.
+                    // We don't bother catching this at the moment since LLVM's own reader doesn't
+                    // and it isn't erroneous per se (just pointless).
+                    for prev_partial in partial_modules
+                        .iter_mut()
+                        .rev()
+                        .take_while(|p| p.strtab.is_none())
+                    {
+                        prev_partial.strtab = Some(top_block.clone());
+                    }
+                }
+                BlockId::Ir(IrBlockId::Symtab) => {
+                    // We've unrolled a SYMTAB_BLOCK; this contains the symbol table (which, in
+                    // turn, references the string table) for one or more preceding modules. Any
+                    // modules that don't already have their own symbol table are given their own
+                    // copy of this one.
+                    //
+                    // NOTE(ww): The same nonsense layout with STRTAB_BLOCK applies here.
+                    for prev_partial in partial_modules
+                        .iter_mut()
+                        .rev()
+                        .take_while(|p| p.symtab.is_none())
+                    {
+                        prev_partial.symtab = Some(top_block.clone());
+                    }
+                }
+                _ => {
+                    return Err(Error::BadUnroll(format!(
+                        "unexpected top-level block: {:?}",
+                        top_block.id
+                    )))
+                }
             }
         }
 
+        let modules = partial_modules
+            .into_iter()
+            .map(|p| p.reify())
+            .collect::<Result<Vec<_>, _>>()?;
+        let unrolled = UnrolledBitcode { modules };
+
         Ok(unrolled)
+    }
+}
+
+/// An internal, partial representation of a bitcode module, used when parsing each bitcode module
+/// to avoid polluting the `BitcodeModule` structure with optional types.
+#[derive(Debug)]
+struct PartialBitcodeModule {
+    identification: UnrolledBlock,
+    module: Option<UnrolledBlock>,
+    strtab: Option<UnrolledBlock>,
+    symtab: Option<UnrolledBlock>,
+}
+
+impl PartialBitcodeModule {
+    pub(self) fn new(identification: UnrolledBlock) -> Self {
+        Self {
+            identification: identification,
+            module: None,
+            strtab: None,
+            symtab: None,
+        }
+    }
+
+    pub(self) fn reify(self) -> Result<BitcodeModule, Error> {
+        Ok(BitcodeModule {
+            identification: Identification::try_map(self.identification)?,
+            module: Module::try_map(self.module.ok_or_else(|| {
+                Error::BadUnroll("missing MODULE_BLOCK for bitcode module".into())
+            })?)?,
+            strtab: Strtab::try_map(self.strtab.ok_or_else(|| {
+                Error::BadUnroll("missing STRTAB_BLOCK for bitcode module".into())
+            })?)?,
+            symtab: self.symtab.map(Symtab::try_map).transpose()?,
+        })
     }
 }
 
@@ -245,32 +374,6 @@ pub struct BitcodeModule {
     pub symtab: Option<Symtab>,
 }
 
-// impl BitcodeModule {
-//     /// Parse a `BitcodeModule` from the given `UnrolledBitstream` by index.
-//     ///
-//     /// The index here is an index into the list of `MODULE_BLOCK`s, which are treated
-//     /// as the "definitive"
-//     fn parse_index(unrolled: &UnrolledBitstream, idx: usize) -> Result<Self, Error> {
-//         unimplemented!();
-//     }
-
-//     /// Parse exactly one `BitcodeModule` from the input.
-//     ///
-//     /// Ignores any blocks that would form a subsequent `BitcodeModule`, if present.
-//     pub fn parse_one(buf: impl AsRef<[u8]>) -> Result<Self, Error> {
-//         let unrolled = UnrolledBitstream::try_from(buf.as_ref())?;
-
-//         Self::parse_index(&unrolled, 0)
-//     }
-
-//     /// Parse all `BitcodeModule`s from the input.
-//     pub fn parse_all(buf: impl AsRef<[u8]>) -> Result<Vec<Self>, Error> {
-//         let unrolled = UnrolledBitstream::try_from(buf.as_ref())?;
-
-//         unimplemented!();
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -289,5 +392,20 @@ mod tests {
         assert!(record.try_string(0).is_err());
         assert!(record.try_string(record.0.fields.len()).is_err());
         assert!(record.try_string(record.0.fields.len() - 1).is_err());
+    }
+
+    #[test]
+    fn test_unrolled_record_try_blob() {
+        let record = UnrolledRecord(Record {
+            abbrev_id: None,
+            code: 0,
+            fields: b"\xff\xffvalid string!".iter().map(|b| *b as u64).collect(),
+        });
+
+        assert_eq!(record.try_blob(0).unwrap(), b"\xff\xffvalid string!");
+        assert_eq!(record.try_blob(8).unwrap(), b"string!");
+
+        assert!(record.try_blob(record.0.fields.len()).is_err());
+        assert!(record.try_blob(record.0.fields.len() - 1).is_err());
     }
 }
