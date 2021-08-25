@@ -164,6 +164,16 @@ pub enum BlockInfoCode {
     SetRecordName,
 }
 
+/// Codes for each record in `IDENTIFICATION_BLOCK`.
+#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[repr(u64)]
+pub enum IdentificationCode {
+    /// IDENTIFICATION_CODE_STRING: `[STRING, ...string...]`
+    ProducerString = 1,
+    /// IDENTIFICATION_CODE_EPOCH: `[EPOCH, epoch]`
+    Epoch,
+}
+
 /// Codes for each record in `MODULE_BLOCK`.
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
