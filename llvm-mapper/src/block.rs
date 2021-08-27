@@ -88,6 +88,27 @@ impl IrBlock for Identification {
     }
 }
 
+// /// A collection of mushy states that help us determine how to proceed when
+// /// mapping an `UnrolledBlock` into a `Module`.
+// struct ModuleMapState {
+//     /// Whether this module uses a string table. This corresponds to versions 2 and newer in
+//     /// the MODULE_CODE_VERSION record.
+//     use_strtab: bool,
+//     /// Whether this module uses the relative ID encoding. This corresponds to versions 1 and newer
+//     /// in the MODULE_CODE_VERSION record.
+//     use_relative_ids: bool,
+// }
+
+// impl ModuleMapState {
+//     /// Create a new, mostly empty `ModuleMapState`.
+//     pub(self) fn new(version: u64) -> Self {
+//         Self {
+//             use_strtab: version >= 2,
+//             use_relative_ids: version >= 1,
+//         }
+//     }
+// }
+
 /// Models the `MODULE_BLOCK` block.
 #[non_exhaustive]
 #[derive(Debug)]
@@ -111,6 +132,8 @@ impl IrBlock for Module {
 
             version.as_ref().fields[0]
         };
+
+        // let mut map_state = ModuleMapState::new(version);
 
         let triple = block.one_record(ModuleCode::Triple as u64)?.try_string(0)?;
 

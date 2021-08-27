@@ -29,4 +29,7 @@ pub enum Error {
     /// We expected exactly one sub-block with this ID in this block.
     #[error("expected exactly one block of ID {0:?} in block {1:?}")]
     BlockBlockMismatch(BlockId, BlockId),
+    /// The bitstream contains features or is represented in a way we don't support. Yet.
+    #[error("unsupported: {0}")]
+    Unsupported(String),
 }
