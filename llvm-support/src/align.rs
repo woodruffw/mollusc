@@ -166,7 +166,7 @@ pub enum AlignedType {
 
 impl PartialOrd for AlignedType {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-       Some(self.cmp(other))
+        Some(self.cmp(other))
     }
 }
 
