@@ -2,7 +2,9 @@
 
 use std::convert::TryFrom;
 
-use llvm_support::{AddressSpace, Align, AlignError, Endian, Mangling};
+use llvm_support::{
+    AddressSpace, Align, AlignError, Endian, Mangling, PointerAlignElems, TypeAlignElems,
+};
 use thiserror::Error;
 
 /// Potential errors when parsing an LLVM datalayout string.
@@ -18,13 +20,11 @@ pub enum DataLayoutError {
 pub struct DataLayout {
     endianness: Endian,
     natural_stack_alignment: Option<Align>,
-    program_address_space: AddressSpace, // TODO
-    global_variable_address_space: AddressSpace, // TODO
-    alloca_address_space: AddressSpace, // TODO
-    // pointer_specs: Vec<PointerSpec>, // TODO
-    // integer_specs: Vec<IntegerSpec>, // TODO
-    // vector_specs: Vec<VectorSpec>, // TODO
-    // float_specs: Vec<FloatSpec>, // TODO
+    program_address_space: AddressSpace,
+    global_variable_address_space: AddressSpace,
+    alloca_address_space: AddressSpace,
+    type_alignments: TypeAlignElems,
+    pointer_alignments: PointerAlignElems,
     aggregate_alignment: Align,
     function_pointer_alignment: Option<Align>,
     mangling: Option<Mangling>,
@@ -32,7 +32,7 @@ pub struct DataLayout {
     non_integral_address_spaces: Vec<u32>,
 }
 
-impl Default for  DataLayout {
+impl Default for DataLayout {
     fn default() -> Self {
         #[allow(clippy::unwrap_used)]
         Self {
@@ -41,9 +41,9 @@ impl Default for  DataLayout {
             program_address_space: Default::default(),
             global_variable_address_space: Default::default(),
             alloca_address_space: Default::default(),
-            // ...
-            // Unwrap safety: 64 is an infallible bit alignment.
-            aggregate_alignment: Align::from_bit_align(64).unwrap(),
+            type_alignments: TypeAlignElems::default(),
+            pointer_alignments: PointerAlignElems::default(),
+            aggregate_alignment: Align::ALIGN8,
             function_pointer_alignment: None,
             mangling: None,
             native_integer_widths: vec![],
