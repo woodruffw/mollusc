@@ -17,6 +17,7 @@ name = "unroll-bitstream"
 [dependencies]
 llvm-bitstream = { version = "0.0.2-rc.4", path = "../llvm-bitstream" }
 llvm-constants = { version = "0.0.2-rc.3", path = "../llvm-constants" }
+llvm-support = { version = "0.0.1", path = "../llvm-support" }
 thiserror = "1.0"
 
 [dev-dependencies]

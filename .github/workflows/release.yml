@@ -5,6 +5,7 @@ on:
       - 'llvm-bitcursor-v*'
       - 'llvm-bitstream-v*'
       - 'llvm-constants-v*'
+      - 'llvm-support-v*'
       - 'llvm-mapper-v*'
 
 name: release
