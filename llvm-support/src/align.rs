@@ -1,7 +1,9 @@
 //! A typesafe representation of alignment states and operations that
 //! preserves LLVM's alignment invariants.
 
-use std::fmt::{Debug, Error as FmtError, Formatter};
+use std::cmp::Ordering;
+use std::convert::TryFrom;
+use std::fmt::{Debug, Display, Error as FmtError, Formatter, Result as FmtResult};
 
 use thiserror::Error;
 
@@ -22,6 +24,7 @@ pub enum AlignError {
 /// A size efficient, opaque representation of bytewise alignment.
 ///
 /// See `Alignment.h` for LLVM's corresponding structures.
+#[derive(Copy, Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Align(u8);
 
 impl Debug for Align {
@@ -32,7 +35,28 @@ impl Debug for Align {
     }
 }
 
+impl Display for Align {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "{}", self.byte_align())
+    }
+}
+
 impl Align {
+    /// A convenience handle for 1-byte alignments.
+    pub const ALIGN1: Align = Align(0);
+
+    /// A convenience handle for 2-byte alignments.
+    pub const ALIGN2: Align = Align(1);
+
+    /// A convenience handle for 4-byte alignments.
+    pub const ALIGN4: Align = Align(2);
+
+    /// A convenience handle for 8-byte alignments.
+    pub const ALIGN8: Align = Align(3);
+
+    /// A convenience handle for 16-byte alignments.
+    pub const ALIGN16: Align = Align(4);
+
     /// The maximum alignment shift representable with this type.
     pub const MAX_SHIFT: u8 = 63;
 
@@ -92,9 +116,195 @@ impl Align {
     }
 }
 
+/// Errors that can occur when constructing an [`AlignedTypeWidth`](AlignedTypeWidth)
+#[derive(Debug, Error)]
+pub enum AlignedTypeWidthError {
+    /// The requested bit width is zero, which is nonsense (every non-aggregate type
+    /// carries a nonzero width).
+    #[error("bit width for type cannot be zero")]
+    Zero,
+    /// The requested bit width exceeds our support.
+    #[error(
+        "bit width for type is too large ({0} > {} bits)",
+        AlignedTypeWidth::MAX
+    )]
+    TooBig(u32),
+}
+
+/// An invariant-preserving newtype for representing the bitwidth of an
+/// alignable type.
+#[derive(Debug, Copy, Clone, Eq, Ord, PartialEq, PartialOrd)]
+pub struct AlignedTypeWidth(u32);
+
+impl AlignedTypeWidth {
+    /// The maximum type width, in bits, representable in this structure.
+    pub const MAX: u32 = (1 << 23) - 1;
+}
+
+impl TryFrom<u32> for AlignedTypeWidth {
+    type Error = AlignedTypeWidthError;
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value > 0 && value <= AlignedTypeWidth::MAX {
+            true => Ok(AlignedTypeWidth(value)),
+            false => Err(AlignedTypeWidthError::TooBig(value)),
+        }
+    }
+}
+
+/// An enumeration of alignable non-pointer types.
+#[derive(Debug, Eq, PartialEq)]
+pub enum AlignedType {
+    /// Integer types.
+    Integer(AlignedTypeWidth),
+    /// Vector types.
+    Vector(AlignedTypeWidth),
+    /// Floating point types.
+    Float(AlignedTypeWidth),
+    /// Aggregate types.
+    Aggregate,
+}
+
+impl PartialOrd for AlignedType {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+       Some(self.cmp(other))
+    }
+}
+
+impl Ord for AlignedType {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            // Integer types are ordered lowest of all types, and compare values
+            // only against other integers.
+            (AlignedType::Integer(lhs), AlignedType::Integer(rhs)) => lhs.cmp(rhs),
+            (AlignedType::Integer(_), _) => Ordering::Less,
+
+            // Vector types are ordered second lowest.
+            (AlignedType::Vector(_), AlignedType::Integer(_)) => Ordering::Less,
+            (AlignedType::Vector(lhs), AlignedType::Vector(rhs)) => lhs.cmp(rhs),
+            (AlignedType::Vector(_), _) => Ordering::Greater,
+
+            // Float types are ordered third lowest.
+            (AlignedType::Float(_), AlignedType::Integer(_) | AlignedType::Vector(_)) => {
+                Ordering::Less
+            }
+            (AlignedType::Float(lhs), AlignedType::Float(rhs)) => lhs.cmp(rhs),
+            (AlignedType::Float(_), _) => Ordering::Greater,
+
+            // Aggregate types are ordered highest. They don't have a width, so two
+            // aggregate types are always equal.
+            (AlignedType::Aggregate, AlignedType::Aggregate) => Ordering::Equal,
+            (AlignedType::Aggregate, _) => Ordering::Greater,
+        }
+    }
+}
+
+/// Errors that can occur when constructing a [`TypeAlignElem`](TypeAlignElem).
+#[derive(Debug, Error)]
+pub enum TypeAlignElemError {
+    /// The underlying type being specified has a bad width.
+    #[error("impossible bit width for underlying aligned type")]
+    BadTypeWidth(#[from] AlignedTypeWidthError),
+    /// The supplied preferred alignment isn't greater than or equal to the ABI minimum
+    #[error("impossible preferred alignment: {0} must be >= {1}")]
+    AlignPref(Align, Align),
+    /// The supplied ABI alignment is too large.
+    #[error(
+        "impossible ABI alignment for type: {0} > {}",
+        TypeAlignElem::MAX_ALIGN
+    )]
+    AbiAlignTooLarge(Align),
+}
+
+/// Represents an alignable type, along with its ABI-mandated and
+/// preferred alignments (which may differ).
+#[non_exhaustive]
+#[derive(Debug)]
+pub struct TypeAlignElem {
+    /// The type being aligned.
+    pub aligned_type: AlignedType,
+    /// The ABI-enforced alignment for the type.
+    pub abi_alignment: Align,
+    /// The preferred alignment for the type.
+    ///
+    /// NOTE: This **must** be greater than or equal to the ABI alignment.
+    /// This invariant is preserved during construction.
+    pub preferred_alignment: Align,
+}
+
+impl TypeAlignElem {
+    /// The maximum type width, in bits, representable in this structure.
+    pub const MAX_TYPE_BIT_WIDTH: u32 = (1 << 23) - 1;
+
+    /// The maximum alignment supported by instances of `TypeAlignElem`.
+    // NOTE(ww): On top of the normal alignment invariants, `TypeAlignElem`
+    // requires its alignments to be less than 2^16 bits. This is
+    // to prevent unforeseen compatibility issues.
+    // See: https://reviews.llvm.org/D67400
+    pub const MAX_ALIGN: Align = Align(15);
+
+    /// Create a new `TypeAlignElem` for the given `AlignedType` and alignment
+    /// constraints.
+    pub fn new(
+        aligned_type: AlignedType,
+        abi: Align,
+        pref: Align,
+    ) -> Result<Self, TypeAlignElemError> {
+        if pref < abi {
+            return Err(TypeAlignElemError::AlignPref(pref, abi));
+        }
+
+        match ((abi <= Self::MAX_ALIGN), (pref <= Self::MAX_ALIGN)) {
+            (true, true) => Ok(Self {
+                aligned_type: aligned_type,
+                abi_alignment: abi,
+                preferred_alignment: pref,
+            }),
+            // NOTE(ww): We don't need a special case for the preferred alignment
+            // being too large here, since it's precluded by our `pref > abi` check
+            // above: `pref > MAX_ALIGN && pref >= abi` implies `abi >= MAX_ALIGN`,
+            // so our ABI value is always erroneous.
+            (_, _) => Err(TypeAlignElemError::AbiAlignTooLarge(abi)),
+        }
+    }
+}
+
+/// Represents a sorted collection of [`TypeAlignElem`](TypeAlignElem)s.
+#[derive(Debug)]
+pub struct TypeAlignElems(Vec<TypeAlignElem>);
+
+impl Default for TypeAlignElems {
+    fn default() -> Self {
+        Self(vec![])
+    }
+}
+
+/// Represents a pointer width (in bits), along with its ABI-mandated and
+/// preferred alignments (which may differ).
+#[derive(Debug)]
+pub struct PointerAlignElem {}
+
+/// Represents a sorted collection of [`PointerAlignElem`](PointerAlignElem)s.
+#[derive(Debug)]
+pub struct PointerAlignElems(Vec<PointerAlignElem>);
+
+impl Default for PointerAlignElems {
+    fn default() -> Self {
+        Self(vec![])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_align_constants() {
+        assert_eq!(Align::ALIGN1.byte_align(), 1);
+        assert_eq!(Align::ALIGN2.byte_align(), 2);
+        assert_eq!(Align::ALIGN4.byte_align(), 4);
+        assert_eq!(Align::ALIGN8.byte_align(), 8);
+        assert_eq!(Align::ALIGN16.byte_align(), 16);
+    }
 
     #[test]
     fn test_align_is_pow2() {
@@ -110,6 +320,15 @@ mod tests {
         assert!(!Align::is_pow2(6));
         assert!(!Align::is_pow2(12));
         assert!(!Align::is_pow2(65));
+    }
+
+    #[test]
+    fn test_align_compares() {
+        assert_eq!(Align::from_shift(1).unwrap(), Align::from_shift(1).unwrap());
+        assert!(Align::from_shift(1).unwrap() < Align::from_shift(2).unwrap());
+        assert!(Align::from_shift(1).unwrap() <= Align::from_shift(2).unwrap());
+        assert!(Align::from_shift(2).unwrap() > Align::from_shift(1).unwrap());
+        assert!(Align::from_shift(2).unwrap() >= Align::from_shift(1).unwrap());
     }
 
     #[test]
@@ -172,5 +391,120 @@ mod tests {
         assert!(Align::from_bit_align(9).is_err());
         assert!(Align::from_bit_align(24).is_err());
         assert!(Align::from_bit_align(33).is_err());
+    }
+
+    #[test]
+    fn test_aligned_type_width() {
+        for i in 1..(1 << 15) {
+            assert!(AlignedTypeWidth::try_from(i).is_ok());
+        }
+
+        assert!(AlignedTypeWidth::try_from(0).is_err());
+        assert!(AlignedTypeWidth::try_from(u32::MAX).is_err());
+    }
+
+    #[test]
+    fn test_aligned_type_ordering() {
+        assert!(
+            AlignedType::Integer(AlignedTypeWidth(1)) == AlignedType::Integer(AlignedTypeWidth(1))
+        );
+        assert!(
+            AlignedType::Vector(AlignedTypeWidth(1)) == AlignedType::Vector(AlignedTypeWidth(1))
+        );
+        assert!(AlignedType::Float(AlignedTypeWidth(1)) == AlignedType::Float(AlignedTypeWidth(1)));
+
+        for i in 2..(1 << 15) {
+            assert!(
+                AlignedType::Integer(AlignedTypeWidth(i))
+                    < AlignedType::Vector(AlignedTypeWidth(i))
+            );
+            assert!(
+                AlignedType::Integer(AlignedTypeWidth(i))
+                    <= AlignedType::Vector(AlignedTypeWidth(i))
+            );
+
+            assert!(
+                AlignedType::Integer(AlignedTypeWidth(i + 1))
+                    < AlignedType::Vector(AlignedTypeWidth(i - 1))
+            );
+            assert!(
+                AlignedType::Integer(AlignedTypeWidth(i + 1))
+                    <= AlignedType::Vector(AlignedTypeWidth(i - 1))
+            );
+
+            assert!(
+                AlignedType::Integer(AlignedTypeWidth(i)) < AlignedType::Float(AlignedTypeWidth(i))
+            );
+            assert!(
+                AlignedType::Integer(AlignedTypeWidth(i))
+                    <= AlignedType::Float(AlignedTypeWidth(i))
+            );
+
+            assert!(
+                AlignedType::Integer(AlignedTypeWidth(i + 1))
+                    < AlignedType::Float(AlignedTypeWidth(i - 1))
+            );
+            assert!(
+                AlignedType::Integer(AlignedTypeWidth(i + 1))
+                    <= AlignedType::Float(AlignedTypeWidth(i - 1))
+            );
+
+            assert!(AlignedType::Integer(AlignedTypeWidth(i)) < AlignedType::Aggregate);
+        }
+
+        assert!(AlignedType::Aggregate == AlignedType::Aggregate);
+    }
+
+    #[test]
+    fn test_type_align_elem() {
+        // Normal cases.
+        assert!(TypeAlignElem::new(
+            AlignedType::Integer(AlignedTypeWidth(64)),
+            Align::ALIGN8,
+            Align::ALIGN8
+        )
+        .is_ok());
+        assert!(TypeAlignElem::new(
+            AlignedType::Integer(AlignedTypeWidth(64)),
+            Align::ALIGN8,
+            Align::ALIGN16
+        )
+        .is_ok());
+        assert!(TypeAlignElem::new(
+            AlignedType::Float(AlignedTypeWidth(32)),
+            Align::ALIGN4,
+            Align::ALIGN4
+        )
+        .is_ok());
+        assert!(TypeAlignElem::new(
+            AlignedType::Float(AlignedTypeWidth(32)),
+            Align::ALIGN4,
+            Align::ALIGN8
+        )
+        .is_ok());
+
+        // Can't create with an undersized preferred alignment.
+        assert_eq!(
+            TypeAlignElem::new(
+                AlignedType::Integer(AlignedTypeWidth(8)),
+                Align(2),
+                Align(1)
+            )
+            .unwrap_err()
+            .to_string(),
+            "impossible preferred alignment: 2 must be >= 4"
+        );
+
+        // Can't create with an oversized ABI alignment.
+        assert_eq!(
+            TypeAlignElem::new(
+                AlignedType::Integer(AlignedTypeWidth(8)),
+                Align(16),
+                Align(16)
+            )
+            .unwrap_err()
+            .to_string(),
+            "impossible ABI alignment for type: 65536 > 32768"
+        );
     }
 }
