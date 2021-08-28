@@ -173,27 +173,34 @@ impl PartialOrd for AlignedType {
 impl Ord for AlignedType {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
-            // Integer types are ordered lowest of all types, and compare values
-            // only against other integers.
-            (AlignedType::Integer(lhs), AlignedType::Integer(rhs)) => lhs.cmp(rhs),
-            (AlignedType::Integer(_), _) => Ordering::Less,
+            // AlignedTypes are ordered first by their type, and then by their bitwidth.
+            // Per LLVM, the type ordering is: aggregate < float < integer < vector.
 
-            // Vector types are ordered second lowest.
-            (AlignedType::Vector(_), AlignedType::Integer(_)) => Ordering::Less,
-            (AlignedType::Vector(lhs), AlignedType::Vector(rhs)) => lhs.cmp(rhs),
-            (AlignedType::Vector(_), _) => Ordering::Greater,
+            // Aggregate types are ordered lowest. They don't have a width, so two
+            // aggregate types are always equal.
+            (AlignedType::Aggregate, AlignedType::Aggregate) => Ordering::Equal,
+            (AlignedType::Aggregate, _) => Ordering::Less,
 
-            // Float types are ordered third lowest.
+            // Float types are ordered second lowest.
+            (AlignedType::Float(_), AlignedType::Aggregate) => Ordering::Greater,
+            (AlignedType::Float(lhs), AlignedType::Float(rhs)) => lhs.cmp(rhs),
             (AlignedType::Float(_), AlignedType::Integer(_) | AlignedType::Vector(_)) => {
                 Ordering::Less
             }
-            (AlignedType::Float(lhs), AlignedType::Float(rhs)) => lhs.cmp(rhs),
-            (AlignedType::Float(_), _) => Ordering::Greater,
 
-            // Aggregate types are ordered highest. They don't have a width, so two
-            // aggregate types are always equal.
-            (AlignedType::Aggregate, AlignedType::Aggregate) => Ordering::Equal,
-            (AlignedType::Aggregate, _) => Ordering::Greater,
+            // Integer types are ordered third lowest.
+            (AlignedType::Integer(_), AlignedType::Aggregate | AlignedType::Float(_)) => {
+                Ordering::Greater
+            }
+            (AlignedType::Integer(lhs), AlignedType::Integer(rhs)) => lhs.cmp(rhs),
+            (AlignedType::Integer(_), AlignedType::Vector(_)) => Ordering::Less,
+
+            // Vector types are ordered highest.
+            (
+                AlignedType::Vector(_),
+                AlignedType::Aggregate | AlignedType::Float(_) | AlignedType::Integer(_),
+            ) => Ordering::Greater,
+            (AlignedType::Vector(lhs), AlignedType::Vector(rhs)) => lhs.cmp(rhs),
         }
     }
 }
@@ -433,23 +440,24 @@ mod tests {
             );
 
             assert!(
-                AlignedType::Integer(AlignedTypeWidth(i)) < AlignedType::Float(AlignedTypeWidth(i))
+                AlignedType::Integer(AlignedTypeWidth(i)) > AlignedType::Float(AlignedTypeWidth(i))
             );
             assert!(
                 AlignedType::Integer(AlignedTypeWidth(i))
-                    <= AlignedType::Float(AlignedTypeWidth(i))
+                    >= AlignedType::Float(AlignedTypeWidth(i))
             );
 
             assert!(
                 AlignedType::Integer(AlignedTypeWidth(i + 1))
-                    < AlignedType::Float(AlignedTypeWidth(i - 1))
+                    > AlignedType::Float(AlignedTypeWidth(i - 1))
             );
             assert!(
                 AlignedType::Integer(AlignedTypeWidth(i + 1))
-                    <= AlignedType::Float(AlignedTypeWidth(i - 1))
+                    >= AlignedType::Float(AlignedTypeWidth(i - 1))
             );
 
-            assert!(AlignedType::Integer(AlignedTypeWidth(i)) < AlignedType::Aggregate);
+            assert!(AlignedType::Integer(AlignedTypeWidth(i)) > AlignedType::Aggregate);
+            assert!(AlignedType::Integer(AlignedTypeWidth(i)) >= AlignedType::Aggregate);
         }
 
         assert!(AlignedType::Aggregate == AlignedType::Aggregate);
