@@ -5,8 +5,9 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 
 use llvm_support::{
-    AddressSpace, AddressSpaceError, Align, AlignError, AlignSpecError, Endian, Mangling,
-    PointerAlignSpecs, TypeAlignSpec, TypeAlignSpecs,
+    AddressSpace, AddressSpaceError, Align, AlignError, AlignSpecError, Endian,
+    FunctionPointerAlign, Mangling, PointerAlignSpec, PointerAlignSpecs, TypeAlignSpec,
+    TypeAlignSpecs,
 };
 use thiserror::Error;
 
@@ -50,7 +51,7 @@ pub struct DataLayout {
     type_alignments: TypeAlignSpecs,
     pointer_alignments: PointerAlignSpecs,
     aggregate_alignment: Align,
-    function_pointer_alignment: Option<Align>,
+    function_pointer_alignment: Option<FunctionPointerAlign>,
     mangling: Option<Mangling>,
     native_integer_widths: Vec<u32>,
     non_integral_address_spaces: Vec<u32>,
@@ -110,19 +111,40 @@ impl FromStr for DataLayout {
                     datalayout.alloca_address_space = body.parse::<u32>()?.try_into()?;
                 }
                 'p' => {
-                    unimplemented!();
+                    // Pass the entire spec in here, since we need the spec identifier as well.
+                    let align_spec = spec.parse::<PointerAlignSpec>()?;
+                    datalayout.pointer_alignments.update(align_spec);
                 }
-                'i' | 'v' | 'f' => {
+                'i' | 'v' | 'f' | 'a' => {
                     // Pass the entire spec in here, since we need the spec identifier as well.
                     let align_spec = spec.parse::<TypeAlignSpec>()?;
                     datalayout.type_alignments.update(align_spec);
                 }
-                'a' => {
-                    unimplemented!();
-                }
-                'F' => {
-                    unimplemented!();
-                }
+                'F' => match body.chars().next() {
+                    Some(id) => {
+                        let align = Align::from_bit_align(body[1..].parse::<u64>()?)?;
+                        let align = match id {
+                            'i' => FunctionPointerAlign::Independent {
+                                abi_alignment: align,
+                            },
+                            'n' => FunctionPointerAlign::Dependent {
+                                abi_alignment: align,
+                            },
+                            o => {
+                                return Err(DataLayoutParseError::BadSpecParse(format!(
+                                    "unknown function pointer alignment specifier: {}",
+                                    o
+                                )))
+                            }
+                        };
+                        datalayout.function_pointer_alignment = Some(align);
+                    }
+                    None => {
+                        return Err(DataLayoutParseError::BadSpecParse(
+                            "function pointer alignment spec is empty".into(),
+                        ))
+                    }
+                },
                 'm' => {
                     // The mangling spec is `m:X`, where `X` is the mangling kind.
                     // We've already parsed `m`, so we expect exactly two characters.
@@ -241,6 +263,50 @@ mod tests {
             assert_eq!(
                 "m:?".parse::<DataLayout>().unwrap_err().to_string(),
                 "couldn't parse spec: unknown mangling kind in spec: ?"
+            );
+        }
+
+        {
+            let dl = "Fi64".parse::<DataLayout>().unwrap();
+
+            assert_eq!(
+                dl.function_pointer_alignment,
+                Some(FunctionPointerAlign::Independent {
+                    abi_alignment: Align::ALIGN64
+                })
+            );
+        }
+
+        {
+            let dl = "Fn8".parse::<DataLayout>().unwrap();
+
+            assert_eq!(
+                dl.function_pointer_alignment,
+                Some(FunctionPointerAlign::Dependent {
+                    abi_alignment: Align::ALIGN8
+                })
+            );
+        }
+
+        {
+            assert_eq!(
+                "F".parse::<DataLayout>().unwrap_err().to_string(),
+                "couldn't parse spec: function pointer alignment spec is empty"
+            );
+
+            assert_eq!(
+                "Fn".parse::<DataLayout>().unwrap_err().to_string(),
+                "couldn't parse spec field"
+            );
+
+            assert_eq!(
+                "Fn123".parse::<DataLayout>().unwrap_err().to_string(),
+                "bad alignment value"
+            );
+
+            assert_eq!(
+                "F?64".parse::<DataLayout>().unwrap_err().to_string(),
+                "couldn't parse spec: unknown function pointer alignment specifier: ?"
             );
         }
     }
