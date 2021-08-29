@@ -4,6 +4,7 @@
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt::{Debug, Display, Error as FmtError, Formatter, Result as FmtResult};
+use std::str::FromStr;
 
 use paste::paste;
 use thiserror::Error;
@@ -248,7 +249,7 @@ impl AlignedType {
 /// Errors that can occur when constructing a [`TypeAlignSpec`](TypeAlignSpec)
 /// or [`PointerAlignSpec`](PointerAlignSpec).
 #[derive(Debug, Error)]
-pub enum AlignElemError {
+pub enum AlignSpecError {
     /// The underlying type being specified has a bad width.
     #[error("impossible bit width for underlying aligned type")]
     BadTypeWidth(#[from] AlignedTypeWidthError),
@@ -261,12 +262,19 @@ pub enum AlignElemError {
         TypeAlignSpec::MAX_ALIGN
     )]
     AbiAlignTooLarge(Align),
+    /// We're parsing this alignment spec from a string, and it's malformed in some way.
+    #[error("error while parsing alignment spec: {0}")]
+    Parse(String),
+    /// We're parsing this alignment spec from a string, and one of its inner alignments
+    /// is malformed in some way./
+    #[error("error while parsing inner alignment in spec")]
+    ParseAlign(#[from] AlignError),
 }
 
 /// Represents an alignable type, along with its ABI-mandated and
 /// preferred alignments (which may differ).
 #[non_exhaustive]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq)]
 pub struct TypeAlignSpec {
     /// The type being aligned.
     pub aligned_type: AlignedType,
@@ -279,6 +287,12 @@ pub struct TypeAlignSpec {
     pub preferred_alignment: Align,
 }
 
+impl PartialEq for TypeAlignSpec {
+    fn eq(&self, other: &Self) -> bool {
+        self.aligned_type == other.aligned_type
+    }
+}
+
 impl PartialOrd for TypeAlignSpec {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.aligned_type.cmp(&other.aligned_type))
@@ -288,6 +302,81 @@ impl PartialOrd for TypeAlignSpec {
 impl Ord for TypeAlignSpec {
     fn cmp(&self, other: &Self) -> Ordering {
         self.aligned_type.cmp(&other.aligned_type)
+    }
+}
+
+impl FromStr for TypeAlignSpec {
+    type Err = AlignSpecError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        if value.is_empty() {
+            return Err(AlignSpecError::Parse(
+                "cannot parse from an empty string".into(),
+            ));
+        }
+
+        // Unwrap safety: we check for a nonempty string above.
+        #[allow(clippy::unwrap_used)]
+        let id = value.chars().next().unwrap();
+        let parts: Vec<&str> = value[1..].split(':').collect();
+
+        match id {
+            // `a` marks an aggregate, and is a special parsing case since it
+            // doesn't include a bit size.
+            'a' => {
+                if parts.len() != 2 {
+                    return Err(AlignSpecError::Parse(format!(
+                        "wrong number of aggregate alignment parameters: expected 2, got {}",
+                        parts.len()
+                    )));
+                }
+                let abi = parts[0]
+                    .parse::<u64>()
+                    .map_err(|e| AlignSpecError::Parse(e.to_string()))
+                    .and_then(|a| Align::from_bit_align(a).map_err(Into::into))?;
+
+                let pref = parts[1]
+                    .parse::<u64>()
+                    .map_err(|e| AlignSpecError::Parse(e.to_string()))
+                    .and_then(|a| Align::from_bit_align(a).map_err(Into::into))?;
+
+                TypeAlignSpec::new(AlignedType::Aggregate, abi, pref)
+            }
+            // All other cases take three parameters.
+            id => {
+                if parts.len() != 3 {
+                    return Err(AlignSpecError::Parse(format!(
+                        "wrong number of alignment parameters for spec '{}': expected 2, got {}",
+                        id,
+                        parts.len()
+                    )));
+                }
+
+                // TODO(ww): Ugly.
+                let bitsize = parts[0]
+                    .parse::<u32>()
+                    .map_err(|e| AlignSpecError::Parse(e.to_string()))
+                    .and_then(|bs| AlignedTypeWidth::try_from(bs).map_err(Into::into))?;
+                let abi = parts[1]
+                    .parse::<u64>()
+                    .map_err(|e| AlignSpecError::Parse(e.to_string()))
+                    .and_then(|a| Align::from_bit_align(a).map_err(Into::into))?;
+                let pref = parts[2]
+                    .parse::<u64>()
+                    .map_err(|e| AlignSpecError::Parse(e.to_string()))
+                    .and_then(|a| Align::from_bit_align(a).map_err(Into::into))?;
+
+                match id {
+                    'i' => TypeAlignSpec::new(AlignedType::Integer(bitsize), abi, pref),
+                    'v' => TypeAlignSpec::new(AlignedType::Vector(bitsize), abi, pref),
+                    'f' => TypeAlignSpec::new(AlignedType::Float(bitsize), abi, pref),
+                    o => Err(AlignSpecError::Parse(format!(
+                        "unknown type for align spec: {}",
+                        o
+                    ))),
+                }
+            }
+        }
     }
 }
 
@@ -304,9 +393,9 @@ impl TypeAlignSpec {
 
     /// Create a new `TypeAlignSpec` for the given `AlignedType` and alignment
     /// constraints.
-    pub fn new(aligned_type: AlignedType, abi: Align, pref: Align) -> Result<Self, AlignElemError> {
+    pub fn new(aligned_type: AlignedType, abi: Align, pref: Align) -> Result<Self, AlignSpecError> {
         if pref < abi {
-            return Err(AlignElemError::AlignPref(pref, abi));
+            return Err(AlignSpecError::AlignPref(pref, abi));
         }
 
         match ((abi <= Self::MAX_ALIGN), (pref <= Self::MAX_ALIGN)) {
@@ -319,7 +408,7 @@ impl TypeAlignSpec {
             // being too large here, since it's precluded by our `pref > abi` check
             // above: `pref > MAX_ALIGN && pref >= abi` implies `abi >= MAX_ALIGN`,
             // so our ABI value is always erroneous.
-            (_, _) => Err(AlignElemError::AbiAlignTooLarge(abi)),
+            (_, _) => Err(AlignSpecError::AbiAlignTooLarge(abi)),
         }
     }
 }
@@ -347,6 +436,36 @@ impl Default for TypeAlignSpecs {
             TypeAlignSpec::new(AlignedType::INTEGER32, Align::ALIGN32, Align::ALIGN32).unwrap(),
             TypeAlignSpec::new(AlignedType::INTEGER64, Align::ALIGN64, Align::ALIGN64).unwrap(),
         ])
+    }
+}
+
+impl TypeAlignSpecs {
+    /// Update this list of type specifications by inserting the given specification
+    /// at the correct location, **or** rewriting an already present specification.
+    pub fn update(&mut self, spec: TypeAlignSpec) {
+        // Find the position of the rightmost spec that's less than or equal to
+        // the spec that we're inserting.
+        let pos = self.0.iter().rposition(|&other| other <= spec);
+        match pos {
+            // If we have a match, then we need to either insert or update
+            // depending on whether our match is the same spec as us.
+            // Panic safety: `pos` is a valid index returned above.
+            Some(pos) => match self.0[pos] == spec {
+                true => {
+                    // Unwrap safety: `pos` is a valid index returned above.
+                    #[allow(clippy::unwrap_used)]
+                    let mut other = self.0.get_mut(pos).unwrap();
+
+                    other.abi_alignment = spec.abi_alignment;
+                    other.preferred_alignment = spec.preferred_alignment;
+                }
+                false => {
+                    self.0.insert(pos + 1, spec);
+                }
+            },
+            // If we don't have a match, then we're the smallest. Insert at the front.
+            None => self.0.insert(0, spec),
+        }
     }
 }
 
@@ -437,9 +556,9 @@ impl PointerAlignSpec {
         preferred_alignment: Align,
         pointer_size: u64,
         index_size: u64,
-    ) -> Result<Self, AlignElemError> {
+    ) -> Result<Self, AlignSpecError> {
         if preferred_alignment < abi_alignment {
-            return Err(AlignElemError::AlignPref(
+            return Err(AlignSpecError::AlignPref(
                 preferred_alignment,
                 abi_alignment,
             ));
@@ -632,7 +751,7 @@ mod tests {
     }
 
     #[test]
-    fn test_type_align_elem() {
+    fn test_type_align_spec() {
         // Normal cases.
         assert!(TypeAlignSpec::new(
             AlignedType::Integer(AlignedTypeWidth(64)),
@@ -685,12 +804,138 @@ mod tests {
     }
 
     #[test]
+    fn test_type_align_spec_equality() {
+        // Two "different" specs with the same type (+ width) compare as equal.
+        let spec1 =
+            TypeAlignSpec::new(AlignedType::INTEGER8, Align::ALIGN16, Align::ALIGN16).unwrap();
+
+        let spec2 =
+            TypeAlignSpec::new(AlignedType::INTEGER8, Align::ALIGN16, Align::ALIGN32).unwrap();
+
+        assert_eq!(spec1, spec2);
+    }
+
+    #[test]
     fn test_type_align_specs_default_sorted() {
         let specs1 = TypeAlignSpecs::default();
         let mut specs2 = TypeAlignSpecs::default();
         specs2.0.sort();
 
         assert_eq!(specs1, specs2);
+    }
+
+    #[test]
+    fn test_type_align_specs_update() {
+        {
+            // Trivial insertion works.
+            let mut specs = TypeAlignSpecs(vec![]);
+            specs.update(
+                TypeAlignSpec::new(AlignedType::INTEGER8, Align::ALIGN16, Align::ALIGN16).unwrap(),
+            );
+
+            assert_eq!(specs.0.len(), 1);
+        }
+
+        {
+            // Trivial updating works.
+            let mut specs = TypeAlignSpecs(vec![]);
+            specs.update(
+                TypeAlignSpec::new(AlignedType::INTEGER8, Align::ALIGN16, Align::ALIGN16).unwrap(),
+            );
+            specs.update(
+                TypeAlignSpec::new(AlignedType::INTEGER8, Align::ALIGN16, Align::ALIGN32).unwrap(),
+            );
+
+            assert_eq!(specs.0.len(), 1);
+        }
+
+        {
+            // Ordered insertion (append) works.
+            let mut specs = TypeAlignSpecs(vec![]);
+            specs.update(
+                TypeAlignSpec::new(AlignedType::Aggregate, Align::ALIGN64, Align::ALIGN64).unwrap(),
+            );
+            specs.update(
+                TypeAlignSpec::new(AlignedType::INTEGER8, Align::ALIGN16, Align::ALIGN16).unwrap(),
+            );
+
+            let copy = {
+                let mut copy = specs.0.clone();
+                copy.sort();
+                TypeAlignSpecs(copy)
+            };
+
+            assert_eq!(specs.0.len(), 2);
+            assert_eq!(specs, copy);
+        }
+
+        {
+            // Ordered insertion (prepend) works.
+            let mut specs = TypeAlignSpecs(vec![]);
+            specs.update(
+                TypeAlignSpec::new(AlignedType::INTEGER8, Align::ALIGN16, Align::ALIGN16).unwrap(),
+            );
+            specs.update(
+                TypeAlignSpec::new(AlignedType::Aggregate, Align::ALIGN64, Align::ALIGN64).unwrap(),
+            );
+
+            let copy = {
+                let mut copy = specs.0.clone();
+                copy.sort();
+                TypeAlignSpecs(copy)
+            };
+
+            assert_eq!(specs.0.len(), 2);
+            assert_eq!(specs, copy);
+        }
+
+        {
+            // Ordered insertion (in the middle) works.
+            let mut specs = TypeAlignSpecs(vec![]);
+            specs.update(
+                TypeAlignSpec::new(AlignedType::INTEGER8, Align::ALIGN16, Align::ALIGN16).unwrap(),
+            );
+            specs.update(
+                TypeAlignSpec::new(AlignedType::Aggregate, Align::ALIGN64, Align::ALIGN64).unwrap(),
+            );
+            specs.update(
+                TypeAlignSpec::new(AlignedType::FLOAT16, Align::ALIGN16, Align::ALIGN16).unwrap(),
+            );
+
+            let copy = {
+                let mut copy = specs.0.clone();
+                copy.sort();
+                TypeAlignSpecs(copy)
+            };
+
+            assert_eq!(specs.0.len(), 3);
+            assert_eq!(specs, copy);
+        }
+    }
+
+    #[test]
+    fn test_type_align_spec_parse() {
+        {
+            let spec = "i64:64:64".parse::<TypeAlignSpec>().unwrap();
+
+            assert_eq!(
+                spec.aligned_type,
+                AlignedType::Integer(AlignedTypeWidth::WIDTH64)
+            );
+            assert_eq!(spec.abi_alignment, Align::ALIGN64);
+            assert_eq!(spec.preferred_alignment, Align::ALIGN64);
+        }
+
+        {
+            let spec = "i32:32:64".parse::<TypeAlignSpec>().unwrap();
+
+            assert_eq!(
+                spec.aligned_type,
+                AlignedType::Integer(AlignedTypeWidth::WIDTH32)
+            );
+            assert_eq!(spec.abi_alignment, Align::ALIGN32);
+            assert_eq!(spec.preferred_alignment, Align::ALIGN64);
+        }
     }
 
     #[test]
