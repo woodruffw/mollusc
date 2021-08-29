@@ -29,7 +29,7 @@ pub enum AlignError {
 pub struct Align(u8);
 
 impl Debug for Align {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), FmtError> {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), FmtError> {
         f.debug_struct("Align")
             .field("byte_align", &self.byte_align())
             .finish()
@@ -37,7 +37,7 @@ impl Debug for Align {
 }
 
 impl Display for Align {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         write!(f, "{}", self.byte_align())
     }
 }
@@ -245,7 +245,8 @@ impl AlignedType {
     make_const_aligned!(Integer, 64);
 }
 
-/// Errors that can occur when constructing a [`TypeAlignSpec`](TypeAlignSpec).
+/// Errors that can occur when constructing a [`TypeAlignSpec`](TypeAlignSpec)
+/// or [`PointerAlignSpec`](PointerAlignSpec).
 #[derive(Debug, Error)]
 pub enum AlignElemError {
     /// The underlying type being specified has a bad width.
@@ -367,16 +368,19 @@ impl Default for AddressSpace {
     }
 }
 
+impl TryFrom<u32> for AddressSpace {
+    type Error = AddressSpaceError;
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value <= AddressSpace::MAX {
+            true => Ok(AddressSpace(value)),
+            false => Err(AddressSpaceError::TooBig(value)),
+        }
+    }
+}
+
 impl AddressSpace {
     /// The maximum address space identifier.
     pub const MAX: u32 = (1 << 23) - 1;
-
-    pub fn new(address_space: u32) -> Result<Self, AddressSpaceError> {
-        match address_space <= AddressSpace::MAX {
-            true => Ok(Self(address_space)),
-            false => Err(AddressSpaceError::TooBig(address_space)),
-        }
-    }
 }
 
 /// Represents a pointer width (in bits), along with its ABI-mandated and
@@ -691,11 +695,11 @@ mod tests {
 
     #[test]
     fn test_address_space() {
-        assert!(AddressSpace::new(0).is_ok());
-        assert!(AddressSpace::new(1).is_ok());
-        assert!(AddressSpace::new(AddressSpace::MAX).is_ok());
+        assert!(AddressSpace::try_from(0).is_ok());
+        assert!(AddressSpace::try_from(1).is_ok());
+        assert!(AddressSpace::try_from(AddressSpace::MAX).is_ok());
 
-        assert!(AddressSpace::new(AddressSpace::MAX + 1).is_err());
+        assert!(AddressSpace::try_from(AddressSpace::MAX + 1).is_err());
     }
 
     #[test]

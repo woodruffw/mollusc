@@ -14,7 +14,7 @@ pub use align::*;
 ///
 /// For an inexact endianness model (i.e., one that supports a notion of "system" endianness),
 /// see [`InexactEndian`](InexactEndian)
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Endian {
     /// Little-endian.
     Little,
@@ -46,14 +46,4 @@ pub enum Mangling {
     WindowsCoff,
     /// XCOFF-style mangling.
     XCoff,
-}
-
-/// A newtype for address space values.
-#[derive(Debug)]
-pub struct AddressSpace(u32);
-
-impl Default for AddressSpace {
-    fn default() -> Self {
-        Self(0)
-    }
 }
