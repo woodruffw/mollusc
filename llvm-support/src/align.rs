@@ -5,6 +5,7 @@ use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt::{Debug, Display, Error as FmtError, Formatter, Result as FmtResult};
 
+use paste::paste;
 use thiserror::Error;
 
 /// Errors that can occur when constructing an [`Align`](Align)
@@ -41,24 +42,24 @@ impl Display for Align {
     }
 }
 
+macro_rules! make_const_align {
+    ($align:literal, $shift:literal) => {
+        paste! {
+            /// A convenience handle for types of exactly $width bits.
+            pub const [< ALIGN $align >]: Align = Align($shift);
+        }
+    };
+}
+
 impl Align {
-    /// A convenience handle for 1-byte alignments.
-    pub const ALIGN1: Align = Align(0);
-
-    /// A convenience handle for 2-byte alignments.
-    pub const ALIGN2: Align = Align(1);
-
-    /// A convenience handle for 4-byte alignments.
-    pub const ALIGN4: Align = Align(2);
-
-    /// A convenience handle for 8-byte alignments.
-    pub const ALIGN8: Align = Align(3);
-
-    /// A convenience handle for 16-byte alignments.
-    pub const ALIGN16: Align = Align(4);
-
     /// The maximum alignment shift representable with this type.
     pub const MAX_SHIFT: u8 = 63;
+
+    make_const_align!(8, 0);
+    make_const_align!(16, 1);
+    make_const_align!(32, 2);
+    make_const_align!(64, 3);
+    make_const_align!(128, 4);
 
     /// Returns whether `value` is a power of two, for `value > 0`.
     #[inline(always)]
@@ -136,9 +137,26 @@ pub enum AlignedTypeWidthError {
 #[derive(Debug, Copy, Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub struct AlignedTypeWidth(u32);
 
+macro_rules! make_const_width {
+    ($width:literal) => {
+        paste! {
+            /// A convenience handle for types of exactly $width bits.
+            pub const [< WIDTH $width >]: AlignedTypeWidth = AlignedTypeWidth($width);
+        }
+    };
+}
+
 impl AlignedTypeWidth {
     /// The maximum type width, in bits, representable in this structure.
     pub const MAX: u32 = (1 << 23) - 1;
+
+    // Common infallible widths, for convenience.
+    make_const_width!(1);
+    make_const_width!(8);
+    make_const_width!(16);
+    make_const_width!(32);
+    make_const_width!(64);
+    make_const_width!(128);
 }
 
 impl TryFrom<u32> for AlignedTypeWidth {
@@ -154,14 +172,14 @@ impl TryFrom<u32> for AlignedTypeWidth {
 /// An enumeration of alignable non-pointer types.
 #[derive(Debug, Eq, PartialEq)]
 pub enum AlignedType {
+    /// Aggregate types.
+    Aggregate,
+    /// Floating point types.
+    Float(AlignedTypeWidth),
     /// Integer types.
     Integer(AlignedTypeWidth),
     /// Vector types.
     Vector(AlignedTypeWidth),
-    /// Floating point types.
-    Float(AlignedTypeWidth),
-    /// Aggregate types.
-    Aggregate,
 }
 
 impl PartialOrd for AlignedType {
@@ -205,6 +223,28 @@ impl Ord for AlignedType {
     }
 }
 
+macro_rules! make_const_aligned {
+    ($name:ident, $width:literal) => {
+        paste! {
+            /// A $width bit $name:lower, subject to some alignment rules.
+            pub const [< $name:upper $width >]: AlignedType = AlignedType::$name(AlignedTypeWidth::[< WIDTH $width >]);
+        }
+    }
+}
+
+impl AlignedType {
+    // Common infallible aligned types, for convenience.
+    make_const_aligned!(Float, 16);
+    make_const_aligned!(Float, 32);
+    make_const_aligned!(Float, 64);
+    make_const_aligned!(Float, 128);
+    make_const_aligned!(Integer, 1);
+    make_const_aligned!(Integer, 8);
+    make_const_aligned!(Integer, 16);
+    make_const_aligned!(Integer, 32);
+    make_const_aligned!(Integer, 64);
+}
+
 /// Errors that can occur when constructing a [`TypeAlignElem`](TypeAlignElem).
 #[derive(Debug, Error)]
 pub enum TypeAlignElemError {
@@ -225,7 +265,7 @@ pub enum TypeAlignElemError {
 /// Represents an alignable type, along with its ABI-mandated and
 /// preferred alignments (which may differ).
 #[non_exhaustive]
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct TypeAlignElem {
     /// The type being aligned.
     pub aligned_type: AlignedType,
@@ -236,6 +276,18 @@ pub struct TypeAlignElem {
     /// NOTE: This **must** be greater than or equal to the ABI alignment.
     /// This invariant is preserved during construction.
     pub preferred_alignment: Align,
+}
+
+impl PartialOrd for TypeAlignElem {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.aligned_type.cmp(&other.aligned_type))
+    }
+}
+
+impl Ord for TypeAlignElem {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.aligned_type.cmp(&other.aligned_type)
+    }
 }
 
 impl TypeAlignElem {
@@ -281,7 +333,23 @@ pub struct TypeAlignElems(Vec<TypeAlignElem>);
 
 impl Default for TypeAlignElems {
     fn default() -> Self {
-        Self(vec![])
+        // NOTE: The default sequence here is sorted.
+        // Unwrap safety: each of these constructions is infallible.
+        // TODO(ww): Use macro_rules! here to make each of these `TypeAlignElem`s
+        // into an infallible constant.
+        #[allow(clippy::unwrap_used)]
+        Self(vec![
+            TypeAlignElem::new(AlignedType::Aggregate, Align::ALIGN64, Align::ALIGN64).unwrap(),
+            TypeAlignElem::new(AlignedType::FLOAT16, Align::ALIGN16, Align::ALIGN16).unwrap(),
+            TypeAlignElem::new(AlignedType::FLOAT32, Align::ALIGN32, Align::ALIGN32).unwrap(),
+            TypeAlignElem::new(AlignedType::FLOAT64, Align::ALIGN64, Align::ALIGN64).unwrap(),
+            TypeAlignElem::new(AlignedType::FLOAT128, Align::ALIGN128, Align::ALIGN128).unwrap(),
+            TypeAlignElem::new(AlignedType::INTEGER1, Align::ALIGN8, Align::ALIGN8).unwrap(),
+            TypeAlignElem::new(AlignedType::INTEGER8, Align::ALIGN8, Align::ALIGN8).unwrap(),
+            TypeAlignElem::new(AlignedType::INTEGER16, Align::ALIGN16, Align::ALIGN16).unwrap(),
+            TypeAlignElem::new(AlignedType::INTEGER32, Align::ALIGN32, Align::ALIGN32).unwrap(),
+            TypeAlignElem::new(AlignedType::INTEGER64, Align::ALIGN64, Align::ALIGN64).unwrap(),
+        ])
     }
 }
 
@@ -306,11 +374,11 @@ mod tests {
 
     #[test]
     fn test_align_constants() {
-        assert_eq!(Align::ALIGN1.byte_align(), 1);
-        assert_eq!(Align::ALIGN2.byte_align(), 2);
-        assert_eq!(Align::ALIGN4.byte_align(), 4);
-        assert_eq!(Align::ALIGN8.byte_align(), 8);
-        assert_eq!(Align::ALIGN16.byte_align(), 16);
+        assert_eq!(Align::ALIGN8.byte_align(), 1);
+        assert_eq!(Align::ALIGN16.byte_align(), 2);
+        assert_eq!(Align::ALIGN32.byte_align(), 4);
+        assert_eq!(Align::ALIGN64.byte_align(), 8);
+        assert_eq!(Align::ALIGN128.byte_align(), 16);
     }
 
     #[test]
@@ -468,26 +536,26 @@ mod tests {
         // Normal cases.
         assert!(TypeAlignElem::new(
             AlignedType::Integer(AlignedTypeWidth(64)),
-            Align::ALIGN8,
-            Align::ALIGN8
+            Align::ALIGN64,
+            Align::ALIGN64
         )
         .is_ok());
         assert!(TypeAlignElem::new(
             AlignedType::Integer(AlignedTypeWidth(64)),
-            Align::ALIGN8,
-            Align::ALIGN16
+            Align::ALIGN64,
+            Align::ALIGN128
         )
         .is_ok());
         assert!(TypeAlignElem::new(
             AlignedType::Float(AlignedTypeWidth(32)),
-            Align::ALIGN4,
-            Align::ALIGN4
+            Align::ALIGN32,
+            Align::ALIGN32
         )
         .is_ok());
         assert!(TypeAlignElem::new(
             AlignedType::Float(AlignedTypeWidth(32)),
-            Align::ALIGN4,
-            Align::ALIGN8
+            Align::ALIGN32,
+            Align::ALIGN64
         )
         .is_ok());
 
