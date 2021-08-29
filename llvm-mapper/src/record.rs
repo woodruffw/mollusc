@@ -31,6 +31,9 @@ pub enum DataLayoutParseError {
     /// We couldn't parse a field as an integer.
     #[error("couldn't parse spec field")]
     BadInt(#[from] ParseIntError),
+    /// We couldn't parse an individual spec, for some reason.
+    #[error("couldn't parse spec: {0}")]
+    BadSpec(String),
 }
 
 /// Models the `MODULE_CODE_DATALAYOUT` record.
@@ -122,7 +125,46 @@ impl FromStr for DataLayout {
                     unimplemented!();
                 }
                 'm' => {
-                    unimplemented!();
+                    // The mangling spec is `m:X`, where `X` is the mangling kind.
+                    // We've already parsed `m`, so we expect exactly two characters.
+                    let mut mangling = body.chars().take(2);
+                    match mangling.next() {
+                        Some(':') => {}
+                        Some(u) => {
+                            return Err(DataLayoutParseError::BadSpec(format!(
+                                "bad separator for mangling spec: {}",
+                                u
+                            )))
+                        }
+                        None => {
+                            return Err(DataLayoutParseError::BadSpec(
+                                "mangling spec is empty".into(),
+                            ))
+                        }
+                    }
+
+                    // TODO(ww): This could be FromStr on Mangling.
+                    let kind = match mangling.next() {
+                        None => {
+                            return Err(DataLayoutParseError::BadSpec(
+                                "mangling spec has no mangling kind".into(),
+                            ))
+                        }
+                        Some('e') => Mangling::Elf,
+                        Some('m') => Mangling::Mips,
+                        Some('o') => Mangling::Macho,
+                        Some('x') => Mangling::WindowsX86Coff,
+                        Some('w') => Mangling::WindowsCoff,
+                        Some('a') => Mangling::XCoff,
+                        Some(u) => {
+                            return Err(DataLayoutParseError::BadSpec(format!(
+                                "unknown mangling kind in spec: {}",
+                                u
+                            )))
+                        }
+                    };
+
+                    datalayout.mangling = Some(kind);
                 }
                 'n' => {
                     unimplemented!();
@@ -141,6 +183,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_datalayout_has_defaults() {
+        let dl = DataLayout::default();
+
+        assert_eq!(dl.type_alignments, TypeAlignSpecs::default());
+        assert_eq!(dl.pointer_alignments, PointerAlignSpecs::default());
+    }
+
+    #[test]
     fn test_datalayout_parses() {
         {
             assert_eq!(
@@ -150,9 +200,7 @@ mod tests {
                     .to_string(),
                 "non-ASCII characters in datalayout string"
             );
-        }
 
-        {
             assert_eq!(
                 "z".parse::<DataLayout>().unwrap_err().to_string(),
                 "unknown datalayout specification: z"
@@ -164,6 +212,7 @@ mod tests {
 
             assert_eq!(dl.endianness, Endian::Big);
             assert_eq!(dl.natural_stack_alignment.unwrap().byte_align(), 8);
+            assert!(dl.mangling.is_none());
         }
 
         {
@@ -171,6 +220,29 @@ mod tests {
 
             assert_eq!(dl.endianness, Endian::Little);
             assert_eq!(dl.natural_stack_alignment.unwrap().byte_align(), 4);
+        }
+
+        {
+            let dl = "m:e".parse::<DataLayout>().unwrap();
+
+            assert_eq!(dl.mangling, Some(Mangling::Elf));
+        }
+
+        {
+            assert_eq!(
+                "m".parse::<DataLayout>().unwrap_err().to_string(),
+                "couldn't parse spec: mangling spec is empty"
+            );
+
+            assert_eq!(
+                "m:".parse::<DataLayout>().unwrap_err().to_string(),
+                "couldn't parse spec: mangling spec has no mangling kind"
+            );
+
+            assert_eq!(
+                "m:?".parse::<DataLayout>().unwrap_err().to_string(),
+                "couldn't parse spec: unknown mangling kind in spec: ?"
+            );
         }
     }
 }
