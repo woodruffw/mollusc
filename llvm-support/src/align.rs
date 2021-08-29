@@ -170,7 +170,7 @@ impl TryFrom<u32> for AlignedTypeWidth {
 }
 
 /// An enumeration of alignable non-pointer types.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum AlignedType {
     /// Aggregate types.
     Aggregate,
@@ -247,7 +247,7 @@ impl AlignedType {
 
 /// Errors that can occur when constructing a [`TypeAlignElem`](TypeAlignElem).
 #[derive(Debug, Error)]
-pub enum TypeAlignElemError {
+pub enum AlignElemError {
     /// The underlying type being specified has a bad width.
     #[error("impossible bit width for underlying aligned type")]
     BadTypeWidth(#[from] AlignedTypeWidthError),
@@ -265,7 +265,7 @@ pub enum TypeAlignElemError {
 /// Represents an alignable type, along with its ABI-mandated and
 /// preferred alignments (which may differ).
 #[non_exhaustive]
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct TypeAlignElem {
     /// The type being aligned.
     pub aligned_type: AlignedType,
@@ -303,13 +303,9 @@ impl TypeAlignElem {
 
     /// Create a new `TypeAlignElem` for the given `AlignedType` and alignment
     /// constraints.
-    pub fn new(
-        aligned_type: AlignedType,
-        abi: Align,
-        pref: Align,
-    ) -> Result<Self, TypeAlignElemError> {
+    pub fn new(aligned_type: AlignedType, abi: Align, pref: Align) -> Result<Self, AlignElemError> {
         if pref < abi {
-            return Err(TypeAlignElemError::AlignPref(pref, abi));
+            return Err(AlignElemError::AlignPref(pref, abi));
         }
 
         match ((abi <= Self::MAX_ALIGN), (pref <= Self::MAX_ALIGN)) {
@@ -322,13 +318,13 @@ impl TypeAlignElem {
             // being too large here, since it's precluded by our `pref > abi` check
             // above: `pref > MAX_ALIGN && pref >= abi` implies `abi >= MAX_ALIGN`,
             // so our ABI value is always erroneous.
-            (_, _) => Err(TypeAlignElemError::AbiAlignTooLarge(abi)),
+            (_, _) => Err(AlignElemError::AbiAlignTooLarge(abi)),
         }
     }
 }
 
 /// Represents a sorted collection of [`TypeAlignElem`](TypeAlignElem)s.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct TypeAlignElems(Vec<TypeAlignElem>);
 
 impl Default for TypeAlignElems {
@@ -353,10 +349,110 @@ impl Default for TypeAlignElems {
     }
 }
 
+/// Errors that can occur when constructing an [`AddressSpace`](AddressSpace)
+#[derive(Debug, Error)]
+pub enum AddressSpaceError {
+    /// The requested address space identifier exceeds our support.
+    #[error("address space identifier is too large ({0} > {})", AddressSpace::MAX)]
+    TooBig(u32),
+}
+
+/// An invariant-preserving newtype for representing the address space of a pointer type.
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub struct AddressSpace(u32);
+
+impl Default for AddressSpace {
+    fn default() -> Self {
+        Self(0)
+    }
+}
+
+impl AddressSpace {
+    /// The maximum address space identifier.
+    pub const MAX: u32 = (1 << 23) - 1;
+
+    fn new(address_space: u32) -> Result<Self, AddressSpaceError> {
+        match address_space <= AddressSpace::MAX {
+            true => Ok(Self(address_space)),
+            false => Err(AddressSpaceError::TooBig(address_space)),
+        }
+    }
+}
+
 /// Represents a pointer width (in bits), along with its ABI-mandated and
 /// preferred alignments (which may differ).
-#[derive(Debug)]
-pub struct PointerAlignElem {}
+#[non_exhaustive]
+#[derive(Debug, Eq, PartialEq)]
+pub struct PointerAlignElem {
+    /// The address space that this pointer specification is valid in.
+    pub address_space: AddressSpace,
+    /// The ABI-enforced alignment for this pointer.
+    pub abi_alignment: Align,
+    /// The preferred alignment for this pointer.
+    ///
+    /// Like [`TypeAlignElem`](TypeAlignElem), this is enforced by construction
+    /// to be no less than the ABI-enforced alignment.
+    pub preferred_alignment: Align,
+    /// The size of this pointer type, in bits.
+    pub pointer_size: u64,
+    /// The size of indexing operations with this pointer type, in bits.
+    pub index_size: u64,
+}
+
+impl PartialOrd for PointerAlignElem {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.address_space.cmp(&other.address_space))
+    }
+}
+
+impl Ord for PointerAlignElem {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.address_space.cmp(&other.address_space)
+    }
+}
+
+// There's only one default pointer type in LLVM datalayout specifications, so
+// this is fine.
+impl Default for PointerAlignElem {
+    fn default() -> Self {
+        Self {
+            address_space: AddressSpace::default(),
+            abi_alignment: Align::ALIGN64,
+            preferred_alignment: Align::ALIGN64,
+            pointer_size: 64,
+            index_size: 64,
+        }
+    }
+}
+
+impl PointerAlignElem {
+    /// Create a new `PointerAlignElem`.
+    pub fn new(
+        address_space: AddressSpace,
+        abi_alignment: Align,
+        preferred_alignment: Align,
+        pointer_size: u64,
+        index_size: u64,
+    ) -> Result<Self, AlignElemError> {
+        if preferred_alignment < abi_alignment {
+            return Err(AlignElemError::AlignPref(
+                preferred_alignment,
+                abi_alignment,
+            ));
+        }
+
+        // LLVM doesn't put any constraints on the maximum alignment for pointers
+        // the way it does for other types.
+
+        Ok(Self {
+            address_space,
+            abi_alignment,
+            preferred_alignment,
+            pointer_size,
+            index_size,
+        })
+    }
+}
 
 /// Represents a sorted collection of [`PointerAlignElem`](PointerAlignElem)s.
 #[derive(Debug)]
@@ -364,7 +460,7 @@ pub struct PointerAlignElems(Vec<PointerAlignElem>);
 
 impl Default for PointerAlignElems {
     fn default() -> Self {
-        Self(vec![])
+        Self(vec![PointerAlignElem::default()])
     }
 }
 
@@ -582,5 +678,30 @@ mod tests {
             .to_string(),
             "impossible ABI alignment for type: 65536 > 32768"
         );
+    }
+
+    #[test]
+    fn test_type_align_elems_default_sorted() {
+        let elems1 = TypeAlignElems::default();
+        let mut elems2 = TypeAlignElems::default();
+        elems2.0.sort();
+
+        assert_eq!(elems1, elems2);
+    }
+
+    #[test]
+    fn test_address_space() {
+        assert!(AddressSpace::new(0).is_ok());
+        assert!(AddressSpace::new(1).is_ok());
+        assert!(AddressSpace::new(AddressSpace::MAX).is_ok());
+
+        assert!(AddressSpace::new(AddressSpace::MAX + 1).is_err());
+    }
+
+    #[test]
+    fn test_address_space_ordering() {
+        assert!(AddressSpace(0) < AddressSpace(1));
+        assert!(AddressSpace(0) <= AddressSpace(1));
+        assert!(AddressSpace(0) == AddressSpace(0));
     }
 }
