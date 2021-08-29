@@ -1,7 +1,8 @@
 //! Structures for mapping from bitstream records to LLVM models.
 
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryInto;
 use std::num::ParseIntError;
+use std::str::FromStr;
 
 use llvm_support::{
     AddressSpace, AddressSpaceError, Align, AlignError, Endian, Mangling, PointerAlignSpecs,
@@ -11,7 +12,7 @@ use thiserror::Error;
 
 /// Potential errors when parsing an LLVM datalayout string.
 #[derive(Debug, Error)]
-pub enum DataLayoutError {
+pub enum DataLayoutParseError {
     /// The specified alignment is invalid.
     #[error("bad alignment value")]
     BadAlign(#[from] AlignError),
@@ -68,19 +69,18 @@ impl Default for DataLayout {
     }
 }
 
-// TODO(ww): This should be FromStr, not TryFrom.
-impl TryFrom<String> for DataLayout {
-    type Error = DataLayoutError;
+impl FromStr for DataLayout {
+    type Err = DataLayoutParseError;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         if !value.is_ascii() {
-            return Err(DataLayoutError::BadEncoding);
+            return Err(DataLayoutParseError::BadEncoding);
         }
 
         let mut datalayout = Self::default();
         for spec in value.split('-') {
             if spec.is_empty() {
-                return Err(DataLayoutError::EmptySpec);
+                return Err(DataLayoutParseError::EmptySpec);
             }
 
             let body = &spec[1..];
@@ -106,16 +106,29 @@ impl TryFrom<String> for DataLayout {
                 'p' => {
                     unimplemented!();
                 }
-                'i' => {}
-                'v' => {}
-                'f' => {}
-                'a' => {}
-                'F' => {}
-                'm' => {}
+                'i' => {
+                    unimplemented!();
+                }
+                'v' => {
+                    unimplemented!();
+                }
+                'f' => {
+                    unimplemented!();
+                }
+                'a' => {
+                    unimplemented!();
+                }
+                'F' => {
+                    unimplemented!();
+                }
+                'm' => {
+                    unimplemented!();
+                }
                 'n' => {
+                    unimplemented!();
                     // TODO: 'ni'
                 }
-                u => return Err(DataLayoutError::UnknownSpec(u)),
+                u => return Err(DataLayoutParseError::UnknownSpec(u)),
             }
         }
 
@@ -130,14 +143,31 @@ mod tests {
     #[test]
     fn test_datalayout_parses() {
         {
-            let dl = DataLayout::try_from("E-S64".to_string()).unwrap();
+            assert_eq!(
+                "not ascii ¬∫˙˚√∂∆˙√ß"
+                    .parse::<DataLayout>()
+                    .unwrap_err()
+                    .to_string(),
+                "non-ASCII characters in datalayout string"
+            );
+        }
+
+        {
+            assert_eq!(
+                "z".parse::<DataLayout>().unwrap_err().to_string(),
+                "unknown datalayout specification: z"
+            );
+        }
+
+        {
+            let dl = "E-S64".parse::<DataLayout>().unwrap();
 
             assert_eq!(dl.endianness, Endian::Big);
             assert_eq!(dl.natural_stack_alignment.unwrap().byte_align(), 8);
         }
 
         {
-            let dl = DataLayout::try_from("e-S32".to_string()).unwrap();
+            let dl = "e-S32".parse::<DataLayout>().unwrap();
 
             assert_eq!(dl.endianness, Endian::Little);
             assert_eq!(dl.natural_stack_alignment.unwrap().byte_align(), 4);
