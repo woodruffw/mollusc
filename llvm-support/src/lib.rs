@@ -32,7 +32,7 @@ pub enum InexactEndian {
 }
 
 /// Symbol mangling styles supported by LLVM.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Mangling {
     /// ELF-style mangling.
     Elf,

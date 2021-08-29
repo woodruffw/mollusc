@@ -459,7 +459,7 @@ impl PointerAlignSpec {
 }
 
 /// Represents a sorted collection of [`PointerAlignSpec`](PointerAlignSpec)s.
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct PointerAlignSpecs(Vec<PointerAlignSpec>);
 
 impl Default for PointerAlignSpecs {
