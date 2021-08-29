@@ -440,7 +440,7 @@ impl Default for TypeAlignSpecs {
 }
 
 impl TypeAlignSpecs {
-    /// Update this list of type specifications by inserting the given specification
+    /// Update this list of type alignment specifications by inserting the given specification
     /// at the correct location, **or** rewriting an already present specification.
     pub fn update(&mut self, spec: TypeAlignSpec) {
         // Find the position of the rightmost spec that's less than or equal to
@@ -478,7 +478,7 @@ pub enum AddressSpaceError {
 }
 
 /// An invariant-preserving newtype for representing the address space of a pointer type.
-#[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct AddressSpace(u32);
 
 impl Default for AddressSpace {
@@ -505,7 +505,7 @@ impl AddressSpace {
 /// Represents a pointer width (in bits), along with its ABI-mandated and
 /// preferred alignments (which may differ).
 #[non_exhaustive]
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct PointerAlignSpec {
     /// The address space that this pointer specification is valid in.
     pub address_space: AddressSpace,
@@ -548,6 +548,14 @@ impl Default for PointerAlignSpec {
     }
 }
 
+impl FromStr for PointerAlignSpec {
+    type Err = AlignSpecError;
+
+    fn from_str(_value: &str) -> Result<Self, Self::Err> {
+        unimplemented!();
+    }
+}
+
 impl PointerAlignSpec {
     /// Create a new `PointerAlignSpec`.
     pub fn new(
@@ -577,6 +585,24 @@ impl PointerAlignSpec {
     }
 }
 
+/// A model for function pointer alignment behavior.
+#[derive(Debug, PartialEq)]
+pub enum FunctionPointerAlign {
+    /// The alignment of function pointers is independent of the alignment
+    /// of functions, and is a multiple of the associated ABI alignment.
+    Independent {
+        /// The ABI-mandated alignment for function pointers.
+        abi_alignment: Align,
+    },
+    /// The alignment of function pointers is a multiple of the explicit
+    /// alignment specified on the function, **and** is a multiple of the
+    /// associated ABI alignment.
+    Dependent {
+        /// The ABI-mandated alignment for function pointers.
+        abi_alignment: Align,
+    },
+}
+
 /// Represents a sorted collection of [`PointerAlignSpec`](PointerAlignSpec)s.
 #[derive(Debug, Eq, PartialEq)]
 pub struct PointerAlignSpecs(Vec<PointerAlignSpec>);
@@ -584,6 +610,36 @@ pub struct PointerAlignSpecs(Vec<PointerAlignSpec>);
 impl Default for PointerAlignSpecs {
     fn default() -> Self {
         Self(vec![PointerAlignSpec::default()])
+    }
+}
+
+impl PointerAlignSpecs {
+    /// Update this list of pointer alignment specifications by inserting the given specification
+    /// at the correct location, **or** rewriting an already present specification.
+    pub fn update(&mut self, spec: PointerAlignSpec) {
+        // Find the position of the rightmost spec that's less than or equal to
+        // the spec that we're inserting.
+        let pos = self.0.iter().rposition(|&other| other <= spec);
+        match pos {
+            // If we have a match, then we need to either insert or update
+            // depending on whether our match is the same spec as us.
+            // Panic safety: `pos` is a valid index returned above.
+            Some(pos) => match self.0[pos] == spec {
+                true => {
+                    // Unwrap safety: `pos` is a valid index returned above.
+                    #[allow(clippy::unwrap_used)]
+                    let mut other = self.0.get_mut(pos).unwrap();
+
+                    other.abi_alignment = spec.abi_alignment;
+                    other.preferred_alignment = spec.preferred_alignment;
+                }
+                false => {
+                    self.0.insert(pos + 1, spec);
+                }
+            },
+            // If we don't have a match, then we're the smallest. Insert at the front.
+            None => self.0.insert(0, spec),
+        }
     }
 }
 
