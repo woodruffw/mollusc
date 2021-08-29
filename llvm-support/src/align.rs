@@ -245,7 +245,7 @@ impl AlignedType {
     make_const_aligned!(Integer, 64);
 }
 
-/// Errors that can occur when constructing a [`TypeAlignElem`](TypeAlignElem).
+/// Errors that can occur when constructing a [`TypeAlignSpec`](TypeAlignSpec).
 #[derive(Debug, Error)]
 pub enum AlignElemError {
     /// The underlying type being specified has a bad width.
@@ -257,7 +257,7 @@ pub enum AlignElemError {
     /// The supplied ABI alignment is too large.
     #[error(
         "impossible ABI alignment for type: {0} > {}",
-        TypeAlignElem::MAX_ALIGN
+        TypeAlignSpec::MAX_ALIGN
     )]
     AbiAlignTooLarge(Align),
 }
@@ -266,7 +266,7 @@ pub enum AlignElemError {
 /// preferred alignments (which may differ).
 #[non_exhaustive]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct TypeAlignElem {
+pub struct TypeAlignSpec {
     /// The type being aligned.
     pub aligned_type: AlignedType,
     /// The ABI-enforced alignment for the type.
@@ -278,30 +278,30 @@ pub struct TypeAlignElem {
     pub preferred_alignment: Align,
 }
 
-impl PartialOrd for TypeAlignElem {
+impl PartialOrd for TypeAlignSpec {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.aligned_type.cmp(&other.aligned_type))
     }
 }
 
-impl Ord for TypeAlignElem {
+impl Ord for TypeAlignSpec {
     fn cmp(&self, other: &Self) -> Ordering {
         self.aligned_type.cmp(&other.aligned_type)
     }
 }
 
-impl TypeAlignElem {
+impl TypeAlignSpec {
     /// The maximum type width, in bits, representable in this structure.
     pub const MAX_TYPE_BIT_WIDTH: u32 = (1 << 23) - 1;
 
-    /// The maximum alignment supported by instances of `TypeAlignElem`.
-    // NOTE(ww): On top of the normal alignment invariants, `TypeAlignElem`
+    /// The maximum alignment supported by instances of `TypeAlignSpec`.
+    // NOTE(ww): On top of the normal alignment invariants, `TypeAlignSpec`
     // requires its alignments to be less than 2^16 bits. This is
     // to prevent unforeseen compatibility issues.
     // See: https://reviews.llvm.org/D67400
     pub const MAX_ALIGN: Align = Align(15);
 
-    /// Create a new `TypeAlignElem` for the given `AlignedType` and alignment
+    /// Create a new `TypeAlignSpec` for the given `AlignedType` and alignment
     /// constraints.
     pub fn new(aligned_type: AlignedType, abi: Align, pref: Align) -> Result<Self, AlignElemError> {
         if pref < abi {
@@ -323,28 +323,28 @@ impl TypeAlignElem {
     }
 }
 
-/// Represents a sorted collection of [`TypeAlignElem`](TypeAlignElem)s.
+/// Represents a sorted collection of [`TypeAlignSpec`](TypeAlignSpec)s.
 #[derive(Debug, PartialEq)]
-pub struct TypeAlignElems(Vec<TypeAlignElem>);
+pub struct TypeAlignSpecs(Vec<TypeAlignSpec>);
 
-impl Default for TypeAlignElems {
+impl Default for TypeAlignSpecs {
     fn default() -> Self {
         // NOTE: The default sequence here is sorted.
         // Unwrap safety: each of these constructions is infallible.
-        // TODO(ww): Use macro_rules! here to make each of these `TypeAlignElem`s
+        // TODO(ww): Use macro_rules! here to make each of these `TypeAlignSpec`s
         // into an infallible constant.
         #[allow(clippy::unwrap_used)]
         Self(vec![
-            TypeAlignElem::new(AlignedType::Aggregate, Align::ALIGN64, Align::ALIGN64).unwrap(),
-            TypeAlignElem::new(AlignedType::FLOAT16, Align::ALIGN16, Align::ALIGN16).unwrap(),
-            TypeAlignElem::new(AlignedType::FLOAT32, Align::ALIGN32, Align::ALIGN32).unwrap(),
-            TypeAlignElem::new(AlignedType::FLOAT64, Align::ALIGN64, Align::ALIGN64).unwrap(),
-            TypeAlignElem::new(AlignedType::FLOAT128, Align::ALIGN128, Align::ALIGN128).unwrap(),
-            TypeAlignElem::new(AlignedType::INTEGER1, Align::ALIGN8, Align::ALIGN8).unwrap(),
-            TypeAlignElem::new(AlignedType::INTEGER8, Align::ALIGN8, Align::ALIGN8).unwrap(),
-            TypeAlignElem::new(AlignedType::INTEGER16, Align::ALIGN16, Align::ALIGN16).unwrap(),
-            TypeAlignElem::new(AlignedType::INTEGER32, Align::ALIGN32, Align::ALIGN32).unwrap(),
-            TypeAlignElem::new(AlignedType::INTEGER64, Align::ALIGN64, Align::ALIGN64).unwrap(),
+            TypeAlignSpec::new(AlignedType::Aggregate, Align::ALIGN64, Align::ALIGN64).unwrap(),
+            TypeAlignSpec::new(AlignedType::FLOAT16, Align::ALIGN16, Align::ALIGN16).unwrap(),
+            TypeAlignSpec::new(AlignedType::FLOAT32, Align::ALIGN32, Align::ALIGN32).unwrap(),
+            TypeAlignSpec::new(AlignedType::FLOAT64, Align::ALIGN64, Align::ALIGN64).unwrap(),
+            TypeAlignSpec::new(AlignedType::FLOAT128, Align::ALIGN128, Align::ALIGN128).unwrap(),
+            TypeAlignSpec::new(AlignedType::INTEGER1, Align::ALIGN8, Align::ALIGN8).unwrap(),
+            TypeAlignSpec::new(AlignedType::INTEGER8, Align::ALIGN8, Align::ALIGN8).unwrap(),
+            TypeAlignSpec::new(AlignedType::INTEGER16, Align::ALIGN16, Align::ALIGN16).unwrap(),
+            TypeAlignSpec::new(AlignedType::INTEGER32, Align::ALIGN32, Align::ALIGN32).unwrap(),
+            TypeAlignSpec::new(AlignedType::INTEGER64, Align::ALIGN64, Align::ALIGN64).unwrap(),
         ])
     }
 }
@@ -371,7 +371,7 @@ impl AddressSpace {
     /// The maximum address space identifier.
     pub const MAX: u32 = (1 << 23) - 1;
 
-    fn new(address_space: u32) -> Result<Self, AddressSpaceError> {
+    pub fn new(address_space: u32) -> Result<Self, AddressSpaceError> {
         match address_space <= AddressSpace::MAX {
             true => Ok(Self(address_space)),
             false => Err(AddressSpaceError::TooBig(address_space)),
@@ -383,14 +383,14 @@ impl AddressSpace {
 /// preferred alignments (which may differ).
 #[non_exhaustive]
 #[derive(Debug, Eq, PartialEq)]
-pub struct PointerAlignElem {
+pub struct PointerAlignSpec {
     /// The address space that this pointer specification is valid in.
     pub address_space: AddressSpace,
     /// The ABI-enforced alignment for this pointer.
     pub abi_alignment: Align,
     /// The preferred alignment for this pointer.
     ///
-    /// Like [`TypeAlignElem`](TypeAlignElem), this is enforced by construction
+    /// Like [`TypeAlignSpec`](TypeAlignSpec), this is enforced by construction
     /// to be no less than the ABI-enforced alignment.
     pub preferred_alignment: Align,
     /// The size of this pointer type, in bits.
@@ -399,13 +399,13 @@ pub struct PointerAlignElem {
     pub index_size: u64,
 }
 
-impl PartialOrd for PointerAlignElem {
+impl PartialOrd for PointerAlignSpec {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.address_space.cmp(&other.address_space))
     }
 }
 
-impl Ord for PointerAlignElem {
+impl Ord for PointerAlignSpec {
     fn cmp(&self, other: &Self) -> Ordering {
         self.address_space.cmp(&other.address_space)
     }
@@ -413,7 +413,7 @@ impl Ord for PointerAlignElem {
 
 // There's only one default pointer type in LLVM datalayout specifications, so
 // this is fine.
-impl Default for PointerAlignElem {
+impl Default for PointerAlignSpec {
     fn default() -> Self {
         Self {
             address_space: AddressSpace::default(),
@@ -425,8 +425,8 @@ impl Default for PointerAlignElem {
     }
 }
 
-impl PointerAlignElem {
-    /// Create a new `PointerAlignElem`.
+impl PointerAlignSpec {
+    /// Create a new `PointerAlignSpec`.
     pub fn new(
         address_space: AddressSpace,
         abi_alignment: Align,
@@ -454,13 +454,13 @@ impl PointerAlignElem {
     }
 }
 
-/// Represents a sorted collection of [`PointerAlignElem`](PointerAlignElem)s.
+/// Represents a sorted collection of [`PointerAlignSpec`](PointerAlignSpec)s.
 #[derive(Debug)]
-pub struct PointerAlignElems(Vec<PointerAlignElem>);
+pub struct PointerAlignSpecs(Vec<PointerAlignSpec>);
 
-impl Default for PointerAlignElems {
+impl Default for PointerAlignSpecs {
     fn default() -> Self {
-        Self(vec![PointerAlignElem::default()])
+        Self(vec![PointerAlignSpec::default()])
     }
 }
 
@@ -630,25 +630,25 @@ mod tests {
     #[test]
     fn test_type_align_elem() {
         // Normal cases.
-        assert!(TypeAlignElem::new(
+        assert!(TypeAlignSpec::new(
             AlignedType::Integer(AlignedTypeWidth(64)),
             Align::ALIGN64,
             Align::ALIGN64
         )
         .is_ok());
-        assert!(TypeAlignElem::new(
+        assert!(TypeAlignSpec::new(
             AlignedType::Integer(AlignedTypeWidth(64)),
             Align::ALIGN64,
             Align::ALIGN128
         )
         .is_ok());
-        assert!(TypeAlignElem::new(
+        assert!(TypeAlignSpec::new(
             AlignedType::Float(AlignedTypeWidth(32)),
             Align::ALIGN32,
             Align::ALIGN32
         )
         .is_ok());
-        assert!(TypeAlignElem::new(
+        assert!(TypeAlignSpec::new(
             AlignedType::Float(AlignedTypeWidth(32)),
             Align::ALIGN32,
             Align::ALIGN64
@@ -657,7 +657,7 @@ mod tests {
 
         // Can't create with an undersized preferred alignment.
         assert_eq!(
-            TypeAlignElem::new(
+            TypeAlignSpec::new(
                 AlignedType::Integer(AlignedTypeWidth(8)),
                 Align(2),
                 Align(1)
@@ -669,7 +669,7 @@ mod tests {
 
         // Can't create with an oversized ABI alignment.
         assert_eq!(
-            TypeAlignElem::new(
+            TypeAlignSpec::new(
                 AlignedType::Integer(AlignedTypeWidth(8)),
                 Align(16),
                 Align(16)
@@ -681,12 +681,12 @@ mod tests {
     }
 
     #[test]
-    fn test_type_align_elems_default_sorted() {
-        let elems1 = TypeAlignElems::default();
-        let mut elems2 = TypeAlignElems::default();
-        elems2.0.sort();
+    fn test_type_align_specs_default_sorted() {
+        let specs1 = TypeAlignSpecs::default();
+        let mut specs2 = TypeAlignSpecs::default();
+        specs2.0.sort();
 
-        assert_eq!(elems1, elems2);
+        assert_eq!(specs1, specs2);
     }
 
     #[test]

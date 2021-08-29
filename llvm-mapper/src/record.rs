@@ -3,7 +3,7 @@
 use std::convert::TryFrom;
 
 use llvm_support::{
-    AddressSpace, Align, AlignError, Endian, Mangling, PointerAlignElems, TypeAlignElems,
+    AddressSpace, Align, AlignError, Endian, Mangling, PointerAlignSpecs, TypeAlignSpecs,
 };
 use thiserror::Error;
 
@@ -23,8 +23,8 @@ pub struct DataLayout {
     program_address_space: AddressSpace,
     global_variable_address_space: AddressSpace,
     alloca_address_space: AddressSpace,
-    type_alignments: TypeAlignElems,
-    pointer_alignments: PointerAlignElems,
+    type_alignments: TypeAlignSpecs,
+    pointer_alignments: PointerAlignSpecs,
     aggregate_alignment: Align,
     function_pointer_alignment: Option<Align>,
     mangling: Option<Mangling>,
@@ -41,8 +41,8 @@ impl Default for DataLayout {
             program_address_space: Default::default(),
             global_variable_address_space: Default::default(),
             alloca_address_space: Default::default(),
-            type_alignments: TypeAlignElems::default(),
-            pointer_alignments: PointerAlignElems::default(),
+            type_alignments: TypeAlignSpecs::default(),
+            pointer_alignments: PointerAlignSpecs::default(),
             aggregate_alignment: Align::ALIGN8,
             function_pointer_alignment: None,
             mangling: None,
