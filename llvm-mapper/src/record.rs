@@ -5,8 +5,8 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 
 use llvm_support::{
-    AddressSpace, AddressSpaceError, Align, AlignError, Endian, Mangling, PointerAlignSpecs,
-    TypeAlignSpecs,
+    AddressSpace, AddressSpaceError, Align, AlignError, AlignSpecError, Endian, Mangling,
+    PointerAlignSpecs, TypeAlignSpec, TypeAlignSpecs,
 };
 use thiserror::Error;
 
@@ -33,7 +33,10 @@ pub enum DataLayoutParseError {
     BadInt(#[from] ParseIntError),
     /// We couldn't parse an individual spec, for some reason.
     #[error("couldn't parse spec: {0}")]
-    BadSpec(String),
+    BadSpecParse(String),
+    /// We couldn't parse an alignment spec.
+    #[error("cou't parse alignment spec")]
+    BadAlignSpec(#[from] AlignSpecError),
 }
 
 /// Models the `MODULE_CODE_DATALAYOUT` record.
@@ -90,7 +93,7 @@ impl FromStr for DataLayout {
 
             // Unwrap safety: we check for a nonempty spec above.
             #[allow(clippy::unwrap_used)]
-            match spec.chars().nth(0).unwrap() {
+            match spec.chars().next().unwrap() {
                 'e' => datalayout.endianness = Endian::Little,
                 'E' => datalayout.endianness = Endian::Big,
                 'S' => {
@@ -109,14 +112,10 @@ impl FromStr for DataLayout {
                 'p' => {
                     unimplemented!();
                 }
-                'i' => {
-                    unimplemented!();
-                }
-                'v' => {
-                    unimplemented!();
-                }
-                'f' => {
-                    unimplemented!();
+                'i' | 'v' | 'f' => {
+                    // Pass the entire spec in here, since we need the spec identifier as well.
+                    let align_spec = spec.parse::<TypeAlignSpec>()?;
+                    datalayout.type_alignments.update(align_spec);
                 }
                 'a' => {
                     unimplemented!();
@@ -131,13 +130,13 @@ impl FromStr for DataLayout {
                     match mangling.next() {
                         Some(':') => {}
                         Some(u) => {
-                            return Err(DataLayoutParseError::BadSpec(format!(
+                            return Err(DataLayoutParseError::BadSpecParse(format!(
                                 "bad separator for mangling spec: {}",
                                 u
                             )))
                         }
                         None => {
-                            return Err(DataLayoutParseError::BadSpec(
+                            return Err(DataLayoutParseError::BadSpecParse(
                                 "mangling spec is empty".into(),
                             ))
                         }
@@ -146,7 +145,7 @@ impl FromStr for DataLayout {
                     // TODO(ww): This could be FromStr on Mangling.
                     let kind = match mangling.next() {
                         None => {
-                            return Err(DataLayoutParseError::BadSpec(
+                            return Err(DataLayoutParseError::BadSpecParse(
                                 "mangling spec has no mangling kind".into(),
                             ))
                         }
@@ -157,7 +156,7 @@ impl FromStr for DataLayout {
                         Some('w') => Mangling::WindowsCoff,
                         Some('a') => Mangling::XCoff,
                         Some(u) => {
-                            return Err(DataLayoutParseError::BadSpec(format!(
+                            return Err(DataLayoutParseError::BadSpecParse(format!(
                                 "unknown mangling kind in spec: {}",
                                 u
                             )))
