@@ -2,8 +2,9 @@
 //! preserves LLVM's alignment invariants.
 
 use std::cmp::Ordering;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::fmt::{Debug, Display, Error as FmtError, Formatter, Result as FmtResult};
+use std::num::ParseIntError;
 use std::str::FromStr;
 
 use paste::paste;
@@ -266,9 +267,16 @@ pub enum AlignSpecError {
     #[error("error while parsing alignment spec: {0}")]
     Parse(String),
     /// We're parsing this alignment spec from a string, and one of its inner alignments
-    /// is malformed in some way./
+    /// is malformed in some way.
     #[error("error while parsing inner alignment in spec")]
     ParseAlign(#[from] AlignError),
+    /// We're parsing this alignment spec from a string, and one of its fields can't be converted
+    /// into an integer.
+    #[error("error while parsing integer in alignment spec")]
+    BadInt(#[from] ParseIntError),
+    /// The supplied address space is invalid.
+    #[error("invalid address space in spec")]
+    BadAddressSpace(#[from] AddressSpaceError),
 }
 
 /// Represents an alignable type, along with its ABI-mandated and
@@ -551,8 +559,54 @@ impl Default for PointerAlignSpec {
 impl FromStr for PointerAlignSpec {
     type Err = AlignSpecError;
 
-    fn from_str(_value: &str) -> Result<Self, Self::Err> {
-        unimplemented!();
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        // Every pointer alignment specification looks like this:
+        //     p[n]:<size>:<abi>:<pref>[:idx]
+        // ...where [n] and [:idx] are optional. The absence of [n] implies
+        // `0`, i.e. the default address space.
+
+        if value.is_empty() {
+            return Err(AlignSpecError::Parse(
+                "cannot parse from an empty string".into(),
+            ));
+        }
+
+        let parts: Vec<&str> = value[1..].split(':').collect();
+
+        // We expect no less than 4 parts: `p[n]`, `size`, `abi`, and `pref`,
+        // with `idx` being optional.
+        if parts.len() < 4 {
+            return Err(AlignSpecError::Parse(format!(
+                "pointer align spec has too few parts ({}, expected at least 4)",
+                parts.len()
+            )));
+        }
+
+        let address_space = match parts[0].is_empty() {
+            true => AddressSpace::default(),
+            false => parts[0].parse::<u32>()?.try_into()?,
+        };
+        let pointer_size = parts[1].parse::<u64>()?;
+        let abi = parts[2]
+            .parse::<u64>()
+            .map_err(|e| AlignSpecError::Parse(e.to_string()))
+            .and_then(|a| Align::from_bit_align(a).map_err(Into::into))?;
+        let pref = parts[3]
+            .parse::<u64>()
+            .map_err(|e| AlignSpecError::Parse(e.to_string()))
+            .and_then(|a| Align::from_bit_align(a).map_err(Into::into))?;
+        let index_size = parts
+            .get(4)
+            .map(|idx| idx.parse::<u64>())
+            .unwrap_or(Ok(pointer_size))?;
+
+        Ok(Self {
+            address_space: address_space,
+            abi_alignment: abi,
+            preferred_alignment: pref,
+            pointer_size: pointer_size,
+            index_size: index_size,
+        })
     }
 }
 
@@ -990,6 +1044,59 @@ mod tests {
                 AlignedType::Integer(AlignedTypeWidth::WIDTH32)
             );
             assert_eq!(spec.abi_alignment, Align::ALIGN32);
+            assert_eq!(spec.preferred_alignment, Align::ALIGN64);
+        }
+    }
+
+    #[test]
+    fn test_pointer_align_spec_parse() {
+        {
+            let spec = "p:64:64:64".parse::<PointerAlignSpec>().unwrap();
+
+            assert_eq!(spec.address_space, AddressSpace::default());
+            assert_eq!(spec.pointer_size, 64);
+            assert_eq!(spec.index_size, 64);
+            assert_eq!(spec.abi_alignment, Align::ALIGN64);
+            assert_eq!(spec.preferred_alignment, Align::ALIGN64);
+        }
+
+        {
+            let spec = "p0:64:64:64".parse::<PointerAlignSpec>().unwrap();
+
+            assert_eq!(spec.address_space, AddressSpace::default());
+            assert_eq!(spec.pointer_size, 64);
+            assert_eq!(spec.index_size, 64);
+            assert_eq!(spec.abi_alignment, Align::ALIGN64);
+            assert_eq!(spec.preferred_alignment, Align::ALIGN64);
+        }
+
+        {
+            let spec = "p:64:64:64:64".parse::<PointerAlignSpec>().unwrap();
+
+            assert_eq!(spec.address_space, AddressSpace::default());
+            assert_eq!(spec.pointer_size, 64);
+            assert_eq!(spec.index_size, 64);
+            assert_eq!(spec.abi_alignment, Align::ALIGN64);
+            assert_eq!(spec.preferred_alignment, Align::ALIGN64);
+        }
+
+        {
+            let spec = "p:64:64:64:32".parse::<PointerAlignSpec>().unwrap();
+
+            assert_eq!(spec.address_space, AddressSpace::default());
+            assert_eq!(spec.pointer_size, 64);
+            assert_eq!(spec.index_size, 32);
+            assert_eq!(spec.abi_alignment, Align::ALIGN64);
+            assert_eq!(spec.preferred_alignment, Align::ALIGN64);
+        }
+
+        {
+            let spec = "p1:64:64:64".parse::<PointerAlignSpec>().unwrap();
+
+            assert_eq!(spec.address_space, AddressSpace(1));
+            assert_eq!(spec.pointer_size, 64);
+            assert_eq!(spec.index_size, 64);
+            assert_eq!(spec.abi_alignment, Align::ALIGN64);
             assert_eq!(spec.preferred_alignment, Align::ALIGN64);
         }
     }
