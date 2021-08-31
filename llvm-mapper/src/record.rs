@@ -1,6 +1,6 @@
 //! Structures for mapping from bitstream records to LLVM models.
 
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 use std::num::ParseIntError;
 use std::str::FromStr;
 
@@ -15,7 +15,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum DataLayoutParseError {
     /// The specified alignment is invalid.
-    #[error("bad alignment value")]
+    #[error("bad alignment value: {0}")]
     BadAlign(#[from] AlignError),
     /// The specified address space is invalid.
     #[error("bad address space")]
@@ -30,13 +30,13 @@ pub enum DataLayoutParseError {
     #[error("non-ASCII characters in datalayout string")]
     BadEncoding,
     /// We couldn't parse a field as an integer.
-    #[error("couldn't parse spec field")]
+    #[error("couldn't parse spec field: {0}")]
     BadInt(#[from] ParseIntError),
     /// We couldn't parse an individual spec, for some reason.
     #[error("couldn't parse spec: {0}")]
     BadSpecParse(String),
     /// We couldn't parse an alignment spec.
-    #[error("cou't parse alignment spec")]
+    #[error("cou't parse alignment spec: {0}")]
     BadAlignSpec(#[from] AlignSpecError),
 }
 
@@ -54,7 +54,7 @@ pub struct DataLayout {
     function_pointer_alignment: Option<FunctionPointerAlign>,
     mangling: Option<Mangling>,
     native_integer_widths: Vec<u32>,
-    non_integral_address_spaces: Vec<u32>,
+    non_integral_address_spaces: Vec<AddressSpace>,
 }
 
 impl Default for DataLayout {
@@ -188,8 +188,39 @@ impl FromStr for DataLayout {
                     datalayout.mangling = Some(kind);
                 }
                 'n' => {
-                    unimplemented!();
-                    // TODO: 'ni'
+                    // 'n' marks the start of either an 'n' or an 'ni' block.
+                    match body.chars().next() {
+                        Some('i') => {
+                            datalayout.non_integral_address_spaces = body[1..]
+                                .split(':')
+                                .map(|s| {
+                                    s.parse::<u32>()
+                                        .map_err(DataLayoutParseError::from)
+                                        .and_then(|a| AddressSpace::try_from(a).map_err(Into::into))
+                                        .and_then(|a| {
+                                            if a == AddressSpace::default() {
+                                                Err(DataLayoutParseError::BadSpecParse(
+                                                    "address space 0 cannot be non-integral".into(),
+                                                ))
+                                            } else {
+                                                Ok(a)
+                                            }
+                                        })
+                                })
+                                .collect::<Result<_, _>>()?
+                        }
+                        Some(_) => {
+                            datalayout.native_integer_widths = body
+                                .split(':')
+                                .map(|s| s.parse::<u32>())
+                                .collect::<Result<_, _>>()?;
+                        }
+                        None => {
+                            return Err(DataLayoutParseError::BadSpecParse(
+                                "integer width spec is empty".into(),
+                            ))
+                        }
+                    }
                 }
                 u => return Err(DataLayoutParseError::UnknownSpec(u)),
             }
@@ -296,17 +327,85 @@ mod tests {
 
             assert_eq!(
                 "Fn".parse::<DataLayout>().unwrap_err().to_string(),
-                "couldn't parse spec field"
+                "couldn't parse spec field: cannot parse integer from empty string"
             );
 
             assert_eq!(
                 "Fn123".parse::<DataLayout>().unwrap_err().to_string(),
-                "bad alignment value"
+                "bad alignment value: supplied value is not a multiple of 8: 123"
             );
 
             assert_eq!(
                 "F?64".parse::<DataLayout>().unwrap_err().to_string(),
                 "couldn't parse spec: unknown function pointer alignment specifier: ?"
+            );
+        }
+
+        {
+            let dl = "n8:16:32:64".parse::<DataLayout>().unwrap();
+
+            assert_eq!(dl.native_integer_widths, vec![8, 16, 32, 64]);
+        }
+
+        {
+            let dl = "n64".parse::<DataLayout>().unwrap();
+
+            assert_eq!(dl.native_integer_widths, vec![64]);
+        }
+
+        {
+            assert_eq!(
+                "n".parse::<DataLayout>().unwrap_err().to_string(),
+                "couldn't parse spec: integer width spec is empty"
+            );
+
+            assert_eq!(
+                "nx".parse::<DataLayout>().unwrap_err().to_string(),
+                "couldn't parse spec field: invalid digit found in string"
+            );
+
+            assert_eq!(
+                "n:".parse::<DataLayout>().unwrap_err().to_string(),
+                "couldn't parse spec field: cannot parse integer from empty string"
+            );
+
+            assert_eq!(
+                "n8:".parse::<DataLayout>().unwrap_err().to_string(),
+                "couldn't parse spec field: cannot parse integer from empty string"
+            );
+        }
+
+        {
+            let dl = "ni1:2:3".parse::<DataLayout>().unwrap();
+
+            assert_eq!(
+                dl.non_integral_address_spaces,
+                vec![
+                    AddressSpace::try_from(1).unwrap(),
+                    AddressSpace::try_from(2).unwrap(),
+                    AddressSpace::try_from(3).unwrap()
+                ]
+            );
+        }
+
+        {
+            let dl = "ni1".parse::<DataLayout>().unwrap();
+
+            assert_eq!(
+                dl.non_integral_address_spaces,
+                vec![AddressSpace::try_from(1).unwrap(),]
+            );
+        }
+
+        {
+            assert_eq!(
+                "ni".parse::<DataLayout>().unwrap_err().to_string(),
+                "couldn't parse spec field: cannot parse integer from empty string"
+            );
+
+            assert_eq!(
+                "ni0".parse::<DataLayout>().unwrap_err().to_string(),
+                "couldn't parse spec: address space 0 cannot be non-integral"
             );
         }
     }

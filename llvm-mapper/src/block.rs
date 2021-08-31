@@ -8,6 +8,7 @@ use llvm_constants::{
 
 use crate::error::Error;
 use crate::map::Mappable;
+use crate::record::DataLayout;
 use crate::unroll::UnrolledBlock;
 
 /// A holistic model of all possible block IDs, spanning reserved, IR, and unknown IDs.
@@ -118,7 +119,7 @@ pub struct Module {
     /// The target triple specification.
     pub triple: String,
     /// The data layout specification.
-    pub datalayout: String,
+    pub datalayout: DataLayout,
     /// Any assembly block lines in the module.
     pub asm: Vec<String>,
 }
@@ -137,9 +138,15 @@ impl IrBlock for Module {
 
         let triple = block.one_record(ModuleCode::Triple as u64)?.try_string(0)?;
 
-        let datalayout = block
-            .one_record(ModuleCode::DataLayout as u64)?
-            .try_string(0)?;
+        let datalayout = {
+            let datalayout = block
+                .one_record(ModuleCode::DataLayout as u64)?
+                .try_string(0)?;
+
+            log::debug!("raw datalayout: {}", datalayout);
+
+            datalayout.parse::<DataLayout>()?
+        };
 
         // Each module has zero or exactly one MODULE_CODE_ASM records.
         let asm = match block.one_record_or_none(ModuleCode::Asm as u64)? {
