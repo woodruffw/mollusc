@@ -319,22 +319,34 @@ impl FromStr for TypeAlignSpec {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         if value.is_empty() {
             return Err(AlignSpecError::Parse(
-                "cannot parse from an empty string".into(),
+                "cannot parse type alignment from an empty string".into(),
             ));
         }
 
         // Unwrap safety: we check for a nonempty string above.
         #[allow(clippy::unwrap_used)]
         let id = value.chars().next().unwrap();
-        let parts: Vec<&str> = value[1..].split(':').collect();
+        let body = &value[1..];
+        let parts: Vec<&str> = body.split(':').collect();
 
         match id {
             // `a` marks an aggregate, and is a special parsing case since it
             // doesn't include a bit size.
             'a' => {
-                if parts.len() != 2 {
+                let parts = match body.chars().next() {
+                    Some(':') => body[1..].split(':').collect::<Vec<&str>>(),
+                    Some(o) => {
+                        return Err(AlignSpecError::Parse(format!(
+                            "unexpected character before aggregate spec: {}",
+                            o
+                        )))
+                    }
+                    None => return Err(AlignSpecError::Parse("empty aggregate specifier".into())),
+                };
+
+                if parts.len() < 1 {
                     return Err(AlignSpecError::Parse(format!(
-                        "wrong number of aggregate alignment parameters: expected 2, got {}",
+                        "wrong number of aggregate alignment parameters: expected at least 1, got {}",
                         parts.len()
                     )));
                 }
@@ -343,18 +355,23 @@ impl FromStr for TypeAlignSpec {
                     .map_err(|e| AlignSpecError::Parse(e.to_string()))
                     .and_then(|a| Align::from_bit_align(a).map_err(Into::into))?;
 
-                let pref = parts[1]
-                    .parse::<u64>()
-                    .map_err(|e| AlignSpecError::Parse(e.to_string()))
-                    .and_then(|a| Align::from_bit_align(a).map_err(Into::into))?;
+                let pref = parts
+                    .get(1)
+                    .map(|p| {
+                        p.parse::<u64>()
+                            .map_err(AlignSpecError::from)
+                            .and_then(|a| Align::from_bit_align(a).map_err(Into::into))
+                    })
+                    .unwrap_or(Ok(abi))?;
 
                 TypeAlignSpec::new(AlignedType::Aggregate, abi, pref)
             }
-            // All other cases take three parameters.
+            // All other cases take at least two parameters, and an optional
+            // third for a preferred alignment.
             id => {
-                if parts.len() != 3 {
+                if parts.len() < 2 {
                     return Err(AlignSpecError::Parse(format!(
-                        "wrong number of alignment parameters for spec '{}': expected 2, got {}",
+                        "wrong number of alignment parameters for spec '{}': expected at least 2, got {}",
                         id,
                         parts.len()
                     )));
@@ -369,10 +386,14 @@ impl FromStr for TypeAlignSpec {
                     .parse::<u64>()
                     .map_err(|e| AlignSpecError::Parse(e.to_string()))
                     .and_then(|a| Align::from_bit_align(a).map_err(Into::into))?;
-                let pref = parts[2]
-                    .parse::<u64>()
-                    .map_err(|e| AlignSpecError::Parse(e.to_string()))
-                    .and_then(|a| Align::from_bit_align(a).map_err(Into::into))?;
+                let pref = parts
+                    .get(2)
+                    .map(|p| {
+                        p.parse::<u64>()
+                            .map_err(AlignSpecError::from)
+                            .and_then(|a| Align::from_bit_align(a).map_err(Into::into))
+                    })
+                    .unwrap_or(Ok(abi))?;
 
                 match id {
                     'i' => TypeAlignSpec::new(AlignedType::Integer(bitsize), abi, pref),
@@ -573,9 +594,9 @@ impl FromStr for PointerAlignSpec {
 
         let parts: Vec<&str> = value[1..].split(':').collect();
 
-        // We expect no less than 4 parts: `p[n]`, `size`, `abi`, and `pref`,
-        // with `idx` being optional.
-        if parts.len() < 4 {
+        // We expect no less than 3 parts: `p[n]`, `size`, and `abi`, with
+        // `pref` and `idx` being optional.
+        if parts.len() < 3 {
             return Err(AlignSpecError::Parse(format!(
                 "pointer align spec has too few parts ({}, expected at least 4)",
                 parts.len()
@@ -591,10 +612,14 @@ impl FromStr for PointerAlignSpec {
             .parse::<u64>()
             .map_err(|e| AlignSpecError::Parse(e.to_string()))
             .and_then(|a| Align::from_bit_align(a).map_err(Into::into))?;
-        let pref = parts[3]
-            .parse::<u64>()
-            .map_err(|e| AlignSpecError::Parse(e.to_string()))
-            .and_then(|a| Align::from_bit_align(a).map_err(Into::into))?;
+        let pref = parts
+            .get(3)
+            .map(|idx| {
+                idx.parse::<u64>()
+                    .map_err(AlignSpecError::from)
+                    .and_then(|a| Align::from_bit_align(a).map_err(Into::into))
+            })
+            .unwrap_or(Ok(abi))?;
         let index_size = parts
             .get(4)
             .map(|idx| idx.parse::<u64>())
@@ -1046,6 +1071,22 @@ mod tests {
             assert_eq!(spec.abi_alignment, Align::ALIGN32);
             assert_eq!(spec.preferred_alignment, Align::ALIGN64);
         }
+
+        {
+            let spec = "a:32:64".parse::<TypeAlignSpec>().unwrap();
+
+            assert_eq!(spec.aligned_type, AlignedType::Aggregate);
+            assert_eq!(spec.abi_alignment, Align::ALIGN32);
+            assert_eq!(spec.preferred_alignment, Align::ALIGN64);
+        }
+
+        {
+            let spec = "a:32".parse::<TypeAlignSpec>().unwrap();
+
+            assert_eq!(spec.aligned_type, AlignedType::Aggregate);
+            assert_eq!(spec.abi_alignment, Align::ALIGN32);
+            assert_eq!(spec.preferred_alignment, Align::ALIGN32);
+        }
     }
 
     #[test]
@@ -1092,6 +1133,16 @@ mod tests {
 
         {
             let spec = "p1:64:64:64".parse::<PointerAlignSpec>().unwrap();
+
+            assert_eq!(spec.address_space, AddressSpace(1));
+            assert_eq!(spec.pointer_size, 64);
+            assert_eq!(spec.index_size, 64);
+            assert_eq!(spec.abi_alignment, Align::ALIGN64);
+            assert_eq!(spec.preferred_alignment, Align::ALIGN64);
+        }
+
+        {
+            let spec = "p1:64:64".parse::<PointerAlignSpec>().unwrap();
 
             assert_eq!(spec.address_space, AddressSpace(1));
             assert_eq!(spec.pointer_size, 64);
