@@ -11,7 +11,7 @@ use llvm_constants::IrBlockId;
 
 use crate::block::{BlockId, Identification, Module, Strtab, Symtab};
 use crate::error::Error;
-use crate::map::Mappable;
+use crate::map::{MapCtx, Mappable};
 
 /// An "unrolled" record. This is internally indistinguishable from a raw bitstream
 /// [`Record`](llvm_bitstream::record::Record), but is newtyped to enforce proper
@@ -134,9 +134,11 @@ impl UnrolledBlock {
         Ok(&records_for_code[0])
     }
 
-    /// Get all records that share the given record code, or `None` if none exist.
-    pub fn records(&self, code: u64) -> Option<&[UnrolledRecord]> {
-        self.records.get(&code).map(Vec::as_slice)
+    /// Return an iterator for all records that share the given code.
+    ///
+    /// The returned iterator is empty if the block doesn't have any matching records.
+    pub fn records(&self, code: u64) -> impl Iterator<Item = &UnrolledRecord> + '_ {
+        self.records.get(&code).into_iter().flatten()
     }
 
     /// Get a single sub-block from this block by its block ID.
@@ -367,15 +369,38 @@ impl PartialBitcodeModule {
     /// Returns an error if the `PartialBitcodeModule` is lacking necessary state, or if
     /// block and record mapping fails for any reason.
     pub(self) fn reify(self) -> Result<BitcodeModule, Error> {
-        Ok(BitcodeModule {
-            identification: Identification::try_map(self.identification)?,
-            module: Module::try_map(self.module.ok_or_else(|| {
-                Error::BadUnroll("missing MODULE_BLOCK for bitcode module".into())
-            })?)?,
-            strtab: Strtab::try_map(self.strtab.ok_or_else(|| {
+        let mut ctx = MapCtx::default();
+
+        // Grab the string table early, so that we can move it into our mapping context and
+        // use it for the remainder of the mapping phase.
+        let strtab = Strtab::try_map(
+            self.strtab.ok_or_else(|| {
                 Error::BadUnroll("missing STRTAB_BLOCK for bitcode module".into())
-            })?)?,
-            symtab: self.symtab.map(Symtab::try_map).transpose()?,
+            })?,
+            &mut ctx,
+        )?;
+
+        ctx.strtab = Some(strtab);
+
+        let identification = Identification::try_map(self.identification, &mut ctx)?;
+        let module = Module::try_map(
+            self.module.ok_or_else(|| {
+                Error::BadUnroll("missing MODULE_BLOCK for bitcode module".into())
+            })?,
+            &mut ctx,
+        )?;
+        let symtab = self
+            .symtab
+            .map(|s| Symtab::try_map(s, &mut ctx))
+            .transpose()?;
+
+        #[allow(clippy::unwrap_used)]
+        Ok(BitcodeModule {
+            identification: identification,
+            module: module,
+            // Unwrap safety: we unconditionally assign `strtab` to `Some(...)` above.
+            strtab: ctx.strtab.unwrap(),
+            symtab: symtab,
         })
     }
 }

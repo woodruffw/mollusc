@@ -313,7 +313,7 @@ mod tests {
 
             assert_eq!(
                 dl.function_pointer_alignment,
-                Some(FunctionPointerAlign::Dependent {
+                Some(FunctionPointerAlign::MultipleOfFunctionAlign {
                     abi_alignment: Align::ALIGN8
                 })
             );
