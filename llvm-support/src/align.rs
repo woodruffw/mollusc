@@ -344,7 +344,7 @@ impl FromStr for TypeAlignSpec {
                     None => return Err(AlignSpecError::Parse("empty aggregate specifier".into())),
                 };
 
-                if parts.len() < 1 {
+                if parts.is_empty() {
                     return Err(AlignSpecError::Parse(format!(
                         "wrong number of aggregate alignment parameters: expected at least 1, got {}",
                         parts.len()
