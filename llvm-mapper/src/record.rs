@@ -11,6 +11,10 @@ use llvm_support::{
 };
 use thiserror::Error;
 
+use crate::error::Error;
+use crate::map::{MapCtx, Mappable};
+use crate::unroll::UnrolledRecord;
+
 /// Potential errors when parsing an LLVM datalayout string.
 #[derive(Debug, Error)]
 pub enum DataLayoutParseError {
@@ -269,6 +273,12 @@ pub struct Comdat {
     pub selection_kind: ComdatSelectionKind,
     /// The COMDAT key.
     pub name: String,
+}
+
+impl Mappable<UnrolledRecord> for Comdat {
+    fn try_map(_record: UnrolledRecord, _ctx: &mut MapCtx) -> Result<Self, Error> {
+        unimplemented!();
+    }
 }
 
 #[cfg(test)]
