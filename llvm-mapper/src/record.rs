@@ -41,20 +41,33 @@ pub enum DataLayoutParseError {
 }
 
 /// Models the `MODULE_CODE_DATALAYOUT` record.
+#[non_exhaustive]
 #[derive(Debug)]
 pub struct DataLayout {
-    endianness: Endian,
-    natural_stack_alignment: Option<Align>,
-    program_address_space: AddressSpace,
-    global_variable_address_space: AddressSpace,
-    alloca_address_space: AddressSpace,
-    type_alignments: TypeAlignSpecs,
-    pointer_alignments: PointerAlignSpecs,
-    aggregate_alignment: Align,
-    function_pointer_alignment: Option<FunctionPointerAlign>,
-    mangling: Option<Mangling>,
-    native_integer_widths: Vec<u32>,
-    non_integral_address_spaces: Vec<AddressSpace>,
+    /// The endianness of the target.
+    pub endianness: Endian,
+    /// The target's natural stack alignment, if present.
+    pub natural_stack_alignment: Option<Align>,
+    /// The address space for program memory.
+    pub program_address_space: AddressSpace,
+    /// The address space for global variables.
+    pub global_variable_address_space: AddressSpace,
+    /// The address space for objects created by `alloca`.
+    pub alloca_address_space: AddressSpace,
+    /// Non-pointer type alignment specifications for the target.
+    pub type_alignments: TypeAlignSpecs,
+    /// Pointer alignment specifications for the target.
+    pub pointer_alignments: PointerAlignSpecs,
+    /// Aggregate alignment for the target.
+    pub aggregate_alignment: Align,
+    /// Function pointer alignment for the target, if present.
+    pub function_pointer_alignment: Option<FunctionPointerAlign>,
+    /// The target's symbol mangling discipline, if present.
+    pub mangling: Option<Mangling>,
+    /// A list of integer widths (in bits) that are efficiently supported by the target.
+    pub native_integer_widths: Vec<u32>,
+    /// A list of address spaces that use non-integral pointers.
+    pub non_integral_address_spaces: Vec<AddressSpace>,
 }
 
 impl Default for DataLayout {
@@ -228,6 +241,34 @@ impl FromStr for DataLayout {
 
         Ok(datalayout)
     }
+}
+
+/// The different kinds of COMDAT selections.
+///
+/// This is a nearly direct copy of LLVM's `SelectionKind`; see `IR/Comdat.h`.
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum ComdatSelectionKind {
+    /// The linker may choose any COMDAT.
+    Any,
+    /// The data referenced by the COMDAT must be the same.
+    ExactMatch,
+    /// The linker will choose the largest COMDAT.
+    Largest,
+    /// No deduplication is performed.
+    NoDeduplicate,
+    /// The data referenced by the COMDAT must be the same size.
+    SameSize,
+}
+
+/// Models the `MODULE_CODE_COMDAT` record.
+#[non_exhaustive]
+#[derive(Debug)]
+pub struct Comdat {
+    /// The selection kind for this COMDAT.
+    pub selection_kind: ComdatSelectionKind,
+    /// The COMDAT key.
+    pub name: String,
 }
 
 #[cfg(test)]
