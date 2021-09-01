@@ -127,7 +127,7 @@ impl FromStr for DataLayout {
                             'i' => FunctionPointerAlign::Independent {
                                 abi_alignment: align,
                             },
-                            'n' => FunctionPointerAlign::Dependent {
+                            'n' => FunctionPointerAlign::MultipleOfFunctionAlign {
                                 abi_alignment: align,
                             },
                             o => {

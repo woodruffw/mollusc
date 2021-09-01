@@ -676,7 +676,7 @@ pub enum FunctionPointerAlign {
     /// The alignment of function pointers is a multiple of the explicit
     /// alignment specified on the function, **and** is a multiple of the
     /// associated ABI alignment.
-    Dependent {
+    MultipleOfFunctionAlign {
         /// The ABI-mandated alignment for function pointers.
         abi_alignment: Align,
     },
