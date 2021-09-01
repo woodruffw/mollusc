@@ -198,9 +198,29 @@ pub enum ModuleCode {
     Function,
     /// MODULE_CODE_ALIAS: `[ALIAS, ...fields...]`
     /// See: <https://llvm.org/docs/BitCodeFormat.html#module-code-alias-record>
-    Alias,
+    AliasOld,
     /// MODULE_CODE_GCNAME: `[GCNAME, ...string...]`
     GcName,
+    /// MODULE_CODE_COMDAT
+    /// v1: `[selection_kind, name]`
+    /// v2: `[strtab_offset, strtab_size, selection_kind]`
+    /// Only `v2` is currently supported.
+    Comdat,
+    /// MODULE_CODE_VSTOFFSET: `[VSTOFFSET, offset]`
+    VstOffset,
+    /// MODULE_CODE_ALIAS: `[ALIAS, ...fields...]`
+    /// Not well documented; see `ModuleCodes` in `Bitcode/LLVMBitCodes.h`.
+    Alias,
+    /// MODULE_CODE_METADATA_VALUES_UNUSED
+    /// Not documented at all; see `ModuleCodes` in `Bitcode/LLVMBitCodes.h`.
+    MetadataValuesUnused,
+    /// MODULE_CODE_SOURCE_FILENAME: `[SOURCE_FILENAME, ...string...]`
+    SourceFilename,
+    /// MODULE_CODE_HASH: `[HASH, 5*i32]`
+    Hash,
+    /// MODULE_CODE_IFUNC: `[IFUNC, ...fields...]`
+    /// Not well documented; see `ModuleCodes` in `Bitcode/LLVMBitCodes.h`.
+    IFunc,
 }
 
 /// Codes for each record in `STRTAB_BLOCK`.
