@@ -11,6 +11,3 @@ pub mod error;
 mod map;
 pub mod record;
 pub mod unroll;
-
-#[cfg(test)]
-mod tests {}

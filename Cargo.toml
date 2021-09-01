@@ -4,5 +4,6 @@ members = [
   "llvm-bitcursor",
   "llvm-bitstream",
   "llvm-constants",
+  "llvm-support",
   "llvm-mapper",
 ]

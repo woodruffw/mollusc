@@ -28,6 +28,19 @@ pub enum StreamEntry {
     Record(Record),
 }
 
+impl StreamEntry {
+    /// Consumes this `StreamEntry` and returns its inner [Block](crate::record::Block), if it is
+    /// in fact a block.
+    ///
+    /// If the entry is not a block, returns `None.
+    pub fn as_block(self) -> Option<Block> {
+        match self {
+            StreamEntry::SubBlock(block) => Some(block),
+            _ => None,
+        }
+    }
+}
+
 /// Represents the necessary parse state for a particular scope in the bitstream.
 ///
 /// Note that a scope does not *necessarily* correspond to a block: every

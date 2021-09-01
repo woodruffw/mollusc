@@ -4,7 +4,7 @@
 pub type Fields = Vec<u64>;
 
 /// Represents a single bitstream record.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Record {
     /// The abbreviation ID that was used to parse this record, or `None` if
     /// this record was parsed from an `UNABBREV_RECORD` encoding.

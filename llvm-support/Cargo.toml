@@ -1,0 +1,16 @@
+[package]
+name = "llvm-support"
+description = "Support types and routines for parsing LLVM's bitcode"
+license = "MIT"
+homepage = "https://github.com/woodruffw/mollusc/tree/main/llvm-support"
+repository = "https://github.com/woodruffw/mollusc"
+authors = ["William Woodruff <william@yossarian.net>"]
+readme = "README.md"
+keywords = ["llvm", "parsing", "binary", "encoding"]
+categories = ["compilers", "encoding", "parsing"]
+edition = "2018"
+version = "0.0.1"
+
+[dependencies]
+paste = "1.0"
+thiserror = "1.0"
