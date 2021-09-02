@@ -1,13 +1,16 @@
 //! Structures for mapping from bitstream blocks to LLVM models.
 
 use std::convert::TryFrom;
+use std::str::Utf8Error;
 
 use llvm_constants::{
     IdentificationCode, IrBlockId, ModuleCode, ReservedBlockId, StrtabCode, SymtabCode,
 };
+use llvm_support::StrtabRef;
+use thiserror::Error;
 
 use crate::error::Error;
-use crate::map::Mappable;
+use crate::map::{MapCtx, Mappable};
 use crate::record::DataLayout;
 use crate::unroll::UnrolledBlock;
 
@@ -42,11 +45,11 @@ pub(crate) trait IrBlock: Sized {
     /// Attempt to map the given block to the implementing type, returning an error if mapping fails.
     ///
     /// This is an interior trait that shouldn't be used directly.
-    fn try_map_inner(block: UnrolledBlock) -> Result<Self, Error>;
+    fn try_map_inner(block: UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Error>;
 }
 
 impl<T: IrBlock> Mappable<UnrolledBlock> for T {
-    fn try_map(block: UnrolledBlock) -> Result<Self, Error> {
+    fn try_map(block: UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Error> {
         if block.id != BlockId::Ir(T::BLOCK_ID) {
             return Err(Error::BadBlockMap(format!(
                 "can't map {:?} into {:?}",
@@ -55,7 +58,7 @@ impl<T: IrBlock> Mappable<UnrolledBlock> for T {
             )));
         }
 
-        IrBlock::try_map_inner(block)
+        IrBlock::try_map_inner(block, ctx)
     }
 }
 
@@ -72,7 +75,7 @@ pub struct Identification {
 impl IrBlock for Identification {
     const BLOCK_ID: IrBlockId = IrBlockId::Identification;
 
-    fn try_map_inner(block: UnrolledBlock) -> Result<Self, Error> {
+    fn try_map_inner(block: UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
         let producer = {
             let producer = block.one_record(IdentificationCode::ProducerString as u64)?;
 
@@ -122,19 +125,21 @@ pub struct Module {
     pub datalayout: DataLayout,
     /// Any assembly block lines in the module.
     pub asm: Vec<String>,
+    /// Any dependent libraries listed in the module.
+    pub deplibs: Vec<String>,
 }
 
 impl IrBlock for Module {
     const BLOCK_ID: IrBlockId = IrBlockId::Module;
 
-    fn try_map_inner(block: UnrolledBlock) -> Result<Self, Error> {
+    fn try_map_inner(block: UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Error> {
         let version = {
             let version = block.one_record(ModuleCode::Version as u64)?;
 
             version.as_ref().fields[0]
         };
 
-        // let mut map_state = ModuleMapState::new(version);
+        ctx.version = Some(version);
 
         let triple = block.one_record(ModuleCode::Triple as u64)?.try_string(0)?;
 
@@ -158,17 +163,42 @@ impl IrBlock for Module {
             None => Vec::new(),
         };
 
+        // Deplib records are deprecated, but we might be parsing an older bitstream.
+        let deplibs = block
+            .records(ModuleCode::DepLib as u64)
+            .map(|rec| rec.try_string(0))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Build the section table. We'll reference this later.
+        let _section_table = block
+            .records(ModuleCode::SectionName as u64)
+            .map(|rec| rec.try_string(0))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Build the GC table. We'll reference this later.
+        let _gc_table = block
+            .records(ModuleCode::GcName as u64)
+            .map(|rec| rec.try_string(0))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Build the Comdat list. We'll reference this later.
+        // let comdats = block
+        //     .records(ModuleCode::Comdat)
+        //     .map(|rec| Comdat::try_map(rec))
+        //     .collect::<Result<Vec<_>, _>>()?;
+
         Ok(Self {
             version,
             triple,
             datalayout,
             asm,
+            deplibs,
         })
     }
 }
 
 /// Models the `STRTAB_BLOCK` block.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Strtab(Vec<u8>);
 
 impl AsRef<[u8]> for Strtab {
@@ -180,7 +210,7 @@ impl AsRef<[u8]> for Strtab {
 impl IrBlock for Strtab {
     const BLOCK_ID: IrBlockId = IrBlockId::Strtab;
 
-    fn try_map_inner(block: UnrolledBlock) -> Result<Self, Error> {
+    fn try_map_inner(block: UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
         // TODO(ww): The docs also claim that there's only one STRTAB_BLOB per STRTAB_BLOCK,
         // but at least one person has reported otherwise here:
         // https://lists.llvm.org/pipermail/llvm-dev/2020-August/144327.html
@@ -195,19 +225,40 @@ impl IrBlock for Strtab {
     }
 }
 
+/// Errors that can occur when accessing a string table.
+#[derive(Debug, Error)]
+pub enum StrtabError {
+    /// The requested range is invalid.
+    #[error("requested range in string table is invalid")]
+    BadRange,
+    /// The requested string is not UTF-8.
+    #[error("could not decode range into a UTF-8 string: {0}")]
+    BadString(#[from] Utf8Error),
+}
+
 impl Strtab {
     /// Get a string in the string table by its index and length.
     ///
-    /// Returns `None` if either the index or size is invalid, or if the
-    /// requested slice isn't a valid string.
-    pub fn get(&self, idx: usize, size: usize) -> Option<&str> {
+    /// Returns `None` on all of the error conditions associated with
+    /// [`try_get`](Strtab::try_get).
+    pub fn get(&self, sref: &StrtabRef) -> Option<&str> {
+        self.try_get(sref).ok()
+    }
+
+    /// Get a string in the string table by its index and length.
+    ///
+    /// Returns an error if the requested span is invalid, or if the extracted
+    /// slice isn't a valid string.
+    pub fn try_get(&self, sref: &StrtabRef) -> Result<&str, StrtabError> {
         let inner = self.as_ref();
 
-        if size == 0 || idx >= inner.len() || idx + size > inner.len() {
-            return None;
+        if sref.size == 0 || sref.offset >= inner.len() || sref.offset + sref.size > inner.len() {
+            return Err(StrtabError::BadRange);
         }
 
-        std::str::from_utf8(&inner[idx..idx + size]).ok()
+        Ok(std::str::from_utf8(
+            &inner[sref.offset..sref.offset + sref.size],
+        )?)
     }
 }
 
@@ -227,7 +278,7 @@ impl AsRef<[u8]> for Symtab {
 impl IrBlock for Symtab {
     const BLOCK_ID: IrBlockId = IrBlockId::Symtab;
 
-    fn try_map_inner(block: UnrolledBlock) -> Result<Self, Error> {
+    fn try_map_inner(block: UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
         let symtab = {
             let symtab = block.one_record(SymtabCode::Blob as u64)?;
 
@@ -241,6 +292,10 @@ impl IrBlock for Symtab {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sref(tup: (usize, usize)) -> StrtabRef {
+        tup.into()
+    }
 
     #[test]
     fn test_blockid_from_u64() {
@@ -260,16 +315,16 @@ mod tests {
     fn test_strtab() {
         let inner = "this is a string table";
         let strtab = Strtab(inner.into());
-        assert_eq!(strtab.get(0, 4).unwrap(), "this");
-        assert_eq!(strtab.get(0, 7).unwrap(), "this is");
-        assert_eq!(strtab.get(8, 14).unwrap(), "a string table");
+        assert_eq!(strtab.get(&sref((0, 4))).unwrap(), "this");
+        assert_eq!(strtab.get(&sref((0, 7))).unwrap(), "this is");
+        assert_eq!(strtab.get(&sref((8, 14))).unwrap(), "a string table");
         assert_eq!(
-            strtab.get(0, inner.len()).unwrap(),
+            strtab.get(&sref((0, inner.len()))).unwrap(),
             "this is a string table"
         );
 
-        assert!(strtab.get(inner.len(), 0).is_none());
-        assert!(strtab.get(0, inner.len() + 1).is_none());
-        assert!(strtab.get(0, 0).is_none());
+        assert!(strtab.get(&sref((inner.len(), 0))).is_none());
+        assert!(strtab.get(&sref((0, inner.len() + 1))).is_none());
+        assert!(strtab.get(&sref((0, 0))).is_none());
     }
 }

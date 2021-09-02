@@ -8,6 +8,6 @@
 
 pub mod block;
 pub mod error;
-mod map;
+pub mod map;
 pub mod record;
 pub mod unroll;

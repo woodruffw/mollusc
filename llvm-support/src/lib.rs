@@ -47,3 +47,26 @@ pub enum Mangling {
     /// XCOFF-style mangling.
     XCoff,
 }
+
+/// An `(offset, size)` reference to a string within some string table.
+pub struct StrtabRef {
+    /// The string's offset within its string table.
+    pub offset: usize,
+    /// The string's size, in bytes.
+    pub size: usize,
+}
+
+impl From<(usize, usize)> for StrtabRef {
+    fn from(value: (usize, usize)) -> Self {
+        Self {
+            offset: value.0,
+            size: value.1,
+        }
+    }
+}
+
+impl From<(u64, u64)> for StrtabRef {
+    fn from(value: (u64, u64)) -> Self {
+        Self::from((value.0 as usize, value.1 as usize))
+    }
+}

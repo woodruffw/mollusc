@@ -3,7 +3,8 @@
 use llvm_bitstream::error::Error as BitstreamError;
 use thiserror::Error as ThisError;
 
-use crate::block::BlockId;
+use crate::block::{BlockId, StrtabError};
+use crate::map::MapCtxError;
 use crate::record::DataLayoutParseError;
 
 /// All possible errors that can occur while mapping a bitstream.
@@ -33,6 +34,12 @@ pub enum Error {
     /// We couldn't parse the datalayout specifier.
     #[error("error while parsing datalayout: {0}")]
     BadDataLayout(#[from] DataLayoutParseError),
+    /// Our mapping context isn't valid for this operation.
+    #[error("invalid mapping context: {0}")]
+    BadContext(#[from] MapCtxError),
+    /// Retrieving a string from a string table failed.
+    #[error("error while accessing string table: {0}")]
+    BadStrtab(#[from] StrtabError),
     /// The bitstream contains features or is represented in a way we don't support. Yet.
     #[error("unsupported: {0}")]
     Unsupported(String),
