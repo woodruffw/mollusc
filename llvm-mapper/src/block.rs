@@ -1,11 +1,13 @@
 //! Structures for mapping from bitstream blocks to LLVM models.
 
 use std::convert::TryFrom;
+use std::str::Utf8Error;
 
 use llvm_constants::{
     IdentificationCode, IrBlockId, ModuleCode, ReservedBlockId, StrtabCode, SymtabCode,
 };
 use llvm_support::StrtabRef;
+use thiserror::Error;
 
 use crate::error::Error;
 use crate::map::{MapCtx, Mappable};
@@ -223,19 +225,40 @@ impl IrBlock for Strtab {
     }
 }
 
+/// Errors that can occur when accessing a string table.
+#[derive(Debug, Error)]
+pub enum StrtabError {
+    /// The requested range is invalid.
+    #[error("requested range in string table is invalid")]
+    BadRange,
+    /// The requested string is not UTF-8.
+    #[error("could not decode range into a UTF-8 string: {0}")]
+    BadString(#[from] Utf8Error),
+}
+
 impl Strtab {
     /// Get a string in the string table by its index and length.
     ///
-    /// Returns `None` if either the index or size is invalid, or if the
-    /// requested slice isn't a valid string.
+    /// Returns `None` on all of the error conditions associated with
+    /// [`try_get`](Strtab::try_get).
     pub fn get(&self, sref: &StrtabRef) -> Option<&str> {
+        self.try_get(sref).ok()
+    }
+
+    /// Get a string in the string table by its index and length.
+    ///
+    /// Returns an error if the requested span is invalid, or if the extracted
+    /// slice isn't a valid string.
+    pub fn try_get(&self, sref: &StrtabRef) -> Result<&str, StrtabError> {
         let inner = self.as_ref();
 
         if sref.size == 0 || sref.offset >= inner.len() || sref.offset + sref.size > inner.len() {
-            return None;
+            return Err(StrtabError::BadRange);
         }
 
-        std::str::from_utf8(&inner[sref.offset..sref.offset + sref.size]).ok()
+        Ok(std::str::from_utf8(
+            &inner[sref.offset..sref.offset + sref.size],
+        )?)
     }
 }
 
@@ -270,6 +293,10 @@ impl IrBlock for Symtab {
 mod tests {
     use super::*;
 
+    fn sref(tup: (usize, usize)) -> StrtabRef {
+        tup.into()
+    }
+
     #[test]
     fn test_blockid_from_u64() {
         assert_eq!(
@@ -288,16 +315,16 @@ mod tests {
     fn test_strtab() {
         let inner = "this is a string table";
         let strtab = Strtab(inner.into());
-        assert_eq!(strtab.get(&(0, 4).into()).unwrap(), "this");
-        assert_eq!(strtab.get(&(0, 7).into()).unwrap(), "this is");
-        assert_eq!(strtab.get(&(8, 14).into()).unwrap(), "a string table");
+        assert_eq!(strtab.get(&sref((0, 4))).unwrap(), "this");
+        assert_eq!(strtab.get(&sref((0, 7))).unwrap(), "this is");
+        assert_eq!(strtab.get(&sref((8, 14))).unwrap(), "a string table");
         assert_eq!(
-            strtab.get(&(0, inner.len()).into()).unwrap(),
+            strtab.get(&sref((0, inner.len()))).unwrap(),
             "this is a string table"
         );
 
-        assert!(strtab.get(&(inner.len(), 0).into()).is_none());
-        assert!(strtab.get(&(0, inner.len() + 1).into()).is_none());
-        assert!(strtab.get(&(0, 0).into()).is_none());
+        assert!(strtab.get(&sref((inner.len(), 0))).is_none());
+        assert!(strtab.get(&sref((0, inner.len() + 1))).is_none());
+        assert!(strtab.get(&sref((0, 0))).is_none());
     }
 }

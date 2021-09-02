@@ -6,9 +6,10 @@ use std::str::FromStr;
 
 use llvm_support::{
     AddressSpace, AddressSpaceError, Align, AlignError, AlignSpecError, Endian,
-    FunctionPointerAlign, Mangling, PointerAlignSpec, PointerAlignSpecs, TypeAlignSpec,
+    FunctionPointerAlign, Mangling, PointerAlignSpec, PointerAlignSpecs, StrtabRef, TypeAlignSpec,
     TypeAlignSpecs,
 };
+use num_enum::TryFromPrimitive;
 use thiserror::Error;
 
 use crate::error::Error;
@@ -251,7 +252,8 @@ impl FromStr for DataLayout {
 ///
 /// This is a nearly direct copy of LLVM's `SelectionKind`; see `IR/Comdat.h`.
 #[non_exhaustive]
-#[derive(Debug)]
+#[derive(Debug, TryFromPrimitive)]
+#[repr(u64)]
 pub enum ComdatSelectionKind {
     /// The linker may choose any COMDAT.
     Any,
@@ -276,8 +278,35 @@ pub struct Comdat {
 }
 
 impl Mappable<UnrolledRecord> for Comdat {
-    fn try_map(_record: UnrolledRecord, _ctx: &mut MapCtx) -> Result<Self, Error> {
-        unimplemented!();
+    fn try_map(record: UnrolledRecord, ctx: &mut MapCtx) -> Result<Self, Error> {
+        if !ctx.use_strtab()? {
+            return Err(Error::Unsupported(
+                "v1 COMDAT records are not supported".into(),
+            ));
+        }
+
+        // v2: [strtab offset, strtab size, selection kind]
+        let record = record.as_ref();
+        if record.fields.len() != 3 {
+            return Err(Error::BadRecordMap(format!(
+                "expected exactly 3 fields in COMDAT record, got {}",
+                record.fields.len()
+            )));
+        }
+
+        // Index safety: we check for at least 3 fields above.
+        let name = {
+            let sref: StrtabRef = (record.fields[0], record.fields[1]).into();
+            ctx.strtab()?.try_get(&sref)?
+        };
+        let selection_kind: ComdatSelectionKind = record.fields[2]
+            .try_into()
+            .map_err(|e| Error::BadRecordMap(format!("invalid COMDAT selection kind: {:?}", e)))?;
+
+        Ok(Self {
+            selection_kind,
+            name: name.into(),
+        })
     }
 }
 
