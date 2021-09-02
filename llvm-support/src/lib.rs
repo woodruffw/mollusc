@@ -64,3 +64,9 @@ impl From<(usize, usize)> for StrtabRef {
         }
     }
 }
+
+impl From<(u64, u64)> for StrtabRef {
+    fn from(value: (u64, u64)) -> Self {
+        Self::from((value.0 as usize, value.1 as usize))
+    }
+}
