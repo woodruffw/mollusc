@@ -11,7 +11,7 @@ use thiserror::Error;
 
 use crate::error::Error;
 use crate::map::{MapCtx, Mappable};
-use crate::record::DataLayout;
+use crate::record::{Comdat, DataLayout};
 use crate::unroll::UnrolledBlock;
 
 /// A holistic model of all possible block IDs, spanning reserved, IR, and unknown IDs.
@@ -45,11 +45,11 @@ pub(crate) trait IrBlock: Sized {
     /// Attempt to map the given block to the implementing type, returning an error if mapping fails.
     ///
     /// This is an interior trait that shouldn't be used directly.
-    fn try_map_inner(block: UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Error>;
+    fn try_map_inner(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Error>;
 }
 
 impl<T: IrBlock> Mappable<UnrolledBlock> for T {
-    fn try_map(block: UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Error> {
+    fn try_map(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Error> {
         if block.id != BlockId::Ir(T::BLOCK_ID) {
             return Err(Error::BadBlockMap(format!(
                 "can't map {:?} into {:?}",
@@ -75,7 +75,7 @@ pub struct Identification {
 impl IrBlock for Identification {
     const BLOCK_ID: IrBlockId = IrBlockId::Identification;
 
-    fn try_map_inner(block: UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
         let producer = {
             let producer = block.one_record(IdentificationCode::ProducerString as u64)?;
 
@@ -132,7 +132,7 @@ pub struct Module {
 impl IrBlock for Module {
     const BLOCK_ID: IrBlockId = IrBlockId::Module;
 
-    fn try_map_inner(block: UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Error> {
+    fn try_map_inner(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Error> {
         let version = {
             let version = block.one_record(ModuleCode::Version as u64)?;
 
@@ -182,10 +182,10 @@ impl IrBlock for Module {
             .collect::<Result<Vec<_>, _>>()?;
 
         // Build the Comdat list. We'll reference this later.
-        // let comdats = block
-        //     .records(ModuleCode::Comdat)
-        //     .map(|rec| Comdat::try_map(rec))
-        //     .collect::<Result<Vec<_>, _>>()?;
+        let _comdats = block
+            .records(ModuleCode::Comdat as u64)
+            .map(|rec| Comdat::try_map(rec, ctx))
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self {
             version,
@@ -210,7 +210,7 @@ impl AsRef<[u8]> for Strtab {
 impl IrBlock for Strtab {
     const BLOCK_ID: IrBlockId = IrBlockId::Strtab;
 
-    fn try_map_inner(block: UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
         // TODO(ww): The docs also claim that there's only one STRTAB_BLOB per STRTAB_BLOCK,
         // but at least one person has reported otherwise here:
         // https://lists.llvm.org/pipermail/llvm-dev/2020-August/144327.html
@@ -278,7 +278,7 @@ impl AsRef<[u8]> for Symtab {
 impl IrBlock for Symtab {
     const BLOCK_ID: IrBlockId = IrBlockId::Symtab;
 
-    fn try_map_inner(block: UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
         let symtab = {
             let symtab = block.one_record(SymtabCode::Blob as u64)?;
 

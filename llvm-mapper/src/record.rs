@@ -278,7 +278,7 @@ pub struct Comdat {
 }
 
 impl Mappable<UnrolledRecord> for Comdat {
-    fn try_map(record: UnrolledRecord, ctx: &mut MapCtx) -> Result<Self, Error> {
+    fn try_map(record: &UnrolledRecord, ctx: &mut MapCtx) -> Result<Self, Error> {
         if !ctx.use_strtab()? {
             return Err(Error::Unsupported(
                 "v1 COMDAT records are not supported".into(),

@@ -71,5 +71,5 @@ impl MapCtx {
 /// A trait for mapping some raw `T` into a model type.
 pub(crate) trait Mappable<T>: Sized {
     /// Attempt to map `T` into `Self` using the given [`MapCtx`](MapCtx).
-    fn try_map(raw: T, ctx: &mut MapCtx) -> Result<Self, Error>;
+    fn try_map(raw: &T, ctx: &mut MapCtx) -> Result<Self, Error>;
 }

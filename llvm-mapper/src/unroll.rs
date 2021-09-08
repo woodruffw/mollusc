@@ -374,7 +374,7 @@ impl PartialBitcodeModule {
         // Grab the string table early, so that we can move it into our mapping context and
         // use it for the remainder of the mapping phase.
         let strtab = Strtab::try_map(
-            self.strtab.ok_or_else(|| {
+            &self.strtab.ok_or_else(|| {
                 Error::BadUnroll("missing STRTAB_BLOCK for bitcode module".into())
             })?,
             &mut ctx,
@@ -382,16 +382,16 @@ impl PartialBitcodeModule {
 
         ctx.strtab = Some(strtab);
 
-        let identification = Identification::try_map(self.identification, &mut ctx)?;
+        let identification = Identification::try_map(&self.identification, &mut ctx)?;
         let module = Module::try_map(
-            self.module.ok_or_else(|| {
+            &self.module.ok_or_else(|| {
                 Error::BadUnroll("missing MODULE_BLOCK for bitcode module".into())
             })?,
             &mut ctx,
         )?;
         let symtab = self
             .symtab
-            .map(|s| Symtab::try_map(s, &mut ctx))
+            .map(|s| Symtab::try_map(&s, &mut ctx))
             .transpose()?;
 
         #[allow(clippy::unwrap_used)]
