@@ -104,6 +104,7 @@ pub enum AbbrevOpEnc {
 }
 
 /// Calling conventions supported by LLVM.
+#[non_exhaustive]
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 #[allow(missing_docs)]
@@ -153,6 +154,7 @@ pub enum CallingConvention {
 }
 
 /// Codes for each `UNABBREV_RECORD` in `BLOCKINFO`.
+#[non_exhaustive]
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum BlockInfoCode {
@@ -165,6 +167,7 @@ pub enum BlockInfoCode {
 }
 
 /// Codes for each record in `IDENTIFICATION_BLOCK`.
+#[non_exhaustive]
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum IdentificationCode {
@@ -175,6 +178,7 @@ pub enum IdentificationCode {
 }
 
 /// Codes for each record in `MODULE_BLOCK`.
+#[non_exhaustive]
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum ModuleCode {
@@ -223,7 +227,65 @@ pub enum ModuleCode {
     IFunc,
 }
 
+/// Codes for each record in `TYPE_BLOCK` (i.e., `TYPE_BLOCK_ID_NEW`).
+#[non_exhaustive]
+#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[repr(u64)]
+pub enum TypeCode {
+    /// TYPE_CODE_NUMENTRY: [NUMENTRY, numentries]
+    NumEntry = 1,
+    /// TYPE_CODE_VOID
+    Void,
+    /// TYPE_CODE_FLOAT
+    Float,
+    /// TYPE_CODE_DOUBLE
+    Double,
+    /// TYPE_CODE_LABEL
+    Label,
+    /// TYPE_CODE_OPAQUE
+    Opaque,
+    /// TYPE_CODE_INTEGER: [INTEGER, width]
+    Integer,
+    /// TYPE_CODE_POINTER: [POINTER, pointee type]
+    Pointer,
+    /// TYPE_CODE_FUNCTION_OLD: [FUNCTION_OLD, vararg, attrid, retty, paramty x N]
+    FunctionOld,
+    /// TYPE_CODE_HALF
+    Half,
+    /// TYPE_CODE_ARRAY: [ARRAY, numelts, eltty]
+    Array,
+    /// TYPE_CODE_VECTOR: [VECTOR, numelts, eltty]
+    Vector,
+    /// TYPE_CODE_X86_FP80
+    X86Fp80,
+    /// TYPE_CODE_FP128
+    Fp128,
+    /// TYPE_CODE_PPC_FP128
+    PpcFp128,
+    /// TYPE_CODE_METADATA,
+    Metadata,
+    /// TYPE_CODE_X86_MMX
+    X86Mmx,
+    /// TYPE_CODE_STRUCT_ANON: [STRUCT_ANON, ispacked, eltty x N]
+    StructAnon,
+    /// TYPE_CODE_STRUCT_NAME: [STRUCT_NAME, strchr x N]
+    StructName,
+    /// TYPE_CODE_STRUCT_NAMED: [STRUCT_NAMED, ispacked, eltty x N]
+    StructNamed,
+    /// TYPE_CODE_FUNCTION: [FUNCTION, vararg, retty, paramty x N]
+    Function,
+    /// TYPE_CODE_TOKEN
+    Token,
+    /// TYPE_CODE_BFLOAT
+    BFloat,
+    /// TYPE_CODE_X86_AMX
+    X86Amx,
+    /// TYPE_CODE_OPAQUE_POINTER: [OPAQUE_POINTER, addrspace]
+    OpaquePointer,
+}
+
 /// Codes for each record in `STRTAB_BLOCK`.
+#[non_exhaustive]
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum StrtabCode {
@@ -232,6 +294,7 @@ pub enum StrtabCode {
 }
 
 /// Codes for each record in `SYMTAB_BLOCK`.
+#[non_exhaustive]
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum SymtabCode {

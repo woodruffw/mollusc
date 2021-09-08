@@ -342,6 +342,7 @@ impl<T: AsRef<[u8]>> StreamParser<T> {
                 BlockInfoCode::SetRecordName => {
                     log::debug!("skipping SETRECORDNAME code in BLOCKINFO")
                 }
+                o => log::debug!("skipping unsupported record {:?} in BLOCKINFO", o),
             };
             return Ok(None);
         }
