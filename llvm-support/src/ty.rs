@@ -49,3 +49,31 @@ pub enum TypeId {
     /// Scalable SIMD vectors.
     ScalableVector,
 }
+
+/// A representation of LLVM's types.
+/// Like in the official C++ API, instances of `Type` are uniqued within their module's context.
+/// The APIs provided here make it hard, albeit not impossible, to construct duplicate instances
+/// of the same type.
+///
+/// See [`TypeId`](TypeId) for documentation of each variant.
+#[allow(missing_docs)]
+pub enum Type {
+    Half,
+    BFloat,
+    Float,
+    Double,
+    Metadata,
+    X86Fp80,
+    Fp128,
+    PpcFp128,
+    X86Mmx,
+    X86Amx,
+    Token,
+    Integer(u32),
+    Function(Box<Type>, Vec<Type>),
+    Pointer(Box<Type>),
+    Struct(Vec<Type>),
+    Array(u32, Box<Type>),
+    FixedVector(u32, Box<Type>),
+    ScalableVector(u32, Box<Type>),
+}
