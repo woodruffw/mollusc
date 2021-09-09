@@ -92,27 +92,6 @@ impl IrBlock for Identification {
     }
 }
 
-// /// A collection of mushy states that help us determine how to proceed when
-// /// mapping an `UnrolledBlock` into a `Module`.
-// struct ModuleMapState {
-//     /// Whether this module uses a string table. This corresponds to versions 2 and newer in
-//     /// the MODULE_CODE_VERSION record.
-//     use_strtab: bool,
-//     /// Whether this module uses the relative ID encoding. This corresponds to versions 1 and newer
-//     /// in the MODULE_CODE_VERSION record.
-//     use_relative_ids: bool,
-// }
-
-// impl ModuleMapState {
-//     /// Create a new, mostly empty `ModuleMapState`.
-//     pub(self) fn new(version: u64) -> Self {
-//         Self {
-//             use_strtab: version >= 2,
-//             use_relative_ids: version >= 1,
-//         }
-//     }
-// }
-
 /// Models the `MODULE_BLOCK` block.
 #[non_exhaustive]
 #[derive(Debug)]
@@ -194,6 +173,21 @@ impl IrBlock for Module {
             asm,
             deplibs,
         })
+    }
+}
+
+/// Models the `TYPE_BLOCK_ID_NEW` block.
+///
+/// This model has no state of its own; its responsibility during mapping is to update
+/// the [MapCtx](MapCtx) with information about the types used in the module.
+#[derive(Clone, Debug)]
+pub struct TypeTable {}
+
+impl IrBlock for TypeTable {
+    const BLOCK_ID: IrBlockId = IrBlockId::Type;
+
+    fn try_map_inner(_block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
+        unimplemented!();
     }
 }
 
