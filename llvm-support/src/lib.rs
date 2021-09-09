@@ -7,8 +7,10 @@
 #![forbid(unsafe_code)]
 
 mod align;
+mod ty;
 
 pub use align::*;
+pub use ty::*;
 
 /// An exact endianness.
 ///
