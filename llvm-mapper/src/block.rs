@@ -236,9 +236,7 @@ impl IrBlock for TypeTable {
 
                     // Our opaque type might be forward-referenced. If so, we
                     // fill in the previous type rather than creating a new one.
-                    if let Some(Type::Struct(_)) = ctx.types.last_mut() {
-
-                    }
+                    if let Some(Type::Struct(_)) = ctx.types.last_mut() {}
 
                     last_type_name.clear();
                 }
