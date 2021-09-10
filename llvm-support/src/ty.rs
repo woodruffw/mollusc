@@ -1,5 +1,7 @@
 //! Structures for managing LLVM types.
 
+use crate::AddressSpace;
+
 /// The IDs of types known to LLVM.
 ///
 /// These are not fully unique: all integer types share the `Integer` type ID,
@@ -51,12 +53,10 @@ pub enum TypeId {
 }
 
 /// A representation of LLVM's types.
-/// Like in the official C++ API, instances of `Type` are uniqued within their module's context.
-/// The APIs provided here make it hard, albeit not impossible, to construct duplicate instances
-/// of the same type.
 ///
 /// See [`TypeId`](TypeId) for documentation of each variant.
 #[allow(missing_docs)]
+#[derive(Debug)]
 pub enum Type {
     Half,
     BFloat,
@@ -66,14 +66,24 @@ pub enum Type {
     X86Fp80,
     Fp128,
     PpcFp128,
+    Void,
+    Label,
     X86Mmx,
     X86Amx,
     Token,
     Integer(u32),
     Function(Box<Type>, Vec<Type>),
     Pointer(Box<Type>),
-    Struct(Vec<Type>),
+    OpaquePointer(AddressSpace),
+    Struct(StructType),
     Array(u32, Box<Type>),
     FixedVector(u32, Box<Type>),
     ScalableVector(u32, Box<Type>),
+}
+
+/// Represents a "struct" type.
+#[derive(Debug)]
+pub struct StructType {
+    name: Option<String>,
+    fields: Vec<Type>,
 }

@@ -141,6 +141,14 @@ impl UnrolledBlock {
         self.records.get(&code).into_iter().flatten()
     }
 
+    /// Return an iterator over all records in the block, regardless of their codes.
+    ///
+    /// This is useful in contexts where the mapper's behavior does not vary significantly
+    /// by record code, such as within the type table mapper.
+    pub fn all_records(&self) -> impl Iterator<Item = &UnrolledRecord> + '_ {
+        self.records.values().flatten()
+    }
+
     /// Get a single sub-block from this block by its block ID.
     ///
     /// Returns an error if the block either lacks an appropriate block or has more than one.

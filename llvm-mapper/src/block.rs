@@ -4,9 +4,10 @@ use std::convert::TryFrom;
 use std::str::Utf8Error;
 
 use llvm_constants::{
-    IdentificationCode, IrBlockId, ModuleCode, ReservedBlockId, StrtabCode, SymtabCode,
+    IdentificationCode, IrBlockId, ModuleCode, ReservedBlockId, StrtabCode, SymtabCode, TypeCode,
 };
-use llvm_support::StrtabRef;
+use llvm_support::{AddressSpace, StrtabRef, Type};
+use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
 use crate::error::Error;
@@ -176,6 +177,14 @@ impl IrBlock for Module {
     }
 }
 
+/// Errors that can occur when mapping the type table.
+#[derive(Debug, Error)]
+pub enum TypeTableError {
+    /// An unknown record code was seen.
+    #[error("unknown type code: {0}")]
+    UnknownTypeCode(#[from] TryFromPrimitiveError<TypeCode>),
+}
+
 /// Models the `TYPE_BLOCK_ID_NEW` block.
 ///
 /// This model has no state of its own; its responsibility during mapping is to update
@@ -186,9 +195,112 @@ pub struct TypeTable {}
 impl IrBlock for TypeTable {
     const BLOCK_ID: IrBlockId = IrBlockId::Type;
 
-    fn try_map_inner(_block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
-        unimplemented!();
+    fn try_map_inner(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Error> {
+        // Figure out how many type entries we have, and reserve the space for them up-front.
+        let numentries = {
+            let numentries = block.one_record(TypeCode::NumEntry as u64)?;
+
+            *numentries
+                .as_ref()
+                .fields
+                .get(0)
+                .ok_or_else(|| Error::BadField("TYPE_CODE_NUMENTRY is empty".into()))?
+        };
+        ctx.types.reserve(numentries as usize);
+
+        // Bits of type mapping state:
+        // * Keep track of how many types we've seen; we'll reconcile this count
+        //   with our expected type count (numentries) once all types are mapped.
+        // * Keep track of the last `TYPE_CODE_STRUCT_NAME` we've seen; we'll use
+        //   this to name the next named struct or opaque type we see.
+        let mut count = 0;
+        let mut last_type_name = String::new();
+        for record in block.all_records() {
+            let code = TypeCode::try_from(record.as_ref().code).map_err(TypeTableError::from)?;
+
+            match code {
+                // Already visited; nothing to do.
+                TypeCode::NumEntry => continue,
+                TypeCode::Void => ctx.types.push(Type::Void),
+                TypeCode::Half => ctx.types.push(Type::Half),
+                TypeCode::BFloat => ctx.types.push(Type::BFloat),
+                TypeCode::Float => ctx.types.push(Type::Float),
+                TypeCode::Double => ctx.types.push(Type::Double),
+                TypeCode::Label => ctx.types.push(Type::Label),
+                TypeCode::Opaque => {
+                    if last_type_name.is_empty() {
+                        return Err(Error::BadRecordMap(
+                            "opaque type but no preceding type name".into(),
+                        ));
+                    }
+
+                    // Our opaque type might be forward-referenced. If so, we
+                    // fill in the previous type rather than creating a new one.
+                    if let Some(Type::Struct(_)) = ctx.types.last_mut() {
+
+                    }
+
+                    last_type_name.clear();
+                }
+                TypeCode::Integer => unimplemented!(),
+                TypeCode::Pointer => unimplemented!(),
+                TypeCode::FunctionOld => unimplemented!(),
+                TypeCode::Array => unimplemented!(),
+                TypeCode::Vector => unimplemented!(),
+                TypeCode::X86Fp80 => unimplemented!(),
+                TypeCode::Fp128 => ctx.types.push(Type::Fp128),
+                TypeCode::PpcFp128 => ctx.types.push(Type::PpcFp128),
+                TypeCode::Metadata => ctx.types.push(Type::Metadata),
+                TypeCode::X86Mmx => ctx.types.push(Type::X86Mmx),
+                TypeCode::StructAnon => unimplemented!(),
+                TypeCode::StructName => {
+                    // A `TYPE_CODE_STRUCT_NAME` is not a type in its own right; it merely
+                    // supplies the name for a future type record.
+                    last_type_name.push_str(&record.try_string(0)?);
+                }
+                TypeCode::StructNamed => unimplemented!(),
+                TypeCode::Function => unimplemented!(),
+                TypeCode::X86Amx => ctx.types.push(Type::X86Amx),
+                TypeCode::OpaquePointer => {
+                    let address_space = AddressSpace::try_from(
+                        *record.as_ref().fields.get(0).ok_or_else(|| {
+                            Error::BadField(
+                                "expected address space field for opaque pointer type".into(),
+                            )
+                        })?,
+                    )
+                    .map_err(|e| Error::BadField(format!("bad address space in type: {:?}", e)))?;
+
+                    ctx.types.push(Type::OpaquePointer(address_space))
+                }
+                o => {
+                    return Err(Error::Unsupported(format!(
+                        "unsupported type code: {:?}",
+                        o
+                    )))
+                }
+            }
+
+            count += 1;
+        }
+
+        if count != numentries {
+            unimplemented!();
+        }
+
+        Ok(Self {})
     }
+}
+
+/// Errors that can occur when accessing a string table.
+#[derive(Debug, Error)]
+pub enum StrtabError {
+    /// The requested range is invalid.
+    #[error("requested range in string table is invalid")]
+    BadRange,
+    /// The requested string is not UTF-8.
+    #[error("could not decode range into a UTF-8 string: {0}")]
+    BadString(#[from] Utf8Error),
 }
 
 /// Models the `STRTAB_BLOCK` block.
@@ -217,17 +329,6 @@ impl IrBlock for Strtab {
 
         Ok(Self(strtab))
     }
-}
-
-/// Errors that can occur when accessing a string table.
-#[derive(Debug, Error)]
-pub enum StrtabError {
-    /// The requested range is invalid.
-    #[error("requested range in string table is invalid")]
-    BadRange,
-    /// The requested string is not UTF-8.
-    #[error("could not decode range into a UTF-8 string: {0}")]
-    BadString(#[from] Utf8Error),
 }
 
 impl Strtab {

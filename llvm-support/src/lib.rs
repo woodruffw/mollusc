@@ -1,7 +1,7 @@
 //! `llvm-support` provides support types to the other *mollusc* crates,
 //! in furtherance of the general task of parsing LLVM's bitcode.
 
-#![deny(broken_intra_doc_links)]
+#![deny(rustdoc::broken_intra_doc_links)]
 #![deny(missing_docs)]
 #![allow(clippy::redundant_field_names)]
 #![forbid(unsafe_code)]
