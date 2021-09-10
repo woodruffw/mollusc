@@ -1164,8 +1164,8 @@ mod tests {
 
     #[test]
     fn test_address_space() {
-        assert!(AddressSpace::try_from(0).is_ok());
-        assert!(AddressSpace::try_from(1).is_ok());
+        assert!(AddressSpace::try_from(0_u32).is_ok());
+        assert!(AddressSpace::try_from(1_u32).is_ok());
         assert!(AddressSpace::try_from(AddressSpace::MAX).is_ok());
 
         assert!(AddressSpace::try_from(AddressSpace::MAX + 1).is_err());

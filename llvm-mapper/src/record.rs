@@ -461,9 +461,9 @@ mod tests {
             assert_eq!(
                 dl.non_integral_address_spaces,
                 vec![
-                    AddressSpace::try_from(1).unwrap(),
-                    AddressSpace::try_from(2).unwrap(),
-                    AddressSpace::try_from(3).unwrap()
+                    AddressSpace::try_from(1_u32).unwrap(),
+                    AddressSpace::try_from(2_u32).unwrap(),
+                    AddressSpace::try_from(3_u32).unwrap()
                 ]
             );
         }
@@ -473,7 +473,7 @@ mod tests {
 
             assert_eq!(
                 dl.non_integral_address_spaces,
-                vec![AddressSpace::try_from(1).unwrap(),]
+                vec![AddressSpace::try_from(1_u32).unwrap(),]
             );
         }
 
