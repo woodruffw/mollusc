@@ -1,7 +1,7 @@
 //! `llvm-bitstream` is a library for interpreting files in LLVM's
 //! [bitstream format](https://llvm.org/docs/BitCodeFormat.html).
 
-#![deny(broken_intra_doc_links)]
+#![deny(rustdoc::broken_intra_doc_links)]
 #![deny(missing_docs)]
 #![allow(clippy::redundant_field_names)]
 #![forbid(unsafe_code)]
