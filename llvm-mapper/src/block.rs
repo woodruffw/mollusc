@@ -6,7 +6,7 @@ use std::str::Utf8Error;
 use llvm_constants::{
     IdentificationCode, IrBlockId, ModuleCode, ReservedBlockId, StrtabCode, SymtabCode, TypeCode,
 };
-use llvm_support::{AddressSpace, StrtabRef, Type};
+use llvm_support::{AddressSpace, IntegerTypeError, PointerTypeError, StrtabRef, Type};
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
@@ -183,6 +183,12 @@ pub enum TypeTableError {
     /// An unknown record code was seen.
     #[error("unknown type code: {0}")]
     UnknownTypeCode(#[from] TryFromPrimitiveError<TypeCode>),
+    /// An invalid integer type was seen.
+    #[error("invalid integer type: {0}")]
+    InvalidIntegerType(#[from] IntegerTypeError),
+    /// An invalid pointer type was seen.
+    #[error("invalid pointer type: {0}")]
+    InvalidPointerType(#[from] PointerTypeError),
 }
 
 /// Models the `TYPE_BLOCK_ID_NEW` block.
@@ -228,6 +234,11 @@ impl IrBlock for TypeTable {
                 TypeCode::Double => ctx.types.push(Type::Double),
                 TypeCode::Label => ctx.types.push(Type::Label),
                 TypeCode::Opaque => {
+                    // NOTE(ww): LLVM's BitcodeReader checks that the
+                    // TYPE_CODE_OPAQUE record has exactly one field, but
+                    // doesn't seem to use that field for anything.
+                    // Not sure what's up with that.
+
                     if last_type_name.is_empty() {
                         return Err(Error::BadRecordMap(
                             "opaque type but no preceding type name".into(),
@@ -235,13 +246,72 @@ impl IrBlock for TypeTable {
                     }
 
                     // Our opaque type might be forward-referenced. If so, we
-                    // fill in the previous type rather than creating a new one.
-                    if let Some(Type::Struct(_)) = ctx.types.last_mut() {}
+                    // fill in the previous type's name. Otherwise, we create
+                    // a new structure type with no body.
+                    if let Some(Type::Struct(s)) = ctx.types.last_mut() {
+                        if s.name.is_some() {
+                            return Err(Error::BadBlockMap(
+                                "forward-declared opaque type already has name".into(),
+                            ));
+                        }
+
+                        s.name = Some(last_type_name.clone());
+                    } else {
+                        ctx.types
+                            .push(Type::new_named_struct(last_type_name.clone(), vec![]));
+                    }
 
                     last_type_name.clear();
                 }
-                TypeCode::Integer => unimplemented!(),
-                TypeCode::Pointer => unimplemented!(),
+                TypeCode::Integer => {
+                    // Integer type codes carry their width.
+                    let bit_width = *record.as_ref().fields.get(0).ok_or_else(|| {
+                        Error::BadField("expected bit width field for integer type".into())
+                    })?;
+
+                    ctx.types
+                        .push(Type::new_integer(bit_width as u32).map_err(TypeTableError::from)?);
+                }
+                TypeCode::Pointer => {
+                    // Pointer types refer to their pointee type by index,
+                    // and optionally include an address space record.
+                    let pointee_type = {
+                        let idx = *record.as_ref().fields.get(0).ok_or_else(|| {
+                            Error::BadField(
+                                "expected pointee type reference for pointer type".into(),
+                            )
+                        })? as usize;
+
+                        ctx.types
+                            .get(idx)
+                            .ok_or_else(|| {
+                                Error::BadField(format!(
+                                    "invalid pointee type index: no type at {}",
+                                    idx
+                                ))
+                            })?
+                            .clone()
+                    };
+
+                    let address_space = record.as_ref().fields.get(1).map_or_else(
+                        || Ok(AddressSpace::default()),
+                        |f| {
+                            AddressSpace::try_from(*f).map_err(|e| {
+                                Error::BadField(format!(
+                                    "bad address space for pointer type: {:?}",
+                                    e
+                                ))
+                            })
+                        },
+                    )?;
+
+                    // Not all types are actually valid pointee types, hence
+                    // the fallible type construction here.
+                    ctx.types.push(
+                        Type::new_pointer(pointee_type, address_space)
+                            .map_err(TypeTableError::from)?,
+                    );
+                }
                 TypeCode::FunctionOld => unimplemented!(),
                 TypeCode::Array => unimplemented!(),
                 TypeCode::Vector => unimplemented!(),
