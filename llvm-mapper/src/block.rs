@@ -86,7 +86,7 @@ impl IrBlock for Identification {
         let epoch = {
             let epoch = block.one_record(IdentificationCode::Epoch as u64)?;
 
-            epoch.as_ref().fields[0]
+            epoch.get_field(0)?
         };
 
         Ok(Self { producer, epoch })
@@ -206,11 +206,7 @@ impl IrBlock for TypeTable {
         let numentries = {
             let numentries = block.one_record(TypeCode::NumEntry as u64)?;
 
-            *numentries
-                .as_ref()
-                .fields
-                .get(0)
-                .ok_or_else(|| Error::BadField("TYPE_CODE_NUMENTRY is empty".into()))?
+            numentries.get_field(0)?
         };
         ctx.types.reserve(numentries as usize);
 
@@ -265,10 +261,7 @@ impl IrBlock for TypeTable {
                 }
                 TypeCode::Integer => {
                     // Integer type codes carry their width.
-                    let bit_width = *record.as_ref().fields.get(0).ok_or_else(|| {
-                        Error::BadField("expected bit width field for integer type".into())
-                    })?;
-
+                    let bit_width = record.get_field(0)?;
                     ctx.types
                         .push(Type::new_integer(bit_width as u32).map_err(TypeTableError::from)?);
                 }
@@ -276,11 +269,7 @@ impl IrBlock for TypeTable {
                     // Pointer types refer to their pointee type by index,
                     // and optionally include an address space record.
                     let pointee_type = {
-                        let idx = *record.as_ref().fields.get(0).ok_or_else(|| {
-                            Error::BadField(
-                                "expected pointee type reference for pointer type".into(),
-                            )
-                        })? as usize;
+                        let idx = record.get_field(0)? as usize;
 
                         ctx.types
                             .get(idx)
@@ -293,17 +282,11 @@ impl IrBlock for TypeTable {
                             .clone()
                     };
 
-                    let address_space = record.as_ref().fields.get(1).map_or_else(
-                        || Ok(AddressSpace::default()),
-                        |f| {
-                            AddressSpace::try_from(*f).map_err(|e| {
-                                Error::BadField(format!(
-                                    "bad address space for pointer type: {:?}",
-                                    e
-                                ))
-                            })
-                        },
-                    )?;
+                    let address_space = record.get_field(1).and_then(|f| {
+                        AddressSpace::try_from(f).map_err(|e| {
+                            Error::BadField(format!("bad address space for pointer type: {:?}", e))
+                        })
+                    })?;
 
                     // Not all types are actually valid pointee types, hence
                     // the fallible type construction here.
@@ -330,14 +313,11 @@ impl IrBlock for TypeTable {
                 TypeCode::Function => unimplemented!(),
                 TypeCode::X86Amx => ctx.types.push(Type::X86Amx),
                 TypeCode::OpaquePointer => {
-                    let address_space = AddressSpace::try_from(
-                        *record.as_ref().fields.get(0).ok_or_else(|| {
-                            Error::BadField(
-                                "expected address space field for opaque pointer type".into(),
-                            )
-                        })?,
-                    )
-                    .map_err(|e| Error::BadField(format!("bad address space in type: {:?}", e)))?;
+                    let address_space = record.get_field(0).and_then(|f| {
+                        AddressSpace::try_from(f).map_err(|e| {
+                            Error::BadField(format!("bad address space in type: {:?}", e))
+                        })
+                    })?;
 
                     ctx.types.push(Type::OpaquePointer(address_space))
                 }

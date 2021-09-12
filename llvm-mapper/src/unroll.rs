@@ -71,6 +71,15 @@ impl UnrolledRecord {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| Error::BadField("impossible byte value in blob".into()))
     }
+
+    /// Attempt to get a field from this record by index.
+    pub fn get_field(&self, idx: usize) -> Result<u64, Error> {
+        self.0
+            .fields
+            .get(idx)
+            .copied()
+            .ok_or_else(|| Error::BadField(format!("invalid field index for {:?}: {}", self, idx)))
+    }
 }
 
 /// A fully unrolled block within the bitstream, with potential records
