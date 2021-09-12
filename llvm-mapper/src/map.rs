@@ -1,6 +1,5 @@
 //! Traits for mapping bitstream types to models.
 
-use llvm_support::Type;
 use thiserror::Error;
 
 use crate::block::Strtab;
@@ -31,9 +30,7 @@ pub enum MapCtxError {
 pub struct MapCtx {
     pub(crate) version: Option<u64>,
     pub(crate) strtab: Option<Strtab>,
-    pub(crate) types: Vec<Type>,
     // TODO(ww): Maybe symtab and identification in here?
-    // TODO(ww): Definitely some kind of type uniqing structure in here.
 }
 
 impl Default for MapCtx {
@@ -41,7 +38,6 @@ impl Default for MapCtx {
         Self {
             version: None,
             strtab: None,
-            types: vec![],
         }
     }
 }

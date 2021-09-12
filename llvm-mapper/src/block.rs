@@ -7,8 +7,8 @@ use llvm_constants::{
     IdentificationCode, IrBlockId, ModuleCode, ReservedBlockId, StrtabCode, SymtabCode, TypeCode,
 };
 use llvm_support::{
-    AddressSpace, ArrayTypeError, IntegerTypeError, PointerTypeError, StrtabRef, Type,
-    VectorTypeError,
+    AddressSpace, ArrayTypeError, FunctionTypeError, IntegerTypeError, PointerTypeError, StrtabRef,
+    StructTypeError, Type, VectorTypeError,
 };
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
@@ -110,6 +110,8 @@ pub struct Module {
     pub asm: Vec<String>,
     /// Any dependent libraries listed in the module.
     pub deplibs: Vec<String>,
+    /// The module's type table.
+    pub type_table: TypeTable,
 }
 
 impl IrBlock for Module {
@@ -119,7 +121,7 @@ impl IrBlock for Module {
         let version = {
             let version = block.one_record(ModuleCode::Version as u64)?;
 
-            version.as_ref().fields[0]
+            version.get_field(0)?
         };
 
         ctx.version = Some(version);
@@ -170,12 +172,18 @@ impl IrBlock for Module {
             .map(|rec| Comdat::try_map(rec, ctx))
             .collect::<Result<Vec<_>, _>>()?;
 
+        // Build the type table.
+        let type_table = block
+            .one_block(BlockId::Ir(IrBlockId::Type))
+            .and_then(|b| TypeTable::try_map(b, ctx))?;
+
         Ok(Self {
             version,
             triple,
             datalayout,
             asm,
             deplibs,
+            type_table,
         })
     }
 }
@@ -198,26 +206,37 @@ pub enum TypeTableError {
     /// An invalid vector type was seen.
     #[error("invalid vector type: {0}")]
     InvalidVectorType(#[from] VectorTypeError),
+    /// An invalid structure type was seen.
+    #[error("invalid structure type: {0}")]
+    InvalidStructType(#[from] StructTypeError),
+    /// An invalid function type was seen.
+    #[error("invalid function type: {0}")]
+    InvalidFunctionType(#[from] FunctionTypeError),
 }
 
 /// Models the `TYPE_BLOCK_ID_NEW` block.
-///
-/// This model has no state of its own; its responsibility during mapping is to update
-/// the [MapCtx](MapCtx) with information about the types used in the module.
 #[derive(Clone, Debug)]
-pub struct TypeTable {}
+pub struct TypeTable(Vec<Type>);
+
+impl Default for TypeTable {
+    fn default() -> Self {
+        Self(vec![])
+    }
+}
 
 impl IrBlock for TypeTable {
     const BLOCK_ID: IrBlockId = IrBlockId::Type;
 
-    fn try_map_inner(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Error> {
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
+        let mut types = Self::default();
+
         // Figure out how many type entries we have, and reserve the space for them up-front.
         let numentries = {
             let numentries = block.one_record(TypeCode::NumEntry as u64)?;
 
             numentries.get_field(0)?
         };
-        ctx.types.reserve(numentries as usize);
+        types.0.reserve(numentries as usize);
 
         // Bits of type mapping state:
         // * Keep track of how many types we've seen; we'll reconcile this count
@@ -227,17 +246,18 @@ impl IrBlock for TypeTable {
         let mut count = 0;
         let mut last_type_name = String::new();
         for record in block.all_records() {
-            let code = TypeCode::try_from(record.as_ref().code).map_err(TypeTableError::from)?;
+            let code = TypeCode::try_from(record.code()).map_err(TypeTableError::from)?;
+            log::debug!("visiting type code: {:?}", code);
 
             match code {
                 // Already visited; nothing to do.
                 TypeCode::NumEntry => continue,
-                TypeCode::Void => ctx.types.push(Type::Void),
-                TypeCode::Half => ctx.types.push(Type::Half),
-                TypeCode::BFloat => ctx.types.push(Type::BFloat),
-                TypeCode::Float => ctx.types.push(Type::Float),
-                TypeCode::Double => ctx.types.push(Type::Double),
-                TypeCode::Label => ctx.types.push(Type::Label),
+                TypeCode::Void => types.0.push(Type::Void),
+                TypeCode::Half => types.0.push(Type::Half),
+                TypeCode::BFloat => types.0.push(Type::BFloat),
+                TypeCode::Float => types.0.push(Type::Float),
+                TypeCode::Double => types.0.push(Type::Double),
+                TypeCode::Label => types.0.push(Type::Label),
                 TypeCode::Opaque => {
                     // NOTE(ww): LLVM's BitcodeReader checks that the
                     // TYPE_CODE_OPAQUE record has exactly one field, but
@@ -253,7 +273,7 @@ impl IrBlock for TypeTable {
                     // Our opaque type might be forward-referenced. If so, we
                     // fill in the previous type's name. Otherwise, we create
                     // a new structure type with no body.
-                    if let Some(Type::Struct(s)) = ctx.types.last_mut() {
+                    if let Some(Type::Struct(s)) = types.0.last_mut() {
                         if s.name.is_some() {
                             return Err(Error::BadBlockMap(
                                 "forward-declared opaque type already has name".into(),
@@ -262,8 +282,10 @@ impl IrBlock for TypeTable {
 
                         s.name = Some(last_type_name.clone());
                     } else {
-                        ctx.types
-                            .push(Type::new_named_struct(last_type_name.clone(), vec![]));
+                        types.0.push(
+                            Type::new_struct(Some(last_type_name.clone()), vec![], false)
+                                .map_err(TypeTableError::from)?,
+                        );
                     }
 
                     last_type_name.clear();
@@ -271,7 +293,8 @@ impl IrBlock for TypeTable {
                 TypeCode::Integer => {
                     // Integer type codes carry their width.
                     let bit_width = record.get_field(0)?;
-                    ctx.types
+                    types
+                        .0
                         .push(Type::new_integer(bit_width as u32).map_err(TypeTableError::from)?);
                 }
                 TypeCode::Pointer => {
@@ -280,7 +303,8 @@ impl IrBlock for TypeTable {
                     let pointee_type = {
                         let idx = record.get_field(0)? as usize;
 
-                        ctx.types
+                        types
+                            .0
                             .get(idx)
                             .ok_or_else(|| {
                                 Error::BadField(format!(
@@ -299,7 +323,7 @@ impl IrBlock for TypeTable {
 
                     // Not all types are actually valid pointee types, hence
                     // the fallible type construction here.
-                    ctx.types.push(
+                    types.0.push(
                         Type::new_pointer(pointee_type, address_space)
                             .map_err(TypeTableError::from)?,
                     );
@@ -316,7 +340,8 @@ impl IrBlock for TypeTable {
                     let element_type = {
                         let idx = record.get_field(1)? as usize;
 
-                        ctx.types
+                        types
+                            .0
                             .get(idx)
                             .ok_or_else(|| {
                                 Error::BadField(format!(
@@ -327,7 +352,7 @@ impl IrBlock for TypeTable {
                             .clone()
                     };
 
-                    ctx.types.push(
+                    types.0.push(
                         Type::new_array(num_elements, element_type)
                             .map_err(TypeTableError::from)?,
                     );
@@ -338,7 +363,8 @@ impl IrBlock for TypeTable {
                     let element_type = {
                         let idx = record.get_field(1)? as usize;
 
-                        ctx.types
+                        types
+                            .0
                             .get(idx)
                             .ok_or_else(|| {
                                 Error::BadField(format!(
@@ -358,22 +384,113 @@ impl IrBlock for TypeTable {
                     }
                     .map_err(TypeTableError::from)?;
 
-                    ctx.types.push(new_type);
+                    types.0.push(new_type);
                 }
-                TypeCode::X86Fp80 => ctx.types.push(Type::X86Fp80),
-                TypeCode::Fp128 => ctx.types.push(Type::Fp128),
-                TypeCode::PpcFp128 => ctx.types.push(Type::PpcFp128),
-                TypeCode::Metadata => ctx.types.push(Type::Metadata),
-                TypeCode::X86Mmx => ctx.types.push(Type::X86Mmx),
-                TypeCode::StructAnon => unimplemented!(),
+                TypeCode::X86Fp80 => types.0.push(Type::X86Fp80),
+                TypeCode::Fp128 => types.0.push(Type::Fp128),
+                TypeCode::PpcFp128 => types.0.push(Type::PpcFp128),
+                TypeCode::Metadata => types.0.push(Type::Metadata),
+                TypeCode::X86Mmx => types.0.push(Type::X86Mmx),
+                TypeCode::StructAnon => {
+                    let is_packed = record.get_field(0).map(|f| f > 0)?;
+
+                    let element_types = record.fields()[1..]
+                        .iter()
+                        .map(|idx| {
+                            types.0.get(*idx as usize).cloned().ok_or_else(|| {
+                                Error::BadField(format!(
+                                    "invalid structure element type index: no type at {}",
+                                    idx
+                                ))
+                            })
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+
+                    types.0.push(
+                        Type::new_struct(None, element_types, is_packed)
+                            .map_err(TypeTableError::from)?,
+                    );
+                }
                 TypeCode::StructName => {
                     // A `TYPE_CODE_STRUCT_NAME` is not a type in its own right; it merely
                     // supplies the name for a future type record.
                     last_type_name.push_str(&record.try_string(0)?);
                 }
-                TypeCode::StructNamed => unimplemented!(),
-                TypeCode::Function => unimplemented!(),
-                TypeCode::X86Amx => ctx.types.push(Type::X86Amx),
+                TypeCode::StructNamed => {
+                    // TODO(ww): Should probably be deduped with StructAnon above,
+                    // since they're 90% identical.
+
+                    let is_packed = record.get_field(0).map(|f| f > 0)?;
+
+                    let element_types = record.fields()[1..]
+                        .iter()
+                        .map(|idx| {
+                            types.0.get(*idx as usize).cloned().ok_or_else(|| {
+                                Error::BadField(format!(
+                                    "invalid structure element type index: no type at {}",
+                                    idx
+                                ))
+                            })
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+
+                    // Like with opaque types, we might be forward-referenced here.
+                    // If so, we update our pre-existing structure type with its
+                    // correct name and fields.
+                    if let Some(Type::Struct(s)) = types.0.last_mut() {
+                        if s.name.is_some() || !s.fields.is_empty() {
+                            return Err(Error::BadBlockMap(
+                                "forward-declared struct type already has name and/or type fields"
+                                    .into(),
+                            ));
+                        }
+
+                        s.name = Some(last_type_name.clone());
+                        s.fields = element_types;
+                    } else {
+                        types.0.push(
+                            Type::new_struct(
+                                Some(last_type_name.clone()),
+                                element_types,
+                                is_packed,
+                            )
+                            .map_err(TypeTableError::from)?,
+                        );
+                    }
+
+                    last_type_name.clear();
+                }
+                TypeCode::Function => {
+                    let is_vararg = record.get_field(0).map(|f| f > 0)?;
+                    let return_type = {
+                        let idx = record.get_field(1)?;
+
+                        types.0.get(idx as usize).cloned().ok_or_else(|| {
+                            Error::BadField(format!(
+                                "invalid function return type index: no type at {}",
+                                idx
+                            ))
+                        })?
+                    };
+
+                    let param_types = record.fields()[2..]
+                        .iter()
+                        .map(|idx| {
+                            types.0.get(*idx as usize).cloned().ok_or_else(|| {
+                                Error::BadField(format!(
+                                    "invalid function param type index: no type at {}",
+                                    idx
+                                ))
+                            })
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+
+                    types.0.push(
+                        Type::new_function(return_type, param_types, is_vararg)
+                            .map_err(TypeTableError::from)?,
+                    );
+                }
+                TypeCode::X86Amx => types.0.push(Type::X86Amx),
                 TypeCode::OpaquePointer => {
                     let address_space = record.get_field(0).and_then(|f| {
                         AddressSpace::try_from(f).map_err(|e| {
@@ -381,7 +498,7 @@ impl IrBlock for TypeTable {
                         })
                     })?;
 
-                    ctx.types.push(Type::OpaquePointer(address_space))
+                    types.0.push(Type::OpaquePointer(address_space))
                 }
                 o => {
                     return Err(Error::Unsupported(format!(
@@ -401,7 +518,7 @@ impl IrBlock for TypeTable {
             )));
         }
 
-        Ok(Self {})
+        Ok(types)
     }
 }
 

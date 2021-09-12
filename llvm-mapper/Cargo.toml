@@ -15,6 +15,7 @@ version = "0.0.2-rc.4"
 name = "unroll-bitstream"
 
 [dependencies]
+indexmap = "1.7.0"
 llvm-bitstream = { version = "0.0.2-rc.5", path = "../llvm-bitstream" }
 llvm-constants = { version = "0.0.2-rc.4", path = "../llvm-constants" }
 llvm-support = { version = "^0.0.2-rc.2", path = "../llvm-support" }
