@@ -6,7 +6,10 @@ use std::str::Utf8Error;
 use llvm_constants::{
     IdentificationCode, IrBlockId, ModuleCode, ReservedBlockId, StrtabCode, SymtabCode, TypeCode,
 };
-use llvm_support::{AddressSpace, IntegerTypeError, PointerTypeError, StrtabRef, Type};
+use llvm_support::{
+    AddressSpace, ArrayTypeError, IntegerTypeError, PointerTypeError, StrtabRef, Type,
+    VectorTypeError,
+};
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
@@ -189,6 +192,12 @@ pub enum TypeTableError {
     /// An invalid pointer type was seen.
     #[error("invalid pointer type: {0}")]
     InvalidPointerType(#[from] PointerTypeError),
+    /// An invalid array type was seen.
+    #[error("invalid array type: {0}")]
+    InvalidArrayType(#[from] ArrayTypeError),
+    /// An invalid vector type was seen.
+    #[error("invalid vector type: {0}")]
+    InvalidVectorType(#[from] VectorTypeError),
 }
 
 /// Models the `TYPE_BLOCK_ID_NEW` block.
@@ -295,10 +304,63 @@ impl IrBlock for TypeTable {
                             .map_err(TypeTableError::from)?,
                     );
                 }
-                TypeCode::FunctionOld => unimplemented!(),
-                TypeCode::Array => unimplemented!(),
-                TypeCode::Vector => unimplemented!(),
-                TypeCode::X86Fp80 => unimplemented!(),
+                TypeCode::FunctionOld => {
+                    // TODO(ww): These only show up in older bitcode, so don't bother with them for now.
+                    return Err(Error::Unsupported(
+                        "unsupported: old function type codes; please implement!".into(),
+                    ));
+                }
+                TypeCode::Array => {
+                    let num_elements = record.get_field(0)?;
+
+                    let element_type = {
+                        let idx = record.get_field(1)? as usize;
+
+                        ctx.types
+                            .get(idx)
+                            .ok_or_else(|| {
+                                Error::BadField(format!(
+                                    "invalid array element type index: no type at {}",
+                                    idx
+                                ))
+                            })?
+                            .clone()
+                    };
+
+                    ctx.types.push(
+                        Type::new_array(num_elements, element_type)
+                            .map_err(TypeTableError::from)?,
+                    );
+                }
+                TypeCode::Vector => {
+                    let num_elements = record.get_field(0)?;
+
+                    let element_type = {
+                        let idx = record.get_field(1)? as usize;
+
+                        ctx.types
+                            .get(idx)
+                            .ok_or_else(|| {
+                                Error::BadField(format!(
+                                    "invalid vector element type index: no type at {}",
+                                    idx
+                                ))
+                            })?
+                            .clone()
+                    };
+
+                    // A vector type is either fixed or scalable, depending on the
+                    // third field (which can also be absent, indicating fixed).
+                    let scalable = record.get_field(2).map_or_else(|_| false, |f| f > 0);
+                    let new_type = match scalable {
+                        true => Type::new_scalable_vector(num_elements, element_type),
+                        false => Type::new_vector(num_elements, element_type),
+                    }
+                    .map_err(TypeTableError::from)?;
+
+                    ctx.types.push(new_type);
+                }
+                TypeCode::X86Fp80 => ctx.types.push(Type::X86Fp80),
                 TypeCode::Fp128 => ctx.types.push(Type::Fp128),
                 TypeCode::PpcFp128 => ctx.types.push(Type::PpcFp128),
                 TypeCode::Metadata => ctx.types.push(Type::Metadata),
@@ -333,7 +395,10 @@ impl IrBlock for TypeTable {
         }
 
         if count != numentries {
-            unimplemented!();
+            return Err(Error::BadBlockMap(format!(
+                "bad type table: expected {} entries, but got {}",
+                numentries, count
+            )));
         }
 
         Ok(Self {})
