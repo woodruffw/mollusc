@@ -6,8 +6,8 @@
 #![allow(clippy::redundant_field_names)]
 #![forbid(unsafe_code)]
 
-mod align;
-mod ty;
+pub mod align;
+pub mod ty;
 
 pub use align::*;
 pub use ty::*;
