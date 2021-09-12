@@ -76,7 +76,7 @@ pub enum Type {
     X86Amx,
     Token,
     Integer(IntegerType),
-    Function(Box<Type>, Vec<Type>),
+    Function(FunctionType),
     Pointer(PointerType),
     OpaquePointer(AddressSpace),
     Struct(StructType),
@@ -129,7 +129,7 @@ impl Type {
             Type::Void
                 | Type::Label
                 | Type::Metadata
-                | Type::Function(_, _)
+                | Type::Function(_)
                 | Type::Token
                 | Type::X86Amx
                 | Type::ScalableVector(_)
@@ -141,7 +141,7 @@ impl Type {
     pub fn is_struct_element(&self) -> bool {
         !matches!(
             self,
-            Type::Void | Type::Label | Type::Metadata | Type::Function(_, _) | Type::Token
+            Type::Void | Type::Label | Type::Metadata | Type::Function(_) | Type::Token
         )
     }
 
@@ -164,12 +164,39 @@ impl Type {
         self.is_floating() || matches!(self, Type::Integer(_) | Type::Pointer(_))
     }
 
-    /// Create a new named (non-anonymous) struct type with the given fields.
-    pub fn new_named_struct(name: String, fields: Vec<Type>) -> Self {
-        Type::Struct(StructType {
-            name: Some(name),
-            fields: fields,
-        })
+    /// Returns whether this type is "first class", i.e. is a valid type for an LLVM value.
+    fn is_first_class(&self) -> bool {
+        !matches!(self, Type::Function(_) | Type::Void)
+    }
+
+    /// Returns whether this type is a valid argument type, i.e. is suitable as an argument
+    /// within a function type.
+    ///
+    /// ```rust
+    /// use llvm_support::Type;
+    ///
+    /// assert!(Type::Float.is_argument());
+    /// assert!(!Type::Void.is_argument());
+    /// ```
+    pub fn is_argument(&self) -> bool {
+        self.is_first_class()
+    }
+
+    /// Returns whether this type is a valid return type, i.e. is suitable as the return type
+    /// within a function type.
+    pub fn is_return(&self) -> bool {
+        !matches!(self, Type::Function(_) | Type::Label | Type::Metadata)
+    }
+
+    /// Create a new struct type with the given fields.
+    pub fn new_struct(
+        name: Option<String>,
+        fields: Vec<Type>,
+        is_packed: bool,
+    ) -> Result<Self, StructTypeError> {
+        let inner = StructType::new(name, fields, is_packed)?;
+
+        Ok(Type::Struct(inner))
     }
 
     /// Create a new integral type from the given bit width.
@@ -212,6 +239,25 @@ impl Type {
 
         Ok(Type::FixedVector(inner))
     }
+
+    /// Create a new function type of the given return type, parameter types, and variadic disposition.
+    pub fn new_function(
+        return_type: Type,
+        param_types: Vec<Type>,
+        is_vararg: bool,
+    ) -> Result<Self, FunctionTypeError> {
+        let inner = FunctionType::new(return_type, param_types, is_vararg)?;
+
+        Ok(Type::Function(inner))
+    }
+}
+
+/// Errors that can occur when constructing an [`StructType`](StructType).
+#[derive(Debug, Error)]
+pub enum StructTypeError {
+    /// The requested element type is invalid.
+    #[error("invalid structure element type")]
+    BadElement,
 }
 
 /// Represents a "struct" type.
@@ -222,6 +268,27 @@ pub struct StructType {
     pub name: Option<String>,
     /// The individual fields of this structure.
     pub fields: Vec<Type>,
+    /// Whether the fields of this structure are packed.
+    is_packed: bool,
+}
+
+impl StructType {
+    /// Create a new `StructType`.
+    pub fn new(
+        name: Option<String>,
+        fields: Vec<Type>,
+        is_packed: bool,
+    ) -> Result<Self, StructTypeError> {
+        if fields.iter().any(|t| !t.is_struct_element()) {
+            Err(StructTypeError::BadElement)
+        } else {
+            Ok(Self {
+                name,
+                fields,
+                is_packed,
+            })
+        }
+    }
 }
 
 /// Errors that can occur when constructing an [`IntegerType`](IntegerType).
@@ -381,6 +448,47 @@ impl VectorType {
     /// Return a reference to the inner element type.
     pub fn element(&self) -> &Type {
         self.element_type.as_ref()
+    }
+}
+
+/// Errors that can occur when constructing a [`FunctionType`](FunctionType).
+#[derive(Debug, Error)]
+pub enum FunctionTypeError {
+    /// The requested return type is invalid.
+    #[error("invalid function return type")]
+    BadReturn,
+    /// The requested parameter type is invalid.
+    #[error("invalid function parameter type")]
+    BadParameter,
+}
+
+/// Represents an function type.
+#[non_exhaustive]
+#[derive(Clone, Debug, PartialEq)]
+pub struct FunctionType {
+    return_type: Box<Type>,
+    param_types: Vec<Type>,
+    is_vararg: bool,
+}
+
+impl FunctionType {
+    /// Create a new `FunctionType`.
+    pub fn new(
+        return_type: Type,
+        param_types: Vec<Type>,
+        is_vararg: bool,
+    ) -> Result<Self, FunctionTypeError> {
+        if !return_type.is_return() {
+            Err(FunctionTypeError::BadReturn)
+        } else if param_types.iter().any(|ty| !ty.is_argument()) {
+            Err(FunctionTypeError::BadParameter)
+        } else {
+            Ok(FunctionType {
+                return_type: Box::new(return_type),
+                param_types,
+                is_vararg,
+            })
+        }
     }
 }
 
