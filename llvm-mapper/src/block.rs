@@ -257,13 +257,12 @@ pub enum TypeTableError {
 #[derive(Clone, Debug)]
 pub struct TypeTable(Vec<Type>);
 
-impl Default for TypeTable {
-    fn default() -> Self {
-        Self(vec![])
-    }
-}
-
 impl TypeTable {
+    /// Create a new type table with `numentries` slots reserved up-front.
+    pub(self) fn new(numentries: usize) -> Self {
+        Self(Vec::with_capacity(numentries))
+    }
+
     /// Return a mutable reference to the most recently added type in the table.
     pub(self) fn last_mut(&mut self) -> Option<&mut Type> {
         self.0.last_mut()
@@ -287,15 +286,14 @@ impl IrBlock for TypeTable {
     const BLOCK_ID: IrBlockId = IrBlockId::Type;
 
     fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
-        let mut types = Self::default();
-
         // Figure out how many type entries we have, and reserve the space for them up-front.
         let numentries = {
             let numentries = block.one_record(TypeCode::NumEntry as u64)?;
 
             numentries.get_field(0)?
         };
-        types.0.reserve(numentries as usize);
+
+        let mut types = Self::new(numentries as usize);
 
         // Bits of type mapping state:
         // * Keep track of how many types we've seen; we'll reconcile this count
@@ -352,9 +350,7 @@ impl IrBlock for TypeTable {
                 TypeCode::Integer => {
                     // Integer type codes carry their width.
                     let bit_width = record.get_field(0)?;
-                    types
-                        .0
-                        .push(Type::new_integer(bit_width as u32).map_err(TypeTableError::from)?);
+                    types.add(Type::new_integer(bit_width as u32).map_err(TypeTableError::from)?);
                 }
                 TypeCode::Pointer => {
                     // Pointer types refer to their pointee type by index,
