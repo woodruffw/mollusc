@@ -1,4 +1,8 @@
 //! Structures for mapping from bitstream records to LLVM models.
+//!
+//! Depending on their importance or complexity, not every record is given a dedicated
+//! structure or mapping implementation. Simpler records are mapped inline within their
+//! blocks.
 
 use std::convert::{TryFrom, TryInto};
 use std::num::ParseIntError;
