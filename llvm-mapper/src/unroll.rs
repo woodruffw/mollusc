@@ -9,7 +9,7 @@ use llvm_bitstream::record::{Block, Record};
 use llvm_bitstream::Bitstream;
 use llvm_constants::IrBlockId;
 
-use crate::block::{BlockId, Identification, Module, Strtab, Symtab};
+use crate::block::{BlockId, BlockMapError, Identification, Module, Strtab, Symtab};
 use crate::error::Error;
 use crate::map::{MapCtx, Mappable};
 use crate::record::RecordMapError;
@@ -117,13 +117,13 @@ impl UnrolledBlock {
     /// Get zero or one records from this block by the given record code.
     ///
     /// Returns an error if the block has more than one record for this code.
-    pub fn one_record_or_none(&self, code: u64) -> Result<Option<&UnrolledRecord>, Error> {
+    pub fn one_record_or_none(&self, code: u64) -> Result<Option<&UnrolledRecord>, BlockMapError> {
         match self.records.get(&code) {
             Some(recs) => match recs.len() {
                 // NOTE(ww): The empty case here indicates API misuse, but we handle it out of caution.
                 0 => Ok(None),
                 1 => Ok(Some(&recs[0])),
-                _ => Err(Error::BlockRecordMismatch(code, self.id)),
+                _ => Err(BlockMapError::BlockRecordMismatch(code, self.id)),
             },
             None => Ok(None),
         }
@@ -132,17 +132,17 @@ impl UnrolledBlock {
     /// Get a single record from this block by its record code.
     ///
     /// Returns an error if the block either lacks an appropriate record or has more than one.
-    pub fn one_record(&self, code: u64) -> Result<&UnrolledRecord, Error> {
+    pub fn one_record(&self, code: u64) -> Result<&UnrolledRecord, BlockMapError> {
         let records_for_code = self
             .records
             .get(&code)
-            .ok_or(Error::BlockRecordMismatch(code, self.id))?;
+            .ok_or(BlockMapError::BlockRecordMismatch(code, self.id))?;
 
         // The empty case here would indicate API misuse, since we should only
         // create the vector upon inserting at least one record for a given code.
         // But it doesn't hurt (much) to be cautious.
         if records_for_code.is_empty() || records_for_code.len() > 1 {
-            return Err(Error::BlockRecordMismatch(code, self.id));
+            return Err(BlockMapError::BlockRecordMismatch(code, self.id));
         }
 
         // Panic safety: we check for exactly one member directly above.
@@ -169,17 +169,17 @@ impl UnrolledBlock {
     /// Get a single sub-block from this block by its block ID.
     ///
     /// Returns an error if the block either lacks an appropriate block or has more than one.
-    pub fn one_block(&self, id: BlockId) -> Result<&UnrolledBlock, Error> {
+    pub fn one_block(&self, id: BlockId) -> Result<&UnrolledBlock, BlockMapError> {
         let blocks_for_id = self
             .blocks
             .get(&id)
-            .ok_or(Error::BlockBlockMismatch(id, self.id))?;
+            .ok_or(BlockMapError::BlockBlockMismatch(id, self.id))?;
 
         // The empty case here would indicate API misuse, since we should only
         // create the vector upon inserting at least one block for a given ID.
         // But it doesn't hurt (much) to be cautious.
         if blocks_for_id.is_empty() || blocks_for_id.len() > 1 {
-            return Err(Error::BlockBlockMismatch(id, self.id));
+            return Err(BlockMapError::BlockBlockMismatch(id, self.id));
         }
 
         // Panic safety: we check for exactly one member directly above.
