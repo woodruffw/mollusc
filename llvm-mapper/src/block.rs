@@ -5,6 +5,7 @@ use std::str::Utf8Error;
 
 use llvm_constants::{
     IdentificationCode, IrBlockId, ModuleCode, ReservedBlockId, StrtabCode, SymtabCode, TypeCode,
+    TARGET_TRIPLE,
 };
 use llvm_support::{
     AddressSpace, ArrayTypeError, FunctionTypeError, IntegerTypeError, PointerTypeError, StrtabRef,
@@ -160,10 +161,20 @@ impl IrBlock for Module {
 
         ctx.version = Some(version);
 
-        let triple = block.one_record(ModuleCode::Triple as u64)?.try_string(0)?;
+        // Each module *should* have a target triple, but doesn't necessarily.
+        let triple = if let Some(record) = block.one_record_or_none(ModuleCode::Triple as u64)? {
+            record.try_string(0)?
+        } else {
+            TARGET_TRIPLE.into()
+        };
 
+        // Each module *should* have a datalayout record, but doesn't necessarily.
         let datalayout =
-            DataLayout::try_map(block.one_record(ModuleCode::DataLayout as u64)?, ctx)?;
+            if let Some(record) = block.one_record_or_none(ModuleCode::DataLayout as u64)? {
+                DataLayout::try_map(record, ctx)?
+            } else {
+                DataLayout::default()
+            };
 
         // Each module has zero or exactly one MODULE_CODE_ASM records.
         let asm = match block.one_record_or_none(ModuleCode::Asm as u64)? {
@@ -217,8 +228,8 @@ impl IrBlock for Module {
 #[derive(Debug, Error)]
 pub enum TypeTableError {
     /// An invalid type index was requested.
-    #[error("invalid type table index")]
-    BadIndex,
+    #[error("invalid type table index: {0}")]
+    BadIndex(usize),
     /// An unknown record code was seen.
     #[error("unknown type code: {0}")]
     UnknownTypeCode(#[from] TryFromPrimitiveError<TypeCode>),
@@ -260,7 +271,10 @@ impl TypeTable {
 
     /// Get a copy of a type from the type table by index.
     pub(self) fn get_owned(&self, idx: usize) -> Result<Type, TypeTableError> {
-        self.0.get(idx).cloned().ok_or(TypeTableError::BadIndex)
+        self.0
+            .get(idx)
+            .cloned()
+            .ok_or(TypeTableError::BadIndex(idx))
     }
 
     /// Add a type to the type table.
@@ -348,16 +362,7 @@ impl IrBlock for TypeTable {
                     let pointee_type = {
                         let idx = record.get_field(0)? as usize;
 
-                        types
-                            .0
-                            .get(idx)
-                            .ok_or_else(|| {
-                                BlockMapError::BadBlockMap(format!(
-                                    "invalid pointee type index: no type at {}",
-                                    idx
-                                ))
-                            })?
-                            .clone()
+                        types.get_owned(idx)?
                     };
 
                     let address_space =
@@ -387,16 +392,7 @@ impl IrBlock for TypeTable {
                     let element_type = {
                         let idx = record.get_field(1)? as usize;
 
-                        types
-                            .0
-                            .get(idx)
-                            .ok_or_else(|| {
-                                BlockMapError::BadBlockMap(format!(
-                                    "invalid array element type index: no type at {}",
-                                    idx
-                                ))
-                            })?
-                            .clone()
+                        types.get_owned(idx)?
                     };
 
                     types.add(
@@ -410,16 +406,7 @@ impl IrBlock for TypeTable {
                     let element_type = {
                         let idx = record.get_field(1)? as usize;
 
-                        types
-                            .0
-                            .get(idx)
-                            .ok_or_else(|| {
-                                BlockMapError::BadBlockMap(format!(
-                                    "invalid vector element type index: no type at {}",
-                                    idx
-                                ))
-                            })?
-                            .clone()
+                        types.get_owned(idx)?
                     };
 
                     // A vector type is either fixed or scalable, depending on the
