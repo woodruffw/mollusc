@@ -6,6 +6,9 @@ use thiserror::Error as ThisError;
 use crate::block::BlockMapError;
 
 /// All possible errors that can occur while mapping a bitstream.
+///
+/// The error variants here are deeply nested.
+#[non_exhaustive]
 #[derive(Debug, ThisError)]
 pub enum Error {
     /// We encountered an error while performing the underlying bitstream parse.

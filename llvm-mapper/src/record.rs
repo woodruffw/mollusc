@@ -17,6 +17,7 @@ use crate::map::{MapCtx, MapCtxError, Mappable};
 use crate::unroll::UnrolledRecord;
 
 /// Potential errors when mapping a single bitstream record.
+#[non_exhaustive]
 #[derive(Debug, Error)]
 pub enum RecordMapError {
     /// Parsing the datalayout specification failed.

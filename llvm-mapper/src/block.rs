@@ -18,6 +18,7 @@ use crate::record::{Comdat, DataLayout, RecordMapError};
 use crate::unroll::UnrolledBlock;
 
 /// Potential errors when mapping a single bitstream block.
+#[non_exhaustive]
 #[derive(Debug, Error)]
 pub enum BlockMapError {
     /// Parsing a record failed, for some internal reason.
