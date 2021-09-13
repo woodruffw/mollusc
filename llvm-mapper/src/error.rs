@@ -3,7 +3,7 @@
 use llvm_bitstream::error::Error as BitstreamError;
 use thiserror::Error as ThisError;
 
-use crate::block::{BlockId, StrtabError};
+use crate::block::{BlockId, StrtabError, TypeTableError};
 use crate::map::MapCtxError;
 use crate::record::DataLayoutParseError;
 
@@ -37,6 +37,9 @@ pub enum Error {
     /// Our mapping context isn't valid for this operation.
     #[error("invalid mapping context: {0}")]
     BadContext(#[from] MapCtxError),
+    /// We couldn't map the type table.
+    #[error("error while mapping type table: {0}")]
+    BadTypeTable(#[from] TypeTableError),
     /// Retrieving a string from a string table failed.
     #[error("error while accessing string table: {0}")]
     BadStrtab(#[from] StrtabError),

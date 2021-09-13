@@ -2,7 +2,7 @@
 //! The APIs provided by this crate are specialized for internal use in an LLVM bitstream parser,
 //! and may be less useful outside of that context.
 
-#![deny(broken_intra_doc_links)]
+#![deny(rustdoc::broken_intra_doc_links)]
 #![deny(missing_docs)]
 #![allow(clippy::redundant_field_names)]
 #![forbid(unsafe_code)]

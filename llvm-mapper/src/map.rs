@@ -31,7 +31,6 @@ pub struct MapCtx {
     pub(crate) version: Option<u64>,
     pub(crate) strtab: Option<Strtab>,
     // TODO(ww): Maybe symtab and identification in here?
-    // TODO(ww): Definitely some kind of type uniqing structure in here.
 }
 
 impl Default for MapCtx {
@@ -71,6 +70,9 @@ impl MapCtx {
 
 /// A trait for mapping some raw `T` into a model type.
 pub(crate) trait Mappable<T>: Sized {
+    // TODO(ww): This should declare an associated type for the error, instead
+    // of using the crate-wide Error.
+
     /// Attempt to map `T` into `Self` using the given [`MapCtx`](MapCtx).
     fn try_map(raw: &T, ctx: &mut MapCtx) -> Result<Self, Error>;
 }

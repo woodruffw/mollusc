@@ -286,20 +286,19 @@ impl Mappable<UnrolledRecord> for Comdat {
         }
 
         // v2: [strtab offset, strtab size, selection kind]
-        let record = record.as_ref();
-        if record.fields.len() != 3 {
+        if record.fields().len() != 3 {
             return Err(Error::BadRecordMap(format!(
                 "expected exactly 3 fields in COMDAT record, got {}",
-                record.fields.len()
+                record.fields().len()
             )));
         }
 
         // Index safety: we check for at least 3 fields above.
         let name = {
-            let sref: StrtabRef = (record.fields[0], record.fields[1]).into();
+            let sref: StrtabRef = (record.fields()[0], record.fields()[1]).into();
             ctx.strtab()?.try_get(&sref)?
         };
-        let selection_kind: ComdatSelectionKind = record.fields[2]
+        let selection_kind: ComdatSelectionKind = record.fields()[2]
             .try_into()
             .map_err(|e| Error::BadRecordMap(format!("invalid COMDAT selection kind: {:?}", e)))?;
 
@@ -461,9 +460,9 @@ mod tests {
             assert_eq!(
                 dl.non_integral_address_spaces,
                 vec![
-                    AddressSpace::try_from(1).unwrap(),
-                    AddressSpace::try_from(2).unwrap(),
-                    AddressSpace::try_from(3).unwrap()
+                    AddressSpace::try_from(1_u32).unwrap(),
+                    AddressSpace::try_from(2_u32).unwrap(),
+                    AddressSpace::try_from(3_u32).unwrap()
                 ]
             );
         }
@@ -473,7 +472,7 @@ mod tests {
 
             assert_eq!(
                 dl.non_integral_address_spaces,
-                vec![AddressSpace::try_from(1).unwrap(),]
+                vec![AddressSpace::try_from(1_u32).unwrap(),]
             );
         }
 

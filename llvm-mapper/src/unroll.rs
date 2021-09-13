@@ -1,9 +1,9 @@
 //! Routines and structures for "unrolling" a [`Bitstream`](llvm_bitstream::Bitstream)
 //! into a block-and-record hierarchy.
 
-use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 
+use indexmap::IndexMap;
 use llvm_bitstream::parser::StreamEntry;
 use llvm_bitstream::record::{Block, Record};
 use llvm_bitstream::Bitstream;
@@ -19,13 +19,12 @@ use crate::map::{MapCtx, Mappable};
 #[derive(Clone, Debug)]
 pub struct UnrolledRecord(Record);
 
-impl AsRef<Record> for UnrolledRecord {
-    fn as_ref(&self) -> &Record {
-        &self.0
-    }
-}
-
 impl UnrolledRecord {
+    /// Returns this record's code.
+    pub fn code(&self) -> u64 {
+        self.0.code
+    }
+
     /// Attempt to pull a UTF-8 string from this record's fields.
     ///
     /// Strings are always the last fields in a record, so only the start
@@ -71,6 +70,20 @@ impl UnrolledRecord {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| Error::BadField("impossible byte value in blob".into()))
     }
+
+    /// Returns a reference to this record's fields.
+    pub fn fields(&self) -> &[u64] {
+        &self.0.fields
+    }
+
+    /// Attempt to get a field from this record by index.
+    pub fn get_field(&self, idx: usize) -> Result<u64, Error> {
+        self.0
+            .fields
+            .get(idx)
+            .copied()
+            .ok_or_else(|| Error::BadField(format!("invalid field index for {:?}: {}", self, idx)))
+    }
 }
 
 /// A fully unrolled block within the bitstream, with potential records
@@ -82,11 +95,13 @@ pub struct UnrolledBlock {
     /// The [`UnrolledRecord`](UnrolledRecord)s directly contained by this block,
     /// mapped by their codes. Blocks can have multiple records of the same code, hence
     /// the multiple values.
-    // TODO(ww): Evaluate HashMap's performance. We might be better off with a specialized int map.
-    records: HashMap<u64, Vec<UnrolledRecord>>,
+    // NOTE(ww): The use of IndexMap instead of a HashMap here and below is critical:
+    // Rust's standard HashMap doesn't preserve the order of insertion when iterating,
+    // which makes it much harder to do the kinds of context-heavy mapping that LLVM demands.
+    records: IndexMap<u64, Vec<UnrolledRecord>>,
     /// The blocks directly contained by this block, mapped by their IDs. Like with records,
     /// a block can contain multiple sub-blocks of the same ID.
-    blocks: HashMap<BlockId, Vec<UnrolledBlock>>,
+    blocks: IndexMap<BlockId, Vec<UnrolledBlock>>,
 }
 
 impl UnrolledBlock {
@@ -94,8 +109,8 @@ impl UnrolledBlock {
         Self {
             id: id.into(),
             // TODO(ww): Figure out a default capacity here.
-            records: HashMap::new(),
-            blocks: HashMap::new(),
+            records: IndexMap::new(),
+            blocks: IndexMap::new(),
         }
     }
 
@@ -134,11 +149,21 @@ impl UnrolledBlock {
         Ok(&records_for_code[0])
     }
 
-    /// Return an iterator for all records that share the given code.
+    /// Return an iterator for all records that share the given code. Records are iterated in
+    /// the order of insertion.
     ///
     /// The returned iterator is empty if the block doesn't have any matching records.
     pub fn records(&self, code: u64) -> impl Iterator<Item = &UnrolledRecord> + '_ {
         self.records.get(&code).into_iter().flatten()
+    }
+
+    /// Return an iterator over all records in the block, regardless of their codes. Records
+    /// are iterated in the order of insertion.
+    ///
+    /// This is useful in contexts where the mapper's behavior does not vary significantly
+    /// by record code, such as within the type table mapper.
+    pub fn all_records(&self) -> impl Iterator<Item = &UnrolledRecord> + '_ {
+        self.records.values().flatten()
     }
 
     /// Get a single sub-block from this block by its block ID.

@@ -503,7 +503,7 @@ impl TypeAlignSpecs {
 pub enum AddressSpaceError {
     /// The requested address space identifier exceeds our support.
     #[error("address space identifier is too large ({0} > {})", AddressSpace::MAX)]
-    TooBig(u32),
+    TooBig(u64),
 }
 
 /// An invariant-preserving newtype for representing the address space of a pointer type.
@@ -521,6 +521,16 @@ impl TryFrom<u32> for AddressSpace {
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         match value <= AddressSpace::MAX {
             true => Ok(AddressSpace(value)),
+            false => Err(AddressSpaceError::TooBig(value.into())),
+        }
+    }
+}
+
+impl TryFrom<u64> for AddressSpace {
+    type Error = AddressSpaceError;
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        match value <= AddressSpace::MAX.into() {
+            true => Ok(AddressSpace(value as u32)),
             false => Err(AddressSpaceError::TooBig(value)),
         }
     }
@@ -1154,8 +1164,8 @@ mod tests {
 
     #[test]
     fn test_address_space() {
-        assert!(AddressSpace::try_from(0).is_ok());
-        assert!(AddressSpace::try_from(1).is_ok());
+        assert!(AddressSpace::try_from(0_u32).is_ok());
+        assert!(AddressSpace::try_from(1_u32).is_ok());
         assert!(AddressSpace::try_from(AddressSpace::MAX).is_ok());
 
         assert!(AddressSpace::try_from(AddressSpace::MAX + 1).is_err());
