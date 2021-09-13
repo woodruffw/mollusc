@@ -13,10 +13,42 @@ use llvm_support::{
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
-use crate::error::Error;
-use crate::map::{MapCtx, Mappable};
-use crate::record::{Comdat, DataLayout};
+use crate::map::{MapCtx, MapCtxError, Mappable};
+use crate::record::{Comdat, DataLayout, RecordMapError};
 use crate::unroll::UnrolledBlock;
+
+/// Potential errors when mapping a single bitstream block.
+#[non_exhaustive]
+#[derive(Debug, Error)]
+pub enum BlockMapError {
+    /// Parsing a record failed, for some internal reason.
+    #[error("error while mapping record: {0}")]
+    BadRecord(#[from] RecordMapError),
+
+    /// Our mapping context was invalid for our operation.
+    #[error("invalid mapping context: {0}")]
+    BadContext(#[from] MapCtxError),
+
+    /// We couldn't map a block, for any number of reasons.
+    #[error("error while mapping block: {0}")]
+    BadBlockMap(String),
+
+    /// We expected exactly one record with this code in this block.
+    #[error("expected exactly one record of code {0} in block {1:?}")]
+    BlockRecordMismatch(u64, BlockId),
+
+    /// We expected exactly one sub-block with this ID in this block.
+    #[error("expected exactly one block of ID {0:?} in block {1:?}")]
+    BlockBlockMismatch(BlockId, BlockId),
+
+    /// We couldn't map the type table.
+    #[error("error while mapping type table: {0}")]
+    BadTypeTable(#[from] TypeTableError),
+
+    /// We encountered an unsupported feature or layout.
+    #[error("unsupported: {0}")]
+    Unsupported(String),
+}
 
 /// A holistic model of all possible block IDs, spanning reserved, IR, and unknown IDs.
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
@@ -49,13 +81,15 @@ pub(crate) trait IrBlock: Sized {
     /// Attempt to map the given block to the implementing type, returning an error if mapping fails.
     ///
     /// This is an interior trait that shouldn't be used directly.
-    fn try_map_inner(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Error>;
+    fn try_map_inner(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, BlockMapError>;
 }
 
 impl<T: IrBlock> Mappable<UnrolledBlock> for T {
-    fn try_map(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Error> {
+    type Error = BlockMapError;
+
+    fn try_map(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Self::Error> {
         if block.id != BlockId::Ir(T::BLOCK_ID) {
-            return Err(Error::BadBlockMap(format!(
+            return Err(BlockMapError::BadBlockMap(format!(
                 "can't map {:?} into {:?}",
                 block.id,
                 Identification::BLOCK_ID
@@ -79,7 +113,7 @@ pub struct Identification {
 impl IrBlock for Identification {
     const BLOCK_ID: IrBlockId = IrBlockId::Identification;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
         let producer = {
             let producer = block.one_record(IdentificationCode::ProducerString as u64)?;
 
@@ -117,7 +151,7 @@ pub struct Module {
 impl IrBlock for Module {
     const BLOCK_ID: IrBlockId = IrBlockId::Module;
 
-    fn try_map_inner(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Error> {
+    fn try_map_inner(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
         let version = {
             let version = block.one_record(ModuleCode::Version as u64)?;
 
@@ -128,15 +162,8 @@ impl IrBlock for Module {
 
         let triple = block.one_record(ModuleCode::Triple as u64)?.try_string(0)?;
 
-        let datalayout = {
-            let datalayout = block
-                .one_record(ModuleCode::DataLayout as u64)?
-                .try_string(0)?;
-
-            log::debug!("raw datalayout: {}", datalayout);
-
-            datalayout.parse::<DataLayout>()?
-        };
+        let datalayout =
+            DataLayout::try_map(block.one_record(ModuleCode::DataLayout as u64)?, ctx)?;
 
         // Each module has zero or exactly one MODULE_CODE_ASM records.
         let asm = match block.one_record_or_none(ModuleCode::Asm as u64)? {
@@ -173,9 +200,7 @@ impl IrBlock for Module {
             .collect::<Result<Vec<_>, _>>()?;
 
         // Build the type table.
-        let type_table = block
-            .one_block(BlockId::Ir(IrBlockId::Type))
-            .and_then(|b| TypeTable::try_map(b, ctx))?;
+        let type_table = TypeTable::try_map(block.one_block(BlockId::Ir(IrBlockId::Type))?, ctx)?;
 
         Ok(Self {
             version,
@@ -247,7 +272,7 @@ impl TypeTable {
 impl IrBlock for TypeTable {
     const BLOCK_ID: IrBlockId = IrBlockId::Type;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
         let mut types = Self::default();
 
         // Figure out how many type entries we have, and reserve the space for them up-front.
@@ -285,7 +310,7 @@ impl IrBlock for TypeTable {
                     // Not sure what's up with that.
 
                     if last_type_name.is_empty() {
-                        return Err(Error::BadRecordMap(
+                        return Err(BlockMapError::BadBlockMap(
                             "opaque type but no preceding type name".into(),
                         ));
                     }
@@ -295,7 +320,7 @@ impl IrBlock for TypeTable {
                     // a new structure type with no body.
                     if let Some(Type::Struct(s)) = types.last_mut() {
                         if s.name.is_some() {
-                            return Err(Error::BadBlockMap(
+                            return Err(BlockMapError::BadBlockMap(
                                 "forward-declared opaque type already has name".into(),
                             ));
                         }
@@ -327,7 +352,7 @@ impl IrBlock for TypeTable {
                             .0
                             .get(idx)
                             .ok_or_else(|| {
-                                Error::BadField(format!(
+                                BlockMapError::BadBlockMap(format!(
                                     "invalid pointee type index: no type at {}",
                                     idx
                                 ))
@@ -335,11 +360,13 @@ impl IrBlock for TypeTable {
                             .clone()
                     };
 
-                    let address_space = record.get_field(1).and_then(|f| {
-                        AddressSpace::try_from(f).map_err(|e| {
-                            Error::BadField(format!("bad address space for pointer type: {:?}", e))
-                        })
-                    })?;
+                    let address_space =
+                        AddressSpace::try_from(record.get_field(1)?).map_err(|e| {
+                            BlockMapError::BadBlockMap(format!(
+                                "bad address space for pointer type: {:?}",
+                                e
+                            ))
+                        })?;
 
                     // Not all types are actually valid pointee types, hence
                     // the fallible type construction here.
@@ -350,7 +377,7 @@ impl IrBlock for TypeTable {
                 }
                 TypeCode::FunctionOld => {
                     // TODO(ww): These only show up in older bitcode, so don't bother with them for now.
-                    return Err(Error::Unsupported(
+                    return Err(BlockMapError::Unsupported(
                         "unsupported: old function type codes; please implement!".into(),
                     ));
                 }
@@ -364,7 +391,7 @@ impl IrBlock for TypeTable {
                             .0
                             .get(idx)
                             .ok_or_else(|| {
-                                Error::BadField(format!(
+                                BlockMapError::BadBlockMap(format!(
                                     "invalid array element type index: no type at {}",
                                     idx
                                 ))
@@ -387,7 +414,7 @@ impl IrBlock for TypeTable {
                             .0
                             .get(idx)
                             .ok_or_else(|| {
-                                Error::BadField(format!(
+                                BlockMapError::BadBlockMap(format!(
                                     "invalid vector element type index: no type at {}",
                                     idx
                                 ))
@@ -445,7 +472,7 @@ impl IrBlock for TypeTable {
                     // correct name and fields.
                     if let Some(Type::Struct(s)) = types.last_mut() {
                         if s.name.is_some() || !s.fields.is_empty() {
-                            return Err(Error::BadBlockMap(
+                            return Err(BlockMapError::BadBlockMap(
                                 "forward-declared struct type already has name and/or type fields"
                                     .into(),
                             ));
@@ -485,16 +512,18 @@ impl IrBlock for TypeTable {
                 }
                 TypeCode::X86Amx => types.add(Type::X86Amx),
                 TypeCode::OpaquePointer => {
-                    let address_space = record.get_field(0).and_then(|f| {
-                        AddressSpace::try_from(f).map_err(|e| {
-                            Error::BadField(format!("bad address space in type: {:?}", e))
-                        })
-                    })?;
+                    let address_space =
+                        AddressSpace::try_from(record.get_field(0)?).map_err(|e| {
+                            BlockMapError::BadBlockMap(format!(
+                                "bad address space in type: {:?}",
+                                e
+                            ))
+                        })?;
 
                     types.add(Type::OpaquePointer(address_space))
                 }
                 o => {
-                    return Err(Error::Unsupported(format!(
+                    return Err(BlockMapError::Unsupported(format!(
                         "unsupported type code: {:?}",
                         o
                     )))
@@ -505,7 +534,7 @@ impl IrBlock for TypeTable {
         }
 
         if count != numentries {
-            return Err(Error::BadBlockMap(format!(
+            return Err(BlockMapError::BadBlockMap(format!(
                 "bad type table: expected {} entries, but got {}",
                 numentries, count
             )));
@@ -539,7 +568,7 @@ impl AsRef<[u8]> for Strtab {
 impl IrBlock for Strtab {
     const BLOCK_ID: IrBlockId = IrBlockId::Strtab;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
         // TODO(ww): The docs also claim that there's only one STRTAB_BLOB per STRTAB_BLOCK,
         // but at least one person has reported otherwise here:
         // https://lists.llvm.org/pipermail/llvm-dev/2020-August/144327.html
@@ -596,7 +625,7 @@ impl AsRef<[u8]> for Symtab {
 impl IrBlock for Symtab {
     const BLOCK_ID: IrBlockId = IrBlockId::Symtab;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, Error> {
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
         let symtab = {
             let symtab = block.one_record(SymtabCode::Blob as u64)?;
 
