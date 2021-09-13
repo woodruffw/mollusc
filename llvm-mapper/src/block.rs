@@ -53,7 +53,9 @@ pub(crate) trait IrBlock: Sized {
 }
 
 impl<T: IrBlock> Mappable<UnrolledBlock> for T {
-    fn try_map(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Error> {
+    type Error = Error;
+
+    fn try_map(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Self::Error> {
         if block.id != BlockId::Ir(T::BLOCK_ID) {
             return Err(Error::BadBlockMap(format!(
                 "can't map {:?} into {:?}",
@@ -128,15 +130,8 @@ impl IrBlock for Module {
 
         let triple = block.one_record(ModuleCode::Triple as u64)?.try_string(0)?;
 
-        let datalayout = {
-            let datalayout = block
-                .one_record(ModuleCode::DataLayout as u64)?
-                .try_string(0)?;
-
-            log::debug!("raw datalayout: {}", datalayout);
-
-            datalayout.parse::<DataLayout>()?
-        };
+        let datalayout =
+            DataLayout::try_map(block.one_record(ModuleCode::DataLayout as u64)?, ctx)?;
 
         // Each module has zero or exactly one MODULE_CODE_ASM records.
         let asm = match block.one_record_or_none(ModuleCode::Asm as u64)? {
@@ -285,7 +280,7 @@ impl IrBlock for TypeTable {
                     // Not sure what's up with that.
 
                     if last_type_name.is_empty() {
-                        return Err(Error::BadRecordMap(
+                        return Err(Error::BadBlockMap(
                             "opaque type but no preceding type name".into(),
                         ));
                     }
@@ -327,7 +322,7 @@ impl IrBlock for TypeTable {
                             .0
                             .get(idx)
                             .ok_or_else(|| {
-                                Error::BadField(format!(
+                                Error::BadBlockMap(format!(
                                     "invalid pointee type index: no type at {}",
                                     idx
                                 ))
@@ -335,11 +330,13 @@ impl IrBlock for TypeTable {
                             .clone()
                     };
 
-                    let address_space = record.get_field(1).and_then(|f| {
-                        AddressSpace::try_from(f).map_err(|e| {
-                            Error::BadField(format!("bad address space for pointer type: {:?}", e))
-                        })
-                    })?;
+                    let address_space =
+                        AddressSpace::try_from(record.get_field(1)?).map_err(|e| {
+                            Error::BadBlockMap(format!(
+                                "bad address space for pointer type: {:?}",
+                                e
+                            ))
+                        })?;
 
                     // Not all types are actually valid pointee types, hence
                     // the fallible type construction here.
@@ -364,7 +361,7 @@ impl IrBlock for TypeTable {
                             .0
                             .get(idx)
                             .ok_or_else(|| {
-                                Error::BadField(format!(
+                                Error::BadBlockMap(format!(
                                     "invalid array element type index: no type at {}",
                                     idx
                                 ))
@@ -387,7 +384,7 @@ impl IrBlock for TypeTable {
                             .0
                             .get(idx)
                             .ok_or_else(|| {
-                                Error::BadField(format!(
+                                Error::BadBlockMap(format!(
                                     "invalid vector element type index: no type at {}",
                                     idx
                                 ))
@@ -485,11 +482,10 @@ impl IrBlock for TypeTable {
                 }
                 TypeCode::X86Amx => types.add(Type::X86Amx),
                 TypeCode::OpaquePointer => {
-                    let address_space = record.get_field(0).and_then(|f| {
-                        AddressSpace::try_from(f).map_err(|e| {
-                            Error::BadField(format!("bad address space in type: {:?}", e))
-                        })
-                    })?;
+                    let address_space =
+                        AddressSpace::try_from(record.get_field(0)?).map_err(|e| {
+                            Error::BadBlockMap(format!("bad address space in type: {:?}", e))
+                        })?;
 
                     types.add(Type::OpaquePointer(address_space))
                 }

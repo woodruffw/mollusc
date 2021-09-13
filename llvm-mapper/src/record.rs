@@ -12,9 +12,37 @@ use llvm_support::{
 use num_enum::TryFromPrimitive;
 use thiserror::Error;
 
-use crate::error::Error;
-use crate::map::{MapCtx, Mappable};
+use crate::block::StrtabError;
+use crate::map::{MapCtx, MapCtxError, Mappable};
 use crate::unroll::UnrolledRecord;
+
+/// Potential errors when mapping a single bitstream record.
+#[derive(Debug, Error)]
+pub enum RecordMapError {
+    /// Parsing the datalayout specification failed.
+    #[error("error while parsing datalayout: {0}")]
+    DataLayout(#[from] DataLayoutParseError),
+
+    /// We couldn't interpret a record field, for any number of reasons.
+    #[error("error while decoding record field: {0}")]
+    BadField(String),
+
+    /// We encountered a record layout we didn't understand.
+    #[error("error while mapping record: {0}")]
+    BadRecordLayout(String),
+
+    /// Our mapping context was invalid for our operation.
+    #[error("invalid mapping context: {0}")]
+    BadContext(#[from] MapCtxError),
+
+    /// Retrieving a string from a string table failed.
+    #[error("error while accessing string table: {0}")]
+    BadStrtab(#[from] StrtabError),
+
+    /// We encountered an unsupported feature or layout.
+    #[error("unsupported: {0}")]
+    Unsupported(String),
+}
 
 /// Potential errors when parsing an LLVM datalayout string.
 #[derive(Debug, Error)]
@@ -248,6 +276,15 @@ impl FromStr for DataLayout {
     }
 }
 
+impl Mappable<UnrolledRecord> for DataLayout {
+    type Error = RecordMapError;
+
+    fn try_map(record: &UnrolledRecord, _ctx: &mut MapCtx) -> Result<Self, Self::Error> {
+        let datalayout = record.try_string(0)?;
+        Ok(datalayout.parse::<Self>()?)
+    }
+}
+
 /// The different kinds of COMDAT selections.
 ///
 /// This is a nearly direct copy of LLVM's `SelectionKind`; see `IR/Comdat.h`.
@@ -278,16 +315,18 @@ pub struct Comdat {
 }
 
 impl Mappable<UnrolledRecord> for Comdat {
-    fn try_map(record: &UnrolledRecord, ctx: &mut MapCtx) -> Result<Self, Error> {
+    type Error = RecordMapError;
+
+    fn try_map(record: &UnrolledRecord, ctx: &mut MapCtx) -> Result<Self, Self::Error> {
         if !ctx.use_strtab()? {
-            return Err(Error::Unsupported(
+            return Err(RecordMapError::Unsupported(
                 "v1 COMDAT records are not supported".into(),
             ));
         }
 
         // v2: [strtab offset, strtab size, selection kind]
         if record.fields().len() != 3 {
-            return Err(Error::BadRecordMap(format!(
+            return Err(RecordMapError::BadRecordLayout(format!(
                 "expected exactly 3 fields in COMDAT record, got {}",
                 record.fields().len()
             )));
@@ -298,9 +337,9 @@ impl Mappable<UnrolledRecord> for Comdat {
             let sref: StrtabRef = (record.fields()[0], record.fields()[1]).into();
             ctx.strtab()?.try_get(&sref)?
         };
-        let selection_kind: ComdatSelectionKind = record.fields()[2]
-            .try_into()
-            .map_err(|e| Error::BadRecordMap(format!("invalid COMDAT selection kind: {:?}", e)))?;
+        let selection_kind: ComdatSelectionKind = record.fields()[2].try_into().map_err(|e| {
+            RecordMapError::BadRecordLayout(format!("invalid COMDAT selection kind: {:?}", e))
+        })?;
 
         Ok(Self {
             selection_kind,
