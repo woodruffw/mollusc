@@ -17,6 +17,9 @@ use crate::unroll::UnrolledBlock;
 /// Errors that can occur when mapping the type table.
 #[derive(Debug, Error)]
 pub enum TypeTableError {
+    /// The size of the type table is invalid.
+    #[error("invalid type table size (expected {0} elements, got {1})")]
+    BadSize(usize, usize),
     /// An invalid type index was requested.
     #[error("invalid type table index: {0}")]
     BadIndex(usize),
@@ -75,6 +78,73 @@ enum PartialType {
     ScalableVector(PartialVectorType),
 }
 
+impl PartialType {
+    /// Fallibly convert this `PartialType` into a `Type`, using the given
+    /// `PartialTypeTable` as a reference.
+    fn resolve(&self, partials: &PartialTypeTable) -> Result<Type, TypeTableError> {
+        match self {
+            PartialType::Half => Ok(Type::Half),
+            PartialType::BFloat => Ok(Type::BFloat),
+            PartialType::Float => Ok(Type::Float),
+            PartialType::Double => Ok(Type::Double),
+            PartialType::Metadata => Ok(Type::Metadata),
+            PartialType::X86Fp80 => Ok(Type::X86Fp80),
+            PartialType::Fp128 => Ok(Type::Fp128),
+            PartialType::PpcFp128 => Ok(Type::PpcFp128),
+            PartialType::Void => Ok(Type::Void),
+            PartialType::Label => Ok(Type::Label),
+            PartialType::X86Mmx => Ok(Type::X86Mmx),
+            PartialType::X86Amx => Ok(Type::X86Amx),
+            PartialType::Token => Ok(Type::Token),
+            PartialType::Integer(ity) => Ok(Type::new_integer(ity.bit_width)?),
+            PartialType::Function(fty) => {
+                let return_type = partials.resolve(&fty.return_type)?;
+                let param_types = fty
+                    .param_types
+                    .iter()
+                    .map(|ty_ref| partials.resolve(ty_ref))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Ok(Type::new_function(return_type, param_types, fty.is_vararg)?)
+            }
+            PartialType::Pointer(pty) => {
+                let pointee = partials.resolve(&pty.pointee)?;
+
+                Ok(Type::new_pointer(pointee, pty.address_space)?)
+            }
+            PartialType::OpaquePointer(oty) => Ok(Type::OpaquePointer(*oty)),
+            PartialType::Struct(sty) => {
+                let field_types = sty
+                    .field_types
+                    .iter()
+                    .map(|fty| partials.resolve(fty))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Ok(Type::new_struct(
+                    sty.name.clone(),
+                    field_types,
+                    sty.is_packed,
+                )?)
+            }
+            PartialType::Array(aty) => {
+                let element_type = partials.resolve(&aty.element_type)?;
+
+                Ok(Type::new_array(aty.num_elements, element_type)?)
+            }
+            PartialType::FixedVector(vty) => {
+                let element_type = partials.resolve(&vty.element_type)?;
+
+                Ok(Type::new_vector(vty.num_elements, element_type)?)
+            }
+            PartialType::ScalableVector(vty) => {
+                let element_type = partials.resolve(&vty.element_type)?;
+
+                Ok(Type::new_scalable_vector(vty.num_elements, element_type)?)
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 struct PartialIntegerType {
     bit_width: u32,
@@ -119,19 +189,58 @@ struct PartialVectorType {
 /// Every partial type table starts out empty (but with an expected ultimate size),
 /// and is incrementally updated as records within the type block are visited.
 #[derive(Debug)]
-struct PartialTypeTable(Vec<PartialType>);
+struct PartialTypeTable {
+    numentries: usize,
+    inner: Vec<PartialType>,
+}
 
 impl PartialTypeTable {
     fn new(numentries: usize) -> Self {
-        Self(Vec::with_capacity(numentries))
+        Self {
+            numentries: numentries,
+            inner: Vec::with_capacity(numentries),
+        }
     }
 
     fn add(&mut self, ty: PartialType) {
-        self.0.push(ty)
+        self.inner.push(ty)
     }
 
     fn last_mut(&mut self) -> Option<&mut PartialType> {
-        self.0.last_mut()
+        self.inner.last_mut()
+    }
+
+    /// Fallibly convert a `TypeRef` into its `PartialType` in this partial type table.
+    fn get(&self, ty_ref: &TypeRef) -> Result<&PartialType, TypeTableError> {
+        self.inner
+            .get(ty_ref.0)
+            .ok_or(TypeTableError::BadIndex(ty_ref.0))
+    }
+
+    /// Fallibly converts the given `TypeRef` into a fully owned `Type`.
+    fn resolve(&self, ty_ref: &TypeRef) -> Result<Type, TypeTableError> {
+        // `TypeRef` resolution happens in two steps: we grab the corresponding
+        // `PartialType`, and then resolve its subtypes.
+        let pty = self.get(ty_ref)?;
+
+        pty.resolve(self)
+    }
+
+    /// Fallibly converts this `PartialTypeTable` into a `TypeTable`.
+    fn reify(self) -> Result<TypeTable, TypeTableError> {
+        if self.inner.len() != self.numentries {
+            return Err(TypeTableError::BadSize(self.numentries, self.inner.len()));
+        }
+
+        // Walk the partial type table, resolving each partial type
+        // into a fully owned `Type`.
+        let types = self
+            .inner
+            .iter()
+            .map(|pty| pty.resolve(&self))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(TypeTable(types))
     }
 }
 
@@ -343,6 +452,7 @@ impl IrBlock for TypeTable {
                         is_vararg,
                     }));
                 }
+                TypeCode::Token => partial_types.add(PartialType::Token),
                 TypeCode::X86Amx => partial_types.add(PartialType::X86Amx),
                 TypeCode::OpaquePointer => {
                     let address_space =
@@ -375,7 +485,6 @@ impl IrBlock for TypeTable {
 
         log::debug!("partial_types: {:?}", partial_types);
 
-        unimplemented!()
-        // Ok(types)
+        Ok(partial_types.reify()?)
     }
 }

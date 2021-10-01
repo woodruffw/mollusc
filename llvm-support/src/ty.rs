@@ -418,8 +418,8 @@ impl ArrayType {
 #[derive(Debug, Error)]
 pub enum VectorTypeError {
     /// The requested element type is invalid.
-    #[error("invalid vector element type")]
-    BadElement,
+    #[error("invalid vector element type: {0:?}")]
+    BadElement(Type),
 }
 
 /// Represents an vector type.
@@ -436,13 +436,14 @@ pub struct VectorType {
 impl VectorType {
     /// Create a new `VectorType`.
     pub fn new(num_elements: u64, element_type: Type) -> Result<Self, VectorTypeError> {
-        element_type
-            .is_array_element()
-            .then(|| Self {
+        if element_type.is_array_element() {
+            Ok(Self {
                 num_elements,
                 element_type: Box::new(element_type),
             })
-            .ok_or(VectorTypeError::BadElement)
+        } else {
+            Err(VectorTypeError::BadElement(element_type))
+        }
     }
 
     /// Return a reference to the inner element type.
