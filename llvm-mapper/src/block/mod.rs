@@ -25,11 +25,11 @@ use crate::unroll::UnrolledBlock;
 #[derive(Debug, Error)]
 pub enum BlockMapError {
     /// Parsing a record failed, for some internal reason.
-    #[error("error while mapping record: {0}")]
+    #[error("error while mapping record")]
     BadRecord(#[from] RecordMapError),
 
     /// Our mapping context was invalid for our operation.
-    #[error("invalid mapping context: {0}")]
+    #[error("invalid mapping context")]
     BadContext(#[from] MapCtxError),
 
     /// We couldn't map a block, for any number of reasons.
@@ -45,7 +45,7 @@ pub enum BlockMapError {
     BlockBlockMismatch(BlockId, BlockId),
 
     /// We couldn't map the type table.
-    #[error("error while mapping type table: {0}")]
+    #[error("error while mapping type table")]
     BadTypeTable(#[from] TypeTableError),
 
     /// We encountered an unsupported feature or layout.

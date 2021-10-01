@@ -24,25 +24,25 @@ pub enum TypeTableError {
     #[error("invalid type table index: {0}")]
     BadIndex(usize),
     /// An unknown record code was seen.
-    #[error("unknown type code: {0}")]
+    #[error("unknown type code")]
     UnknownTypeCode(#[from] TryFromPrimitiveError<TypeCode>),
     /// An invalid integer type was seen.
-    #[error("invalid integer type: {0}")]
+    #[error("invalid integer type")]
     InvalidIntegerType(#[from] IntegerTypeError),
     /// An invalid pointer type was seen.
-    #[error("invalid pointer type: {0}")]
+    #[error("invalid pointer type")]
     InvalidPointerType(#[from] PointerTypeError),
     /// An invalid array type was seen.
-    #[error("invalid array type: {0}")]
+    #[error("invalid array type")]
     InvalidArrayType(#[from] ArrayTypeError),
     /// An invalid vector type was seen.
-    #[error("invalid vector type: {0}")]
+    #[error("invalid vector type")]
     InvalidVectorType(#[from] VectorTypeError),
     /// An invalid structure type was seen.
-    #[error("invalid structure type: {0}")]
+    #[error("invalid structure type")]
     InvalidStructType(#[from] StructTypeError),
     /// An invalid function type was seen.
-    #[error("invalid function type: {0}")]
+    #[error("invalid function type")]
     InvalidFunctionType(#[from] FunctionTypeError),
 }
 
@@ -132,7 +132,10 @@ impl PartialType {
                 Ok(Type::new_array(aty.num_elements, element_type)?)
             }
             PartialType::FixedVector(vty) => {
+                log::debug!("vty: {:?}", vty);
+
                 let element_type = partials.resolve(&vty.element_type)?;
+                log::debug!("element_type: {:?}", partials.get(&vty.element_type));
 
                 Ok(Type::new_vector(vty.num_elements, element_type)?)
             }
@@ -222,6 +225,8 @@ impl PartialTypeTable {
         // `TypeRef` resolution happens in two steps: we grab the corresponding
         // `PartialType`, and then resolve its subtypes.
         let pty = self.get(ty_ref)?;
+
+        log::debug!("type ref {} resolves to {:?}", ty_ref.0, pty);
 
         pty.resolve(self)
     }
@@ -483,7 +488,7 @@ impl IrBlock for TypeTable {
             )));
         }
 
-        log::debug!("partial_types: {:?}", partial_types);
+        log::debug!("partial_types: {:#?}", partial_types);
 
         Ok(partial_types.reify()?)
     }

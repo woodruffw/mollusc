@@ -436,7 +436,7 @@ pub struct VectorType {
 impl VectorType {
     /// Create a new `VectorType`.
     pub fn new(num_elements: u64, element_type: Type) -> Result<Self, VectorTypeError> {
-        if element_type.is_array_element() {
+        if element_type.is_vector_element() {
             Ok(Self {
                 num_elements,
                 element_type: Box::new(element_type),
@@ -456,11 +456,11 @@ impl VectorType {
 #[derive(Debug, Error)]
 pub enum FunctionTypeError {
     /// The requested return type is invalid.
-    #[error("invalid function return type")]
-    BadReturn,
+    #[error("invalid function return type: {0:?}")]
+    BadReturn(Type),
     /// The requested parameter type is invalid.
-    #[error("invalid function parameter type")]
-    BadParameter,
+    #[error("invalid function parameter type: {0:?}")]
+    BadParameter(Type),
 }
 
 /// Represents an function type.
@@ -480,9 +480,13 @@ impl FunctionType {
         is_vararg: bool,
     ) -> Result<Self, FunctionTypeError> {
         if !return_type.is_return() {
-            Err(FunctionTypeError::BadReturn)
+            Err(FunctionTypeError::BadReturn(return_type))
         } else if param_types.iter().any(|ty| !ty.is_argument()) {
-            Err(FunctionTypeError::BadParameter)
+            let bad = param_types
+                .into_iter()
+                .find(|ty| !ty.is_argument())
+                .unwrap();
+            Err(FunctionTypeError::BadParameter(bad))
         } else {
             Ok(FunctionType {
                 return_type: Box::new(return_type),
