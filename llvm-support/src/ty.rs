@@ -256,8 +256,8 @@ impl Type {
 #[derive(Debug, Error)]
 pub enum StructTypeError {
     /// The requested element type is invalid.
-    #[error("invalid structure element type")]
-    BadElement,
+    #[error("invalid structure element type: {0:?}")]
+    BadElement(Type),
 }
 
 /// Represents a "struct" type.
@@ -279,8 +279,8 @@ impl StructType {
         fields: Vec<Type>,
         is_packed: bool,
     ) -> Result<Self, StructTypeError> {
-        if fields.iter().any(|t| !t.is_struct_element()) {
-            Err(StructTypeError::BadElement)
+        if let Some(bad) = fields.iter().find(|t| !t.is_struct_element()) {
+            Err(StructTypeError::BadElement(bad.clone()))
         } else {
             Ok(Self {
                 name,
@@ -348,8 +348,8 @@ impl TryFrom<u32> for IntegerType {
 #[derive(Debug, Error)]
 pub enum PointerTypeError {
     /// The requested pointee type is invalid.
-    #[error("invalid pointee type")]
-    BadPointee,
+    #[error("invalid pointee type: {0:?}")]
+    BadPointee(Type),
 }
 
 /// Represents a pointer type in some address space.
@@ -365,13 +365,14 @@ pub struct PointerType {
 impl PointerType {
     /// Create a new `PointerType`.
     pub fn new(pointee: Type, address_space: AddressSpace) -> Result<Self, PointerTypeError> {
-        pointee
-            .is_pointee()
-            .then(|| Self {
+        if pointee.is_pointee() {
+            Ok(Self {
                 pointee: Box::new(pointee),
                 address_space,
             })
-            .ok_or(PointerTypeError::BadPointee)
+        } else {
+            Err(PointerTypeError::BadPointee(pointee))
+        }
     }
 
     /// Return a reference to the pointed-to type.
@@ -384,8 +385,8 @@ impl PointerType {
 #[derive(Debug, Error)]
 pub enum ArrayTypeError {
     /// The requested element type is invalid.
-    #[error("invalid array element type")]
-    BadElement,
+    #[error("invalid array element type: {0:?}")]
+    BadElement(Type),
 }
 
 /// Represents an array type.
@@ -399,13 +400,14 @@ pub struct ArrayType {
 impl ArrayType {
     /// Create a new `ArrayType`.
     pub fn new(num_elements: u64, element_type: Type) -> Result<Self, ArrayTypeError> {
-        element_type
-            .is_array_element()
-            .then(|| Self {
+        if element_type.is_array_element() {
+            Ok(Self {
                 num_elements,
                 element_type: Box::new(element_type),
             })
-            .ok_or(ArrayTypeError::BadElement)
+        } else {
+            Err(ArrayTypeError::BadElement(element_type))
+        }
     }
 
     /// Return a reference to the inner element type.
