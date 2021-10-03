@@ -21,3 +21,16 @@ pub const FIRST_APPLICATION_BLOCK_ID: u64 = 8;
 /// The lookup alphabet for the Char6 operand encoding.
 pub const CHAR6_ALPHABET: &[u8] =
     b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._";
+
+/// The current toolchain's target triple.
+pub const TARGET_TRIPLE: &str = env!("TARGET_TRIPLE");
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_target_triple() {
+        assert!(!TARGET_TRIPLE.is_empty());
+    }
+}

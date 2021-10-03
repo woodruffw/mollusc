@@ -92,13 +92,13 @@ impl UnrolledRecord {
 pub struct UnrolledBlock {
     /// This block's ID.
     pub id: BlockId,
-    /// The [`UnrolledRecord`](UnrolledRecord)s directly contained by this block,
-    /// mapped by their codes. Blocks can have multiple records of the same code, hence
-    /// the multiple values.
-    // NOTE(ww): The use of IndexMap instead of a HashMap here and below is critical:
-    // Rust's standard HashMap doesn't preserve the order of insertion when iterating,
-    // which makes it much harder to do the kinds of context-heavy mapping that LLVM demands.
-    records: IndexMap<u64, Vec<UnrolledRecord>>,
+    /// The [`UnrolledRecord`](UnrolledRecord)s directly contained by this block.
+    // NOTE(ww): It would be nice if we could map this list of records by their codes,
+    // since that would save us some time when scanning blocks for particular
+    // kinds of records. Doing so correctly is tricky: even with an order-preserving
+    // structure like IndexMap, we'd lose the correct order as we insert each record
+    // into its bucket.
+    records: Vec<UnrolledRecord>,
     /// The blocks directly contained by this block, mapped by their IDs. Like with records,
     /// a block can contain multiple sub-blocks of the same ID.
     blocks: IndexMap<BlockId, Vec<UnrolledBlock>>,
@@ -108,8 +108,8 @@ impl UnrolledBlock {
     pub(self) fn new(id: u64) -> Self {
         Self {
             id: id.into(),
+            records: vec![],
             // TODO(ww): Figure out a default capacity here.
-            records: IndexMap::new(),
             blocks: IndexMap::new(),
         }
     }
@@ -118,14 +118,12 @@ impl UnrolledBlock {
     ///
     /// Returns an error if the block has more than one record for this code.
     pub fn one_record_or_none(&self, code: u64) -> Result<Option<&UnrolledRecord>, BlockMapError> {
-        match self.records.get(&code) {
-            Some(recs) => match recs.len() {
-                // NOTE(ww): The empty case here indicates API misuse, but we handle it out of caution.
-                0 => Ok(None),
-                1 => Ok(Some(&recs[0])),
-                _ => Err(BlockMapError::BlockRecordMismatch(code, self.id)),
-            },
-            None => Ok(None),
+        let records = self.records(code).collect::<Vec<_>>();
+
+        match records.len() {
+            0 => Ok(None),
+            1 => Ok(Some(records[0])),
+            _ => Err(BlockMapError::BlockRecordMismatch(code, self.id)),
         }
     }
 
@@ -133,20 +131,17 @@ impl UnrolledBlock {
     ///
     /// Returns an error if the block either lacks an appropriate record or has more than one.
     pub fn one_record(&self, code: u64) -> Result<&UnrolledRecord, BlockMapError> {
-        let records_for_code = self
-            .records
-            .get(&code)
-            .ok_or(BlockMapError::BlockRecordMismatch(code, self.id))?;
+        let records = self.records(code).collect::<Vec<_>>();
 
         // The empty case here would indicate API misuse, since we should only
         // create the vector upon inserting at least one record for a given code.
         // But it doesn't hurt (much) to be cautious.
-        if records_for_code.is_empty() || records_for_code.len() > 1 {
+        if records.is_empty() || records.len() > 1 {
             return Err(BlockMapError::BlockRecordMismatch(code, self.id));
         }
 
         // Panic safety: we check for exactly one member directly above.
-        Ok(&records_for_code[0])
+        Ok(records[0])
     }
 
     /// Return an iterator for all records that share the given code. Records are iterated in
@@ -154,7 +149,7 @@ impl UnrolledBlock {
     ///
     /// The returned iterator is empty if the block doesn't have any matching records.
     pub fn records(&self, code: u64) -> impl Iterator<Item = &UnrolledRecord> + '_ {
-        self.records.get(&code).into_iter().flatten()
+        self.records.iter().filter(move |r| r.code() == code)
     }
 
     /// Return an iterator over all records in the block, regardless of their codes. Records
@@ -163,7 +158,7 @@ impl UnrolledBlock {
     /// This is useful in contexts where the mapper's behavior does not vary significantly
     /// by record code, such as within the type table mapper.
     pub fn all_records(&self) -> impl Iterator<Item = &UnrolledRecord> + '_ {
-        self.records.values().flatten()
+        self.records.iter()
     }
 
     /// Get a single sub-block from this block by its block ID.
@@ -228,11 +223,9 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
                 })?;
 
                 match entry? {
-                    StreamEntry::Record(record) => unrolled_block
-                        .records
-                        .entry(record.code)
-                        .or_insert_with(Vec::new)
-                        .push(UnrolledRecord(record)),
+                    StreamEntry::Record(record) => {
+                        unrolled_block.records.push(UnrolledRecord(record))
+                    }
                     StreamEntry::SubBlock(block) => {
                         let unrolled_child = enter_block(bitstream, block)?;
                         unrolled_block

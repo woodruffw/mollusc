@@ -9,8 +9,8 @@
 pub mod align;
 pub mod ty;
 
-pub use align::*;
-pub use ty::*;
+pub use self::align::*;
+pub use self::ty::*;
 
 /// An exact endianness.
 ///
