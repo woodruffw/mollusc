@@ -283,7 +283,7 @@ impl IrBlock for TypeTable {
         let mut last_type_name = String::new();
         for record in block.all_records() {
             let code = TypeCode::try_from(record.code()).map_err(TypeTableError::from)?;
-            log::debug!("visiting type code: {:?}", code);
+            log::debug!("TYPE idx={} code={}", ty_idx, record.code());
 
             match code {
                 // Already visited; nothing to do.
@@ -407,6 +407,7 @@ impl IrBlock for TypeTable {
                     // A `TYPE_CODE_STRUCT_NAME` is not a type in its own right; it merely
                     // supplies the name for a future type record.
                     last_type_name.push_str(&record.try_string(0)?);
+                    continue;
                 }
                 TypeCode::StructNamed => {
                     // TODO(ww): Should probably be deduped with StructAnon above,
