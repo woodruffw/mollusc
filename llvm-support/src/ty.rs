@@ -481,12 +481,8 @@ impl FunctionType {
     ) -> Result<Self, FunctionTypeError> {
         if !return_type.is_return() {
             Err(FunctionTypeError::BadReturn(return_type))
-        } else if param_types.iter().any(|ty| !ty.is_argument()) {
-            let bad = param_types
-                .into_iter()
-                .find(|ty| !ty.is_argument())
-                .unwrap();
-            Err(FunctionTypeError::BadParameter(bad))
+        } else if let Some(bad) = param_types.iter().find(|ty| !ty.is_argument()) {
+            Err(FunctionTypeError::BadParameter(bad.clone()))
         } else {
             Ok(FunctionType {
                 return_type: Box::new(return_type),

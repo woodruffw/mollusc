@@ -122,7 +122,7 @@ impl UnrolledBlock {
 
         match records.len() {
             0 => Ok(None),
-            1 => Ok(Some(&records[0])),
+            1 => Ok(Some(records[0])),
             _ => Err(BlockMapError::BlockRecordMismatch(code, self.id)),
         }
     }
@@ -141,7 +141,7 @@ impl UnrolledBlock {
         }
 
         // Panic safety: we check for exactly one member directly above.
-        Ok(&records[0])
+        Ok(records[0])
     }
 
     /// Return an iterator for all records that share the given code. Records are iterated in
