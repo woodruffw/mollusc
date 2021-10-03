@@ -271,19 +271,10 @@ impl IrBlock for TypeTable {
         //    without having to perform a more expensive visiting pass later.
         // 2. We iterate over all of the partial types, resolving them into
         //    fully owned and expanded `Type`s.
-
         let mut partial_types = PartialTypeTable::new(numentries);
-
-        // Bits of type mapping state:
-        // * Keep track of how many types we've seen; we'll reconcile this count
-        //   with our expected type count (numentries) once all types are mapped.
-        // * Keep track of the last `TYPE_CODE_STRUCT_NAME` we've seen; we'll use
-        //   this to name the next named struct or opaque type we see.
-        let mut ty_idx = 0;
         let mut last_type_name = String::new();
         for record in block.all_records() {
             let code = TypeCode::try_from(record.code()).map_err(TypeTableError::from)?;
-            log::debug!("TYPE idx={} code={}", ty_idx, record.code());
 
             match code {
                 // Already visited; nothing to do.
@@ -478,18 +469,7 @@ impl IrBlock for TypeTable {
                     )))
                 }
             }
-
-            ty_idx += 1;
         }
-
-        if ty_idx != numentries {
-            return Err(BlockMapError::BadBlockMap(format!(
-                "bad type table: expected {} entries, but got {}",
-                numentries, ty_idx
-            )));
-        }
-
-        log::debug!("partial_types: {:#?}", partial_types);
 
         Ok(partial_types.reify()?)
     }
