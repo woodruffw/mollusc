@@ -2,6 +2,7 @@
 
 pub mod identification;
 pub mod module;
+pub mod paramattr;
 pub mod strtab;
 pub mod symtab;
 pub mod type_table;
@@ -13,6 +14,7 @@ use thiserror::Error;
 
 pub use self::identification::*;
 pub use self::module::*;
+pub use self::paramattr::*;
 pub use self::strtab::*;
 pub use self::symtab::*;
 pub use self::type_table::*;
