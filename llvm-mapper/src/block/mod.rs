@@ -1,8 +1,8 @@
 //! Functionality for mapping individual blocks.
 
+pub mod attributes;
 pub mod identification;
 pub mod module;
-pub mod paramattr;
 pub mod strtab;
 pub mod symtab;
 pub mod type_table;
@@ -12,9 +12,9 @@ use std::convert::TryFrom;
 use llvm_constants::{IrBlockId, ReservedBlockId};
 use thiserror::Error;
 
+pub use self::attributes::*;
 pub use self::identification::*;
 pub use self::module::*;
-pub use self::paramattr::*;
 pub use self::strtab::*;
 pub use self::symtab::*;
 pub use self::type_table::*;
@@ -49,6 +49,10 @@ pub enum BlockMapError {
     /// We couldn't map the type table.
     #[error("error while mapping type table")]
     BadTypeTable(#[from] TypeTableError),
+
+    /// We couldn't map one of the attribute blocks.
+    #[error("error while mapping attributes")]
+    BadAttributes(#[from] AttributeError),
 
     /// We encountered an unsupported feature or layout.
     #[error("unsupported: {0}")]

@@ -2,6 +2,7 @@
 
 use llvm_constants::{IrBlockId, ModuleCode, TARGET_TRIPLE};
 
+use crate::block::attributes::{AttributeGroups, Attributes};
 use crate::block::type_table::TypeTable;
 use crate::block::{BlockId, BlockMapError, IrBlock};
 use crate::map::{MapCtx, Mappable};
@@ -89,6 +90,16 @@ impl IrBlock for Module {
 
         // Build the type table.
         let type_table = TypeTable::try_map(block.one_block(BlockId::Ir(IrBlockId::Type))?, ctx)?;
+
+        // Collect all attribute groups and individual attribute references.
+        // The order here is important: attribute groups must be mapped (into the `MapCtx`)
+        // before the attribute block itself can be mapped.
+        // Both of these mapping operations are side-effect only.
+        AttributeGroups::try_map(
+            block.one_block(BlockId::Ir(IrBlockId::ParamAttrGroup))?,
+            ctx,
+        )?;
+        Attributes::try_map(block.one_block(BlockId::Ir(IrBlockId::ParamAttr))?, ctx)?;
 
         Ok(Self {
             version,
