@@ -7,9 +7,11 @@
 #![forbid(unsafe_code)]
 
 pub mod align;
+pub mod attribute;
 pub mod ty;
 
 pub use self::align::*;
+pub use self::attribute::*;
 pub use self::ty::*;
 
 /// An exact endianness.
