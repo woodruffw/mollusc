@@ -3,7 +3,7 @@
 use std::convert::TryFrom;
 
 use llvm_constants::{AttributeCode, IrBlockId};
-use llvm_support::Align;
+use llvm_support::{Align, AttributeKind};
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
@@ -18,9 +18,15 @@ pub enum AttributeError {
     /// An unknown record code was seen.
     #[error("unknown attribute code")]
     UnknownAttributeCode(#[from] TryFromPrimitiveError<AttributeCode>),
+    /// An unknown attribute kind (format) was seen.
+    #[error("unknown attribute kind")]
+    UnknownAttributeKind(#[from] TryFromPrimitiveError<AttributeKind>),
     /// The given code was seen in an unexpected block.
     #[error("wrong block for code: {0:?}")]
     WrongBlock(AttributeCode),
+    /// The attribute couldn't be constructed because of missing fields.
+    #[error("attribute structure too short")]
+    TooShort,
 }
 
 /// Represents a single, concrete LLVM attribute.
@@ -192,13 +198,34 @@ pub enum Attribute {
 impl Attribute {
     /// Parse a new `Attribute` from the given fields, returning
     /// a tuple of the number of fields consumed and the parsed result.
-    fn from_fields(_fields: &[u64]) -> Result<(usize, Self), AttributeError> {
+    fn from_fields(fields: &[u64]) -> Result<(usize, Self), AttributeError> {
+        let mut fields = fields.iter();
+        let mut fieldcount = 0;
+
+        let mut next = || {
+            if let Some(field) = fields.next() {
+                fieldcount += 1;
+                Ok(*field)
+            } else {
+                Err(AttributeError::TooShort)
+            }
+        };
+
+        // let take_str = || {
+        //     let str_bytes = fields.take_while(|f| **f != 0);
+        // };
+
         // Each attribute's fields look like this:
         //  [kind, key[...], [value[...]]]
         // ...where `kind` indicates the general attribute structure
         // (integral or string, single-value or key-value).
-        let mut _fieldcount = 0;
-        unimplemented!();
+        let kind = AttributeKind::try_from(next()?)?;
+        match kind {
+            AttributeKind::Int => unimplemented!(),
+            AttributeKind::IntKeyValue => unimplemented!(),
+            AttributeKind::StrKey => unimplemented!(),
+            AttributeKind::StrKeyValue => unimplemented!(),
+        }
     }
 }
 

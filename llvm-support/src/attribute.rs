@@ -3,7 +3,6 @@
 use num_enum::TryFromPrimitive;
 
 /// Represents the different kinds of attributes.
-#[non_exhaustive]
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum AttributeKind {
