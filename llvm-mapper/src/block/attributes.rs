@@ -3,14 +3,14 @@
 use std::convert::TryFrom;
 
 use llvm_constants::{AttributeCode, IrBlockId};
-use llvm_support::{Align, AttributeKind};
+use llvm_support::{Align, AttributeId, AttributeKind};
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
 use crate::block::{BlockMapError, IrBlock};
 use crate::map::MapCtx;
 use crate::record::RecordMapError;
-use crate::unroll::UnrolledBlock;
+use crate::unroll::{UnrolledBlock, UnrolledRecord};
 
 /// Errors that can occur when mapping attribute blocks.
 #[derive(Debug, Error)]
@@ -27,6 +27,12 @@ pub enum AttributeError {
     /// The attribute couldn't be constructed because of missing fields.
     #[error("attribute structure too short")]
     TooShort,
+    /// The attribute has an invalid string key or string balue.
+    #[error("bad attribute string")]
+    BadString,
+    /// The attribute has an unknown (integral) ID.
+    #[error("unknown attribute ID")]
+    UnknownAttributeId(#[from] TryFromPrimitiveError<AttributeId>),
 }
 
 /// Represents a single, concrete LLVM attribute.
@@ -196,35 +202,75 @@ pub enum Attribute {
 }
 
 impl Attribute {
-    /// Parse a new `Attribute` from the given fields, returning
+    /// Parse a new `Attribute` from the given record at the given start index, returning
     /// a tuple of the number of fields consumed and the parsed result.
-    fn from_fields(fields: &[u64]) -> Result<(usize, Self), AttributeError> {
-        let mut fields = fields.iter();
+    fn from_record(start: usize, record: &UnrolledRecord) -> Result<(usize, Self), AttributeError> {
+        let mut fields = record.fields().iter().skip(start);
         let mut fieldcount = 0;
 
-        let mut next = || {
-            if let Some(field) = fields.next() {
-                fieldcount += 1;
-                Ok(*field)
-            } else {
-                Err(AttributeError::TooShort)
-            }
-        };
+        macro_rules! next {
+            () => {
+                if let Some(field) = fields.next() {
+                    fieldcount += 1;
+                    Ok(*field)
+                } else {
+                    Err(AttributeError::TooShort)
+                }
+            };
+        }
 
-        // let take_str = || {
-        //     let str_bytes = fields.take_while(|f| **f != 0);
-        // };
+        macro_rules! take_string {
+            // NOTE(ww): Weird double-brace to make sure the macro expands as a full expression.
+            () => {{
+                let str_bytes = fields
+                    .take_while(|f| **f != 0)
+                    .map(|f| u8::try_from(*f))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|_| AttributeError::BadString)?;
+
+                if str_bytes.is_empty() {
+                    Err(AttributeError::BadString)
+                } else {
+                    let result =
+                        String::from_utf8(str_bytes).map_err(|_| AttributeError::BadString)?;
+                    fieldcount += result.as_bytes().len();
+
+                    Ok(result)
+                }
+            }};
+        }
 
         // Each attribute's fields look like this:
         //  [kind, key[...], [value[...]]]
         // ...where `kind` indicates the general attribute structure
         // (integral or string, single-value or key-value).
-        let kind = AttributeKind::try_from(next()?)?;
+        let kind = AttributeKind::try_from(next!()?)?;
         match kind {
-            AttributeKind::Int => unimplemented!(),
-            AttributeKind::IntKeyValue => unimplemented!(),
-            AttributeKind::StrKey => unimplemented!(),
-            AttributeKind::StrKeyValue => unimplemented!(),
+            AttributeKind::Int => {
+                // Integer attributes: one key field, nothing else.
+                let _key = AttributeId::try_from(next!()?)?;
+                unimplemented!()
+            }
+            AttributeKind::IntKeyValue => {
+                // Integer key-value attributes: one key, one integer value.
+                let _key = AttributeId::try_from(next!()?)?;
+                let _value = next!()?;
+
+                unimplemented!()
+            }
+            AttributeKind::StrKey => {
+                // String attributes: one string key field, nothing else.
+                let _key = take_string!()?;
+
+                unimplemented!()
+            }
+            AttributeKind::StrKeyValue => {
+                // String key-value attributes: one string key field, one string value field.
+                let _key = take_string!()?;
+                // let _value = take_string!()?;
+
+                unimplemented!()
+            }
         }
     }
 }
@@ -281,7 +327,7 @@ impl IrBlock for AttributeGroups {
             let mut fieldidx = 2;
             let mut attrs = vec![];
             while fieldidx < record.fields().len() {
-                let (count, attr) = Attribute::from_fields(&record.fields()[fieldidx..])?;
+                let (count, attr) = Attribute::from_record(fieldidx, &record)?;
 
                 attrs.push(attr);
                 fieldidx += count;
