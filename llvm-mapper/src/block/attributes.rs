@@ -443,7 +443,7 @@ impl IrBlock for AttributeGroups {
             let mut fieldidx = 2;
             let mut attrs = vec![];
             while fieldidx < record.fields().len() {
-                let (count, attr) = Attribute::from_record(fieldidx, &record)?;
+                let (count, attr) = Attribute::from_record(fieldidx, record)?;
                 attrs.push(attr);
                 fieldidx += count;
             }
