@@ -36,6 +36,9 @@ pub enum AttributeError {
     /// The attribute's ID doesn't match the format supplied.
     #[error("malformed attribute (format doesn't match ID): {0}: {1:?}")]
     AttributeMalformed(&'static str, AttributeId),
+    /// We recognize the attribute's ID as an integer attribute, but we don't support it yet.
+    #[error("FIXME: unsupported integer attribute: {0:?}")]
+    IntAttributeUnsupported(AttributeId),
 }
 
 /// Represents the "enum" attributes, i.e. those with a single integer identifier.
@@ -212,7 +215,7 @@ pub enum IntAttribute {
     /// `dereferenceable_or_null(<n>)`
     DereferenceableOrNull(u64),
     /// `allocsize(<EltSizeParam>[, <NumEltsParam>])`
-    AllocSize(u32, u32),
+    AllocSize(u32, Option<u32>),
     /// `vscale_range(<Min>[, <Max>])`
     VScaleRange(u32, u32),
 }
@@ -262,12 +265,34 @@ impl TryFrom<(AttributeId, u64)> for IntAttribute {
             AttributeId::Dereferenceable => IntAttribute::Dereferenceable(value),
             AttributeId::DereferenceableOrNull => IntAttribute::DereferenceableOrNull(value),
             AttributeId::AllocSize => {
-                unimplemented!()
+                if value == 0 {
+                    return Err(AttributeError::AttributeMalformed(
+                        "allocasize argument invalid: cannot be (0, 0)",
+                        key,
+                    ));
+                }
+
+                // NOTE(ww): This attribute isn't well documented. From reading the LLVM code:
+                // * `value` can't be 0, but the upper 32 bits of `value` can be
+                // * The lower 32 bits should be 0xFFFFFFFF (-1) if not present
+                let elt_size = (value >> 32) as u32;
+                let num_elts = match value as u32 {
+                    u32::MAX => None,
+                    num_elts => Some(num_elts),
+                };
+
+                IntAttribute::AllocSize(elt_size, num_elts)
             }
             AttributeId::VScaleRange => {
-                unimplemented!()
+                let min = (value >> 32) as u32;
+                let max = match value as u32 {
+                    0 => min,
+                    max => max,
+                };
+
+                IntAttribute::VScaleRange(max, min)
             }
-            o => unimplemented!(),
+            o => return Err(AttributeError::IntAttributeUnsupported(o)),
         })
     }
 }
@@ -347,16 +372,16 @@ impl Attribute {
             }
             AttributeKind::StrKey => {
                 // String attributes: one string key field, nothing else.
-                let _key = take_string!()?;
+                let key = take_string!()?;
 
-                unimplemented!()
+                Ok((fieldcount, Attribute::Str(key)))
             }
             AttributeKind::StrKeyValue => {
                 // String key-value attributes: one string key field, one string value field.
-                let _key = take_string!()?;
-                let _value = take_string!()?;
+                let key = take_string!()?;
+                let value = take_string!()?;
 
-                unimplemented!()
+                Ok((fieldcount, Attribute::StrKeyValue(key, value)))
             }
         }
     }
