@@ -196,7 +196,7 @@ impl TryFrom<AttributeId> for EnumAttribute {
     type Error = AttributeError;
 
     fn try_from(value: AttributeId) -> Result<Self, Self::Error> {
-        value
+        (value as u64)
             .try_into()
             .map_err(|_| AttributeError::AttributeMalformed("non-enum attribute ID given", value))
     }
@@ -317,6 +317,10 @@ impl Attribute {
     fn from_record(start: usize, record: &UnrolledRecord) -> Result<(usize, Self), AttributeError> {
         let mut fieldcount = 0;
 
+        // You might ask: why are these macros?
+        // I originally wrote them as clever little locally-capturing lambdas, but
+        // having both mutate their closure confused the borrow checker.
+        // Writing them as macros lets everything expand inline, keeping the checker happy.
         macro_rules! next {
             () => {
                 if let Some(field) = record.fields().get(start + fieldcount) {
@@ -440,10 +444,11 @@ impl IrBlock for AttributeGroups {
             let mut attrs = vec![];
             while fieldidx < record.fields().len() {
                 let (count, attr) = Attribute::from_record(fieldidx, &record)?;
-
                 attrs.push(attr);
                 fieldidx += count;
             }
+
+            log::debug!("attrs: {:?}", attrs);
 
             // Sanity check: we should have consumed every single record.
             if fieldidx != record.fields().len() {

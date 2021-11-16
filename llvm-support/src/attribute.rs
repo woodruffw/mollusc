@@ -9,11 +9,12 @@ pub enum AttributeKind {
     /// A well-known enum attribute.
     Enum = 0,
     /// A well-known integral attribute with an integer value.
-    IntKeyValue,
+    IntKeyValue = 1,
     /// A string attribute.
-    StrKey,
+    StrKey = 3,
     /// A string attribute with a string value.
-    StrKeyValue,
+    StrKeyValue = 4,
+    // TODO(ww): 5 and 6 are attribute kinds in the LLVM codebase, but aren't documented.
 }
 
 /// Represents the IDs of different specific attributes.
