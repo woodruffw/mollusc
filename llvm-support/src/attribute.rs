@@ -6,8 +6,8 @@ use num_enum::TryFromPrimitive;
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum AttributeKind {
-    /// A well-known integral attribute.
-    Int = 0,
+    /// A well-known enum attribute.
+    Enum = 0,
     /// A well-known integral attribute with an integer value.
     IntKeyValue,
     /// A string attribute.
@@ -18,7 +18,7 @@ pub enum AttributeKind {
 
 /// Represents the IDs of different specific attributes.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum AttributeId {
     /// `align(<n>)`
