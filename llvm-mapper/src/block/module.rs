@@ -2,6 +2,7 @@
 
 use llvm_constants::{IrBlockId, ModuleCode, TARGET_TRIPLE};
 
+use crate::block::attributes::{AttributeGroups, Attributes};
 use crate::block::type_table::TypeTable;
 use crate::block::{BlockId, BlockMapError, IrBlock};
 use crate::map::{MapCtx, Mappable};
@@ -39,7 +40,7 @@ impl IrBlock for Module {
         ctx.version = Some(version);
 
         // Each module *should* have a target triple, but doesn't necessarily.
-        let triple = if let Some(record) = block.one_record_or_none(ModuleCode::Triple as u64)? {
+        let triple = if let Some(record) = block.maybe_one_record(ModuleCode::Triple as u64)? {
             record.try_string(0)?
         } else {
             TARGET_TRIPLE.into()
@@ -47,14 +48,14 @@ impl IrBlock for Module {
 
         // Each module *should* have a datalayout record, but doesn't necessarily.
         let datalayout =
-            if let Some(record) = block.one_record_or_none(ModuleCode::DataLayout as u64)? {
+            if let Some(record) = block.maybe_one_record(ModuleCode::DataLayout as u64)? {
                 DataLayout::try_map(record, ctx)?
             } else {
                 DataLayout::default()
             };
 
         // Each module has zero or exactly one MODULE_CODE_ASM records.
-        let asm = match block.one_record_or_none(ModuleCode::Asm as u64)? {
+        let asm = match block.maybe_one_record(ModuleCode::Asm as u64)? {
             Some(rec) => rec
                 .try_string(0)?
                 .split('\n')
@@ -89,6 +90,22 @@ impl IrBlock for Module {
 
         // Build the type table.
         let type_table = TypeTable::try_map(block.one_block(BlockId::Ir(IrBlockId::Type))?, ctx)?;
+
+        // Collect all attribute groups and individual attribute references.
+        // The order here is important: attribute groups must be mapped
+        // and stored in the `MapCtx` before the attribute block itself can be mapped.
+        // Neither block is mandatory.
+        ctx.attribute_groups = block
+            .maybe_one_block(BlockId::Ir(IrBlockId::ParamAttrGroup))?
+            .map(|b| AttributeGroups::try_map(b, ctx))
+            .transpose()?;
+
+        ctx.attributes = block
+            .maybe_one_block(BlockId::Ir(IrBlockId::ParamAttr))?
+            .map(|b| Attributes::try_map(b, ctx))
+            .transpose()?;
+
+        log::debug!("attributes: {:?}", ctx.attributes);
 
         Ok(Self {
             version,

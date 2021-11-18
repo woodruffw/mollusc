@@ -158,11 +158,11 @@ pub enum CallingConvention {
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum BlockInfoCode {
-    /// SETBID: `[SETBID, blockid]`
+    /// SETBID: `[blockid]`
     SetBid = 1,
-    /// BLOCKNAME: `[BLOCKNAME, ...name...]`
+    /// BLOCKNAME: `[...name...]`
     BlockName,
-    /// SETRECORDNAME: `[SETRECORDNAME, recordid, ...name...]`
+    /// SETRECORDNAME: `[recordid, ...name...]`
     SetRecordName,
 }
 
@@ -171,9 +171,9 @@ pub enum BlockInfoCode {
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum IdentificationCode {
-    /// IDENTIFICATION_CODE_STRING: `[STRING, ...string...]`
+    /// IDENTIFICATION_CODE_STRING: `[...string...]`
     ProducerString = 1,
-    /// IDENTIFICATION_CODE_EPOCH: `[EPOCH, epoch]`
+    /// IDENTIFICATION_CODE_EPOCH: `[epoch]`
     Epoch,
 }
 
@@ -182,47 +182,47 @@ pub enum IdentificationCode {
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum ModuleCode {
-    /// MODULE_CODE_VERSION: `[VERSION, version#]`
+    /// MODULE_CODE_VERSION: `[version#]`
     Version = 1,
-    /// MODULE_CODE_TRIPLE: `[TRIPLE, ...string...]`
+    /// MODULE_CODE_TRIPLE: `[...string...]`
     Triple,
-    /// MODULE_CODE_DATALAYOUT: `[DATALAYOUT, ...string...]`
+    /// MODULE_CODE_DATALAYOUT: `[...string...]`
     DataLayout,
-    /// MODULE_CODE_ASM: `[ASM, ...string...]`
+    /// MODULE_CODE_ASM: `[...string...]`
     Asm,
-    /// MODULE_CODE_SECTIONNAME: `[SECTIONNAME, ...string...]`
+    /// MODULE_CODE_SECTIONNAME: `[...string...]`
     SectionName,
-    /// MODULE_CODE_DEPLIB: `[DEPLIB, ...string...]`
+    /// MODULE_CODE_DEPLIB: `[...string...]`
     DepLib,
-    /// MODULE_CODE_GLOBALVAR: `[GLOBALVAR, ...fields...]`
+    /// MODULE_CODE_GLOBALVAR: `[...fields...]`
     /// See: <https://llvm.org/docs/BitCodeFormat.html#module-code-globalvar-record>
     GlobalVar,
-    /// MODULE_CODE_FUNCTION: `[FUNCTION, ...fields...]`
+    /// MODULE_CODE_FUNCTION: `[...fields...]`
     /// See: <https://llvm.org/docs/BitCodeFormat.html#module-code-function-record>
     Function,
-    /// MODULE_CODE_ALIAS: `[ALIAS, ...fields...]`
+    /// MODULE_CODE_ALIAS: `[...fields...]`
     /// See: <https://llvm.org/docs/BitCodeFormat.html#module-code-alias-record>
     AliasOld,
-    /// MODULE_CODE_GCNAME: `[GCNAME, ...string...]`
+    /// MODULE_CODE_GCNAME: `[...string...]`
     GcName,
     /// MODULE_CODE_COMDAT
     /// v1: `[selection_kind, name]`
     /// v2: `[strtab_offset, strtab_size, selection_kind]`
     /// Only `v2` is currently supported.
     Comdat,
-    /// MODULE_CODE_VSTOFFSET: `[VSTOFFSET, offset]`
+    /// MODULE_CODE_VSTOFFSET: `[offset]`
     VstOffset,
-    /// MODULE_CODE_ALIAS: `[ALIAS, ...fields...]`
+    /// MODULE_CODE_ALIAS: `[...fields...]`
     /// Not well documented; see `ModuleCodes` in `Bitcode/LLVMBitCodes.h`.
     Alias,
     /// MODULE_CODE_METADATA_VALUES_UNUSED
     /// Not documented at all; see `ModuleCodes` in `Bitcode/LLVMBitCodes.h`.
     MetadataValuesUnused,
-    /// MODULE_CODE_SOURCE_FILENAME: `[SOURCE_FILENAME, ...string...]`
+    /// MODULE_CODE_SOURCE_FILENAME: `[...string...]`
     SourceFilename,
-    /// MODULE_CODE_HASH: `[HASH, 5*i32]`
+    /// MODULE_CODE_HASH: `[5*i32]`
     Hash,
-    /// MODULE_CODE_IFUNC: `[IFUNC, ...fields...]`
+    /// MODULE_CODE_IFUNC: `[...fields...]`
     /// Not well documented; see `ModuleCodes` in `Bitcode/LLVMBitCodes.h`.
     IFunc,
 }
@@ -232,7 +232,7 @@ pub enum ModuleCode {
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum TypeCode {
-    /// TYPE_CODE_NUMENTRY: [NUMENTRY, numentries]
+    /// TYPE_CODE_NUMENTRY: `[numentries]`
     NumEntry = 1,
     /// TYPE_CODE_VOID
     Void,
@@ -244,17 +244,17 @@ pub enum TypeCode {
     Label,
     /// TYPE_CODE_OPAQUE
     Opaque,
-    /// TYPE_CODE_INTEGER: [INTEGER, width]
+    /// TYPE_CODE_INTEGER: `[width]`
     Integer,
-    /// TYPE_CODE_POINTER: [POINTER, pointee type]
+    /// TYPE_CODE_POINTER: `[pointee type]`
     Pointer,
-    /// TYPE_CODE_FUNCTION_OLD: [FUNCTION_OLD, vararg, attrid, retty, paramty x N]
+    /// TYPE_CODE_FUNCTION_OLD: `[vararg, attrid, retty, paramty x N]`
     FunctionOld,
     /// TYPE_CODE_HALF
     Half,
-    /// TYPE_CODE_ARRAY: [ARRAY, numelts, eltty]
+    /// TYPE_CODE_ARRAY: `[numelts, eltty]`
     Array,
-    /// TYPE_CODE_VECTOR: [VECTOR, numelts, eltty]
+    /// TYPE_CODE_VECTOR: `[numelts, eltty]`
     Vector,
     /// TYPE_CODE_X86_FP80
     X86Fp80,
@@ -266,13 +266,13 @@ pub enum TypeCode {
     Metadata,
     /// TYPE_CODE_X86_MMX
     X86Mmx,
-    /// TYPE_CODE_STRUCT_ANON: [STRUCT_ANON, ispacked, eltty x N]
+    /// TYPE_CODE_STRUCT_ANON: `[ispacked, eltty x N]`
     StructAnon,
-    /// TYPE_CODE_STRUCT_NAME: [STRUCT_NAME, strchr x N]
+    /// TYPE_CODE_STRUCT_NAME: `[strchr x N]`
     StructName,
-    /// TYPE_CODE_STRUCT_NAMED: [STRUCT_NAMED, ispacked, eltty x N]
+    /// TYPE_CODE_STRUCT_NAMED: `[ispacked, eltty x N]`
     StructNamed,
-    /// TYPE_CODE_FUNCTION: [FUNCTION, vararg, retty, paramty x N]
+    /// TYPE_CODE_FUNCTION: `[vararg, retty, paramty x N]`
     Function,
     /// TYPE_CODE_TOKEN
     Token,
@@ -280,7 +280,7 @@ pub enum TypeCode {
     BFloat,
     /// TYPE_CODE_X86_AMX
     X86Amx,
-    /// TYPE_CODE_OPAQUE_POINTER: [OPAQUE_POINTER, addrspace]
+    /// TYPE_CODE_OPAQUE_POINTER: `[addrspace]`
     OpaquePointer,
 }
 
@@ -289,7 +289,7 @@ pub enum TypeCode {
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum StrtabCode {
-    /// STRTAB_BLOB: `[BLOB, ...string...]`
+    /// STRTAB_BLOB: `[...string...]`
     Blob = 1,
 }
 
@@ -298,6 +298,21 @@ pub enum StrtabCode {
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum SymtabCode {
-    /// SYMTAB_BLOB: `[BLOB, ...string...]`
+    /// SYMTAB_BLOB: `[...data...]`
     Blob = 1,
+}
+
+/// Codes for each record in `PARAMATTR_BLOCK` or `PARAMATTR_GROUP_BLOCK`.
+// NOTE(ww): For whatever reason, these two blocks share the same enum for
+// record codes.
+#[non_exhaustive]
+#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[repr(u64)]
+pub enum AttributeCode {
+    /// PARAMATTR_CODE_ENTRY_OLD: `[paramidx0, attr0, paramidx1, attr1...]`
+    EntryOld = 1,
+    /// PARAMATTR_CODE_ENTRY: `[attrgrp0, attrgrp1, ...]`
+    Entry,
+    /// PARAMATTR_GRP_CODE_ENTRY: `[grpid, idx, attr0, attr1, ...]`
+    GroupCodeEntry,
 }
