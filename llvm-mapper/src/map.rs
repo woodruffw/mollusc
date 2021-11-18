@@ -27,6 +27,10 @@ pub enum MapCtxError {
 #[non_exhaustive]
 #[derive(Debug)]
 pub struct MapCtx {
+    // TODO(ww): Think harder about this struct. Maybe these should be non-Options, and
+    // the Mappable trait should instead take an Option<MapCtx>. Then, we'd prefill
+    // the MapCtx will all requisite state during the unroll phase, rather than deferring
+    // it to module creation. Is that better or worse?
     pub(crate) version: Option<u64>,
     pub(crate) strtab: Option<Strtab>,
     // TODO(ww): Maybe symtab and identification in here?
