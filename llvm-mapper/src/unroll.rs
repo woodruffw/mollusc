@@ -117,7 +117,7 @@ impl UnrolledBlock {
     /// Get zero or one records from this block by the given record code.
     ///
     /// Returns an error if the block has more than one record for this code.
-    pub fn one_record_or_none(&self, code: u64) -> Result<Option<&UnrolledRecord>, BlockMapError> {
+    pub fn maybe_one_record(&self, code: u64) -> Result<Option<&UnrolledRecord>, BlockMapError> {
         let records = self.records(code).collect::<Vec<_>>();
 
         match records.len() {
@@ -161,24 +161,35 @@ impl UnrolledBlock {
         self.records.iter()
     }
 
+    /// Return an iterator over all sub-blocks within this block that share the given ID.
+    ///
+    /// The returned iterator is empty if the block doesn't have any matching sub-blocks.
+    pub fn blocks(&self, id: BlockId) -> impl Iterator<Item = &UnrolledBlock> + '_ {
+        self.blocks.get(&id).into_iter().flatten()
+    }
+
+    /// Get zero or one sub-blocks from this block by the given block ID.
+    ///
+    /// Returns an error if the block has more than one matching sub-block.
+    pub fn maybe_one_block(&self, id: BlockId) -> Result<Option<&UnrolledBlock>, BlockMapError> {
+        let blocks = self.blocks(id).collect::<Vec<_>>();
+
+        match blocks.len() {
+            0 => Ok(None),
+            1 => Ok(Some(blocks[0])),
+            _ => Err(BlockMapError::BlockBlockMismatch(id, self.id)),
+        }
+    }
+
     /// Get a single sub-block from this block by its block ID.
     ///
     /// Returns an error if the block either lacks an appropriate block or has more than one.
     pub fn one_block(&self, id: BlockId) -> Result<&UnrolledBlock, BlockMapError> {
-        let blocks_for_id = self
-            .blocks
-            .get(&id)
-            .ok_or(BlockMapError::BlockBlockMismatch(id, self.id))?;
-
-        // The empty case here would indicate API misuse, since we should only
-        // create the vector upon inserting at least one block for a given ID.
-        // But it doesn't hurt (much) to be cautious.
-        if blocks_for_id.is_empty() || blocks_for_id.len() > 1 {
-            return Err(BlockMapError::BlockBlockMismatch(id, self.id));
+        if let Some(block) = self.maybe_one_block(id)? {
+            Ok(block)
+        } else {
+            Err(BlockMapError::BlockBlockMismatch(id, self.id))
         }
-
-        // Panic safety: we check for exactly one member directly above.
-        Ok(&blocks_for_id[0])
     }
 }
 

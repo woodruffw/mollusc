@@ -2,6 +2,7 @@
 
 use std::convert::{TryFrom, TryInto};
 
+use hashbrown::HashMap;
 use llvm_constants::{AttributeCode, IrBlockId};
 use llvm_support::{Align, AttributeId, AttributeKind};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
@@ -39,11 +40,14 @@ pub enum AttributeError {
     /// We recognize the attribute's ID as an integer attribute, but we don't support it yet.
     #[error("FIXME: unsupported integer attribute: {0:?}")]
     IntAttributeUnsupported(AttributeId),
+    /// An entry record asked for a nonexistent attribute group.
+    #[error("nonexistent attribute group: {0}")]
+    BadAttributeGroup(u32),
 }
 
 /// Represents the "enum" attributes, i.e. those with a single integer identifier.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, PartialEq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum EnumAttribute {
     /// `alwaysinline`
@@ -204,7 +208,7 @@ impl TryFrom<AttributeId> for EnumAttribute {
 
 /// Represents an integral attribute, i.e. an attribute that carries (at least) one integer value with it.
 #[non_exhaustive]
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum IntAttribute {
     /// `align(<n>)`
     Alignment(Align),
@@ -299,7 +303,7 @@ impl TryFrom<(AttributeId, u64)> for IntAttribute {
 
 /// Represents a single, concrete LLVM attribute.
 #[non_exhaustive]
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Attribute {
     /// An enumerated attribute.
     Enum(EnumAttribute),
@@ -391,30 +395,100 @@ impl Attribute {
     }
 }
 
+/// Represents all of the [`AttributeGroup`](AttributeGroup)s associated with some function.
+#[derive(Debug)]
+pub struct AttributeEntry(Vec<AttributeGroup>);
+
 /// Maps all attributes in an IR module.
-///
-/// This is a zero-sized type that, when mapped, updates the associated
-/// [`MapCtx`](MapCtx) as appropriate.
-pub struct Attributes;
+#[derive(Debug)]
+pub struct Attributes(Vec<AttributeEntry>);
 
 impl IrBlock for Attributes {
     const BLOCK_ID: IrBlockId = IrBlockId::ParamAttr;
 
-    fn try_map_inner(_block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
-        unimplemented!();
+    fn try_map_inner(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
+        let mut entries = vec![];
+
+        for record in block.all_records() {
+            let code = AttributeCode::try_from(record.code()).map_err(AttributeError::from)?;
+
+            match code {
+                AttributeCode::Entry => {
+                    let mut groups = vec![];
+                    for group_id in record.fields() {
+                        let group_id = *group_id as u32;
+                        log::debug!("group id: {}", group_id);
+                        groups.push(
+                            ctx.attribute_groups()?
+                                .get(group_id)
+                                .ok_or(AttributeError::BadAttributeGroup(group_id))?
+                                .clone(),
+                        );
+                    }
+                    entries.push(AttributeEntry(groups));
+                }
+                AttributeCode::GroupCodeEntry => {
+                    // This is a valid attribute code, but it isn't valid in this block.
+                    return Err(AttributeError::WrongBlock(code).into());
+                }
+                _ => {
+                    return Err(BlockMapError::Unsupported(format!(
+                        "unsupported attribute block code: {:?}",
+                        code,
+                    )))
+                }
+            }
+        }
+
+        Ok(Attributes(entries))
     }
 }
 
+/// Represents the "disposition" of an attribute group, i.e. whether its attributes
+/// are associated with the return value, specific parameters, or the entire associated function.
+#[derive(Clone, Copy, Debug)]
+pub enum AttributeGroupDisposition {
+    /// The associated attributes are return value attributes.
+    Return,
+    /// The associated attributes are parameter attributes (1-indexed).
+    Parameter(u32),
+    /// The associated attributes are function attributes.
+    Function,
+}
+
+impl From<u32> for AttributeGroupDisposition {
+    fn from(value: u32) -> Self {
+        match value {
+            u32::MAX => Self::Function,
+            0 => Self::Return,
+            _ => Self::Parameter(value),
+        }
+    }
+}
+
+/// Represents a single attribute group.
+#[derive(Clone, Debug)]
+pub struct AttributeGroup {
+    disposition: AttributeGroupDisposition,
+    attributes: Vec<Attribute>,
+}
+
 /// Maps all attribute groups in an IR module.
-///
-/// This is a zero-sized type that, when mapped, updates the associated
-/// [`MapCtx`](MapCtx) as appropriate.
-pub struct AttributeGroups;
+#[derive(Debug)]
+pub struct AttributeGroups(HashMap<u32, AttributeGroup>);
+
+impl AttributeGroups {
+    fn get(&self, group_id: u32) -> Option<&AttributeGroup> {
+        self.0.get(&group_id)
+    }
+}
 
 impl IrBlock for AttributeGroups {
     const BLOCK_ID: IrBlockId = IrBlockId::ParamAttrGroup;
 
     fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
+        let mut groups = HashMap::new();
+
         for record in block.all_records() {
             let code = AttributeCode::try_from(record.code()).map_err(AttributeError::from)?;
 
@@ -434,21 +508,19 @@ impl IrBlock for AttributeGroups {
             }
 
             // Panic safety: We check for at least three fields above.
-            let _grpid = record.fields()[0];
-            let _paramidx = record.fields()[1];
+            let group_id = record.fields()[0] as u32;
+            let disposition: AttributeGroupDisposition = (record.fields()[1] as u32).into();
 
             // Each attribute in the group can potentially span multiple fields
             // in the record. Keep track of our field index to ensure that we
             // fully consume the records into a list of attributes.
             let mut fieldidx = 2;
-            let mut attrs = vec![];
+            let mut attributes = vec![];
             while fieldidx < record.fields().len() {
                 let (count, attr) = Attribute::from_record(fieldidx, record)?;
-                attrs.push(attr);
+                attributes.push(attr);
                 fieldidx += count;
             }
-
-            log::debug!("attrs: {:?}", attrs);
 
             // Sanity check: we should have consumed every single record.
             if fieldidx != record.fields().len() {
@@ -459,8 +531,16 @@ impl IrBlock for AttributeGroups {
                 ))
                 .into());
             }
+
+            groups.insert(
+                group_id,
+                AttributeGroup {
+                    disposition,
+                    attributes,
+                },
+            );
         }
 
-        Ok(AttributeGroups)
+        Ok(AttributeGroups(groups))
     }
 }

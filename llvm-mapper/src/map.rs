@@ -3,6 +3,7 @@
 use thiserror::Error;
 
 use crate::block::Strtab;
+use crate::block::{AttributeGroups, Attributes};
 
 /// Errors that can occur when accessing a [`MapCtx`](MapCtx).
 #[derive(Debug, Error)]
@@ -13,6 +14,9 @@ pub enum MapCtxError {
     /// The string table is needed, but unavailable.
     #[error("mapping context requires a string table, but none is available")]
     NoStrtab,
+    /// The attribute group table is needed, but unavailable.
+    #[error("mapping context requires attribute groups, but none are available")]
+    NoAttributeGroups,
 }
 
 /// A handle for various bits of state that are necessary for correct block
@@ -25,7 +29,7 @@ pub enum MapCtxError {
 /// Block and record mapping operations are expected to update the supplied context,
 /// as appropriate.
 #[non_exhaustive]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MapCtx {
     // TODO(ww): Think harder about this struct. Maybe these should be non-Options, and
     // the Mappable trait should instead take an Option<MapCtx>. Then, we'd prefill
@@ -33,20 +37,13 @@ pub struct MapCtx {
     // it to module creation. Is that better or worse?
     pub(crate) version: Option<u64>,
     pub(crate) strtab: Option<Strtab>,
+    pub(crate) attribute_groups: Option<AttributeGroups>,
+    pub(crate) attributes: Option<Attributes>,
     // TODO(ww): Maybe symtab and identification in here?
 }
 
-impl Default for MapCtx {
-    fn default() -> Self {
-        Self {
-            version: None,
-            strtab: None,
-        }
-    }
-}
-
 impl MapCtx {
-    /// Returns the version stored by this context, or an error if no version is available.
+    /// Returns the version stored in this context, or an error if no version is available.
     pub fn version(&self) -> Result<u64, MapCtxError> {
         self.version.ok_or(MapCtxError::NoVersion)
     }
@@ -65,9 +62,16 @@ impl MapCtx {
         self.version().map(|v| v >= 1)
     }
 
-    /// Returns the string table stored by this context, or an error if no string table is available.
+    /// Returns the string table stored in this context, or an error if no string table is available.
     pub fn strtab(&self) -> Result<&Strtab, MapCtxError> {
         self.strtab.as_ref().ok_or(MapCtxError::NoStrtab)
+    }
+
+    /// Returns the attribute groups stored in this context, or an error if not available.
+    pub fn attribute_groups(&self) -> Result<&AttributeGroups, MapCtxError> {
+        self.attribute_groups
+            .as_ref()
+            .ok_or(MapCtxError::NoAttributeGroups)
     }
 }
 
