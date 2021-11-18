@@ -17,9 +17,9 @@ name = "unroll-bitstream"
 [dependencies]
 indexmap = "1.7.0"
 hashbrown = "0.11.2"
-llvm-bitstream = { version = "0.0.2-rc.5", path = "../llvm-bitstream" }
-llvm-constants = { version = "0.0.2-rc.4", path = "../llvm-constants" }
-llvm-support = { version = "^0.0.2-rc.2", path = "../llvm-support" }
+llvm-bitstream = { version = "0.0.2", path = "../llvm-bitstream" }
+llvm-constants = { version = "0.0.2", path = "../llvm-constants" }
+llvm-support = { version = "0.0.2", path = "../llvm-support" }
 log = "0.4"
 num_enum = "0.5.3"
 thiserror = "1.0"
