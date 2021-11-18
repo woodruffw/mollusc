@@ -9,7 +9,7 @@ readme = "README.md"
 keywords = ["llvm", "parsing", "binary", "encoding"]
 categories = ["compilers", "encoding", "parsing"]
 edition = "2018"
-version = "0.0.2-rc.10"
+version = "0.0.2"
 
 [features]
 default = ["vbr"]
