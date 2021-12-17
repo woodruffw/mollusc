@@ -6,6 +6,7 @@
 
 pub mod comdat;
 pub mod datalayout;
+pub mod function;
 
 use std::num::TryFromIntError;
 use std::string::FromUtf8Error;
@@ -14,6 +15,7 @@ use thiserror::Error;
 
 pub use self::comdat::*;
 pub use self::datalayout::*;
+pub use self::function::*;
 use crate::block::StrtabError;
 use crate::map::{MapCtxError, Mappable};
 
@@ -39,6 +41,10 @@ pub enum RecordMapError {
     /// Parsing the datalayout specification failed.
     #[error("error while parsing datalayout: {0}")]
     DataLayout(#[from] DataLayoutParseError),
+
+    /// Mapping a function record failed.
+    #[error("error while mapping function record: {0}")]
+    Function(#[from] FunctionError),
 
     /// We couldn't interpret a record field, for any number of reasons.
     #[error("error while decoding record field: {0}")]

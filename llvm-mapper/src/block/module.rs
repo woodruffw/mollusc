@@ -6,7 +6,7 @@ use crate::block::attributes::{AttributeGroups, Attributes};
 use crate::block::type_table::TypeTable;
 use crate::block::{BlockId, BlockMapError, IrBlock};
 use crate::map::{MapCtx, Mappable};
-use crate::record::{Comdat, DataLayout, RecordMapError};
+use crate::record::{Comdat, DataLayout, Function as FunctionRecord, RecordMapError};
 use crate::unroll::UnrolledBlock;
 
 /// Models the `MODULE_BLOCK` block.
@@ -111,6 +111,13 @@ impl IrBlock for Module {
             .transpose()?;
 
         log::debug!("attributes: {:?}", ctx.attributes);
+
+        // Collect the function records and blocks in this module.
+        block
+            .records(ModuleCode::Function as u64)
+            .map(|rec| FunctionRecord::try_map(rec, ctx))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(RecordMapError::from)?;
 
         Ok(Self {
             version,
