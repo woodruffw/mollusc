@@ -255,7 +255,7 @@ impl Mappable<UnrolledRecord> for DataLayout {
 
     fn try_map(record: &UnrolledRecord, _ctx: &mut MapCtx) -> Result<Self, Self::Error> {
         let datalayout = record.try_string(0)?;
-        Ok(datalayout.parse::<Self>()?)
+        datalayout.parse::<Self>()
     }
 }
 
