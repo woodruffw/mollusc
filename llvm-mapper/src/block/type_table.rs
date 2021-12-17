@@ -12,6 +12,7 @@ use thiserror::Error;
 
 use crate::block::{BlockMapError, IrBlock};
 use crate::map::MapCtx;
+use crate::record::RecordMapError;
 use crate::unroll::UnrolledBlock;
 
 /// Errors that can occur when mapping the type table.
@@ -397,7 +398,7 @@ impl IrBlock for TypeTable {
                 TypeCode::StructName => {
                     // A `TYPE_CODE_STRUCT_NAME` is not a type in its own right; it merely
                     // supplies the name for a future type record.
-                    last_type_name.push_str(&record.try_string(0)?);
+                    last_type_name.push_str(&record.try_string(0).map_err(RecordMapError::from)?);
                     continue;
                 }
                 TypeCode::StructNamed => {

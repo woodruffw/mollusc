@@ -12,12 +12,15 @@ use llvm_support::{
 use thiserror::Error;
 
 use crate::map::{MapCtx, Mappable};
-use crate::record::RecordMapError;
+use crate::record::RecordStringError;
 use crate::unroll::UnrolledRecord;
 
 /// Potential errors when parsing an LLVM datalayout string.
 #[derive(Debug, Error)]
 pub enum DataLayoutParseError {
+    /// The datalayout string can't be extracted from the record.
+    #[error("malformed datalayout record: {0}")]
+    BadString(#[from] RecordStringError),
     /// The specified alignment is invalid.
     #[error("bad alignment value: {0}")]
     BadAlign(#[from] AlignError),
@@ -248,7 +251,7 @@ impl FromStr for DataLayout {
 }
 
 impl Mappable<UnrolledRecord> for DataLayout {
-    type Error = RecordMapError;
+    type Error = DataLayoutParseError;
 
     fn try_map(record: &UnrolledRecord, _ctx: &mut MapCtx) -> Result<Self, Self::Error> {
         let datalayout = record.try_string(0)?;
