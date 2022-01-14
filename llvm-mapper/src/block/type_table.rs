@@ -50,7 +50,7 @@ pub enum TypeTableError {
 /// A symbolic type reference, which is really just an index into some
 /// unspecified type table.
 #[derive(Debug)]
-struct TypeRef(usize);
+pub(crate) struct TypeRef(pub(crate) usize);
 
 /// Represents a "partial type," i.e. a type whose subtypes may be symbolic
 /// and not fully resolved against a type table.

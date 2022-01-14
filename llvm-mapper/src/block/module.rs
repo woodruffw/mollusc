@@ -113,11 +113,13 @@ impl IrBlock for Module {
         log::debug!("attributes: {:?}", ctx.attributes);
 
         // Collect the function records and blocks in this module.
-        block
+        let functions = block
             .records(ModuleCode::Function as u64)
             .map(|rec| FunctionRecord::try_map(rec, ctx))
             .collect::<Result<Vec<_>, _>>()
             .map_err(RecordMapError::from)?;
+
+        log::debug!("functions: {:?}", functions);
 
         Ok(Self {
             version,

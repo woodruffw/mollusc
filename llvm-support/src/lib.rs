@@ -52,6 +52,45 @@ pub enum Mangling {
     XCoff,
 }
 
+/// Global value linkage types.
+#[non_exhaustive]
+#[derive(Debug, PartialEq)]
+#[repr(u64)]
+#[allow(missing_docs)]
+pub enum Linkage {
+    External,
+    AvailableExternally,
+    LinkOnceAny,
+    LinkOnceOdr,
+    WeakAny,
+    WeakOdr,
+    Appending,
+    Internal,
+    Private,
+    ExternalWeak,
+    Common,
+}
+
+impl From<u64> for Linkage {
+    fn from(value: u64) -> Self {
+        // See getDecodedLinkage in BitcodeReader.cpp.
+        match value {
+            0 | 5 | 6 | 15 => Linkage::External,
+            1 | 16 => Linkage::WeakAny,
+            2 => Linkage::Appending,
+            3 => Linkage::Internal,
+            4 | 18 => Linkage::LinkOnceAny,
+            7 => Linkage::ExternalWeak,
+            8 => Linkage::Common,
+            9 | 13 | 14 => Linkage::Private,
+            10 | 17 => Linkage::WeakOdr,
+            11 | 19 => Linkage::LinkOnceOdr,
+            12 => Linkage::AvailableExternally,
+            _ => Linkage::External,
+        }
+    }
+}
+
 /// An `(offset, size)` reference to a string within some string table.
 pub struct StrtabRef {
     /// The string's offset within its string table.
