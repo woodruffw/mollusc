@@ -118,9 +118,6 @@ impl MapCtx<'_> {
 pub(crate) trait PartialCtxMappable<T>: Sized {
     type Error;
 
-    // TODO(ww): This should declare an associated type for the error, instead
-    // of using the crate-wide Error.
-
     /// Attempt to map `T` into `Self` using the given [`PartialMapCtx`](PartialMapCtx).
     fn try_map(raw: &T, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error>;
 }
@@ -133,9 +130,6 @@ pub(crate) trait PartialCtxMappable<T>: Sized {
 /// [`MapCtx`](MapCtx), which should only happen early in IR module parsing.
 pub(crate) trait CtxMappable<'ctx, T>: Sized {
     type Error;
-
-    // TODO(ww): This should declare an associated type for the error, instead
-    // of using the crate-wide Error.
 
     /// Attempt to map `T` into `Self` using the given [`MapCtx`](MapCtx).
     fn try_map(raw: &T, ctx: &'ctx MapCtx) -> Result<Self, Self::Error>;
