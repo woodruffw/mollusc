@@ -71,6 +71,12 @@ impl Mappable<UnrolledRecord> for Function {
         let is_declaration = fields[3] != 0;
         let linkage = Linkage::from(fields[4]);
 
-        Ok(Self { name, typ_ref, calling_convention, is_declaration, linkage })
+        Ok(Self {
+            name,
+            typ_ref,
+            calling_convention,
+            is_declaration,
+            linkage,
+        })
     }
 }
