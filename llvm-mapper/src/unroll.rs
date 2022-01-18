@@ -194,7 +194,8 @@ impl UnrolledBlock {
 /// which corresponds to a single LLVM IR module. In the simplest case, there will only be one.
 #[derive(Debug)]
 pub struct UnrolledBitcode {
-    pub(crate) modules: Vec<BitcodeModule>,
+    /// The modules present in this bitcode stream.
+    pub modules: Vec<BitcodeModule>,
 }
 
 impl TryFrom<&[u8]> for UnrolledBitcode {

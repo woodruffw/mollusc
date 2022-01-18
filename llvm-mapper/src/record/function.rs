@@ -3,11 +3,11 @@
 use std::convert::TryFrom;
 
 use llvm_constants::CallingConvention;
-use llvm_support::Linkage;
+use llvm_support::{Linkage, Type};
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
-use crate::block::type_table::TypeRef;
+use crate::block::type_table::{TypeRef, TypeTableError};
 use crate::map::{MapCtx, MapCtxError, Mappable};
 use crate::record::StrtabError;
 use crate::unroll::UnrolledRecord;
@@ -34,17 +34,30 @@ pub enum FunctionError {
     /// This function has an unknown calling convention.
     #[error("unknown calling convention")]
     CallingConvention(#[from] TryFromPrimitiveError<CallingConvention>),
+
+    /// The function has a bad or unknown type.
+    #[error("invalid type: {0}")]
+    BadType(#[from] TypeTableError),
 }
 
 /// Models the `MODULE_CODE_FUNCTION` record.
 #[non_exhaustive]
 #[derive(Debug)]
 pub struct Function {
-    name: String,
-    typ_ref: TypeRef,
-    calling_convention: CallingConvention,
-    is_declaration: bool,
-    linkage: Linkage,
+    /// The function's name.
+    pub name: String,
+
+    /// A reference to the function's type in the type table.
+    pub ty: Type,
+
+    /// The function's calling convention.
+    pub calling_convention: CallingConvention,
+
+    /// Whether the function is a declaration, or a full definition (with body).
+    pub is_declaration: bool,
+
+    /// The function's linkage.
+    pub linkage: Linkage,
 }
 
 impl Mappable<UnrolledRecord> for Function {
@@ -64,16 +77,21 @@ impl Mappable<UnrolledRecord> for Function {
             return Err(FunctionError::TooShort(fields.len()));
         }
 
-        let name = ctx.strtab()?.read_name(&record)?.to_owned();
+        let name = ctx.strtab()?.read_name(record)?.to_owned();
 
-        let typ_ref = TypeRef(fields[2] as usize);
+        let ty = {
+            let typ_ref = TypeRef(fields[2] as usize);
+            ctx.type_table()?.get(&typ_ref)?
+        }
+        .clone();
+
         let calling_convention = CallingConvention::try_from(fields[3])?;
         let is_declaration = fields[3] != 0;
         let linkage = Linkage::from(fields[4]);
 
         Ok(Self {
             name,
-            typ_ref,
+            ty,
             calling_convention,
             is_declaration,
             linkage,

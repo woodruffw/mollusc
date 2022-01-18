@@ -254,6 +254,14 @@ impl PartialTypeTable {
 #[derive(Clone, Debug)]
 pub struct TypeTable(Vec<Type>);
 
+impl TypeTable {
+    pub(crate) fn get(&self, ty_ref: &TypeRef) -> Result<&Type, TypeTableError> {
+        self.0
+            .get(ty_ref.0)
+            .ok_or(TypeTableError::BadIndex(ty_ref.0))
+    }
+}
+
 impl IrBlock for TypeTable {
     const BLOCK_ID: IrBlockId = IrBlockId::Type;
 

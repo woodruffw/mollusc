@@ -13,8 +13,6 @@ use crate::unroll::UnrolledBlock;
 #[non_exhaustive]
 #[derive(Debug)]
 pub struct Module {
-    /// The format version.
-    version: u64,
     /// The target triple specification.
     pub triple: String,
     /// The data layout specification.
@@ -23,8 +21,6 @@ pub struct Module {
     pub asm: Vec<String>,
     /// Any dependent libraries listed in the module.
     pub deplibs: Vec<String>,
-    /// The module's type table.
-    pub type_table: TypeTable,
 }
 
 impl IrBlock for Module {
@@ -94,7 +90,10 @@ impl IrBlock for Module {
             .map_err(RecordMapError::from)?;
 
         // Build the type table.
-        let type_table = TypeTable::try_map(block.one_block(BlockId::Ir(IrBlockId::Type))?, ctx)?;
+        ctx.type_table = Some(TypeTable::try_map(
+            block.one_block(BlockId::Ir(IrBlockId::Type))?,
+            ctx,
+        )?);
 
         // Collect all attribute groups and individual attribute references.
         // The order here is important: attribute groups must be mapped
@@ -122,12 +121,10 @@ impl IrBlock for Module {
         log::debug!("functions: {:?}", functions);
 
         Ok(Self {
-            version,
             triple,
             datalayout,
             asm,
             deplibs,
-            type_table,
         })
     }
 }

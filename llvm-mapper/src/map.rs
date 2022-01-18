@@ -3,7 +3,7 @@
 use thiserror::Error;
 
 use crate::block::Strtab;
-use crate::block::{AttributeGroups, Attributes};
+use crate::block::{AttributeGroups, Attributes, TypeTable};
 
 /// Errors that can occur when accessing a [`MapCtx`](MapCtx).
 #[derive(Debug, Error)]
@@ -17,10 +17,13 @@ pub enum MapCtxError {
     /// The attribute group table is needed, but unavailable.
     #[error("mapping context requires attribute groups, but none are available")]
     NoAttributeGroups,
+    /// The type table is needed, but unavailable.
+    #[error("mapping context requires types, but none are available")]
+    NoTypeTable,
 }
 
 /// A handle for various bits of state that are necessary for correct block
-/// and record mapping.
+/// and record mapping in the context of a particular IR module.
 ///
 /// Internally, this is a mushy state object that may or may not contain
 /// sufficient information for parsing a particular block or record; hence
@@ -39,6 +42,7 @@ pub struct MapCtx {
     pub(crate) strtab: Option<Strtab>,
     pub(crate) attribute_groups: Option<AttributeGroups>,
     pub(crate) attributes: Option<Attributes>,
+    pub(crate) type_table: Option<TypeTable>,
     // TODO(ww): Maybe symtab and identification in here?
 }
 
@@ -72,6 +76,11 @@ impl MapCtx {
         self.attribute_groups
             .as_ref()
             .ok_or(MapCtxError::NoAttributeGroups)
+    }
+
+    /// Returns the type table stored in this context, or an error if not available.
+    pub fn type_table(&self) -> Result<&TypeTable, MapCtxError> {
+        self.type_table.as_ref().ok_or(MapCtxError::NoTypeTable)
     }
 }
 
