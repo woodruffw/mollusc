@@ -200,7 +200,7 @@ pub enum ModuleCode {
     /// MODULE_CODE_FUNCTION: `[...fields...]`
     /// See: <https://llvm.org/docs/BitCodeFormat.html#module-code-function-record>
     Function,
-    /// MODULE_CODE_ALIAS: `[...fields...]`
+    /// MODULE_CODE_ALIAS_OLD: `[...fields...]`
     /// See: <https://llvm.org/docs/BitCodeFormat.html#module-code-alias-record>
     AliasOld,
     /// MODULE_CODE_GCNAME: `[...string...]`
