@@ -12,7 +12,7 @@ fn app<'a>() -> App<'a> {
         .about(env!("CARGO_PKG_DESCRIPTION"))
         .arg(
             Arg::new("input")
-                .about("the bitstream input to unroll")
+                .help("the bitstream input to unroll")
                 .index(1)
                 .required(true),
         )
