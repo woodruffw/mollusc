@@ -3,7 +3,7 @@
 use llvm_constants::{IrBlockId, SymtabCode};
 
 use crate::block::{BlockMapError, IrBlock};
-use crate::map::MapCtx;
+use crate::map::PartialMapCtx;
 use crate::unroll::UnrolledBlock;
 
 /// Models the `SYMTAB_BLOCK` block.
@@ -22,7 +22,10 @@ impl AsRef<[u8]> for Symtab {
 impl IrBlock for Symtab {
     const BLOCK_ID: IrBlockId = IrBlockId::Symtab;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
+    fn try_map_inner(
+        block: &UnrolledBlock,
+        _ctx: &mut PartialMapCtx,
+    ) -> Result<Self, BlockMapError> {
         let symtab = {
             let symtab = block.one_record(SymtabCode::Blob as u64)?;
 

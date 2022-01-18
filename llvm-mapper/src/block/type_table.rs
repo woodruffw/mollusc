@@ -11,7 +11,7 @@ use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
 use crate::block::{BlockMapError, IrBlock};
-use crate::map::MapCtx;
+use crate::map::PartialMapCtx;
 use crate::record::RecordMapError;
 use crate::unroll::UnrolledBlock;
 
@@ -265,7 +265,10 @@ impl TypeTable {
 impl IrBlock for TypeTable {
     const BLOCK_ID: IrBlockId = IrBlockId::Type;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
+    fn try_map_inner(
+        block: &UnrolledBlock,
+        _ctx: &mut PartialMapCtx,
+    ) -> Result<Self, BlockMapError> {
         // Figure out how many type entries we have, and reserve the space for them up-front.
         let numentries = {
             let numentries = block.one_record(TypeCode::NumEntry as u64)?;

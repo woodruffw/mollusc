@@ -7,7 +7,7 @@ use llvm_support::StrtabRef;
 use thiserror::Error;
 
 use crate::block::{BlockMapError, IrBlock};
-use crate::map::MapCtx;
+use crate::map::PartialMapCtx;
 use crate::unroll::{UnrolledBlock, UnrolledRecord};
 
 /// Errors that can occur when accessing a string table.
@@ -34,7 +34,10 @@ impl AsRef<[u8]> for Strtab {
 impl IrBlock for Strtab {
     const BLOCK_ID: IrBlockId = IrBlockId::Strtab;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
+    fn try_map_inner(
+        block: &UnrolledBlock,
+        _ctx: &mut PartialMapCtx,
+    ) -> Result<Self, BlockMapError> {
         // TODO(ww): The docs also claim that there's only one STRTAB_BLOB per STRTAB_BLOCK,
         // but at least one person has reported otherwise here:
         // https://lists.llvm.org/pipermail/llvm-dev/2020-August/144327.html

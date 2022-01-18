@@ -5,8 +5,8 @@ use std::convert::TryInto;
 use llvm_support::StrtabRef;
 use num_enum::TryFromPrimitive;
 
-use crate::map::MapCtx;
-use crate::record::{Mappable, RecordMapError};
+use crate::map::{CtxMappable, MapCtx};
+use crate::record::RecordMapError;
 use crate::unroll::UnrolledRecord;
 
 /// The different kinds of COMDAT selections.
@@ -31,18 +31,18 @@ pub enum ComdatSelectionKind {
 /// Models the `MODULE_CODE_COMDAT` record.
 #[non_exhaustive]
 #[derive(Debug)]
-pub struct Comdat {
+pub struct Comdat<'ctx> {
     /// The selection kind for this COMDAT.
     pub selection_kind: ComdatSelectionKind,
     /// The COMDAT key.
-    pub name: String,
+    pub name: &'ctx str,
 }
 
-impl Mappable<UnrolledRecord> for Comdat {
+impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Comdat<'ctx> {
     type Error = RecordMapError;
 
-    fn try_map(record: &UnrolledRecord, ctx: &mut MapCtx) -> Result<Self, Self::Error> {
-        if !ctx.use_strtab()? {
+    fn try_map(record: &UnrolledRecord, ctx: &'ctx MapCtx) -> Result<Self, Self::Error> {
+        if !ctx.use_strtab() {
             return Err(RecordMapError::Unsupported(
                 "v1 COMDAT records are not supported".into(),
             ));
@@ -59,7 +59,7 @@ impl Mappable<UnrolledRecord> for Comdat {
         // Index safety: we check for at least 3 fields above.
         let name = {
             let sref: StrtabRef = (record.fields()[0], record.fields()[1]).into();
-            ctx.strtab()?.try_get(&sref)?
+            ctx.strtab.try_get(&sref)?
         };
         let selection_kind: ComdatSelectionKind = record.fields()[2].try_into().map_err(|e| {
             RecordMapError::BadRecordLayout(format!("invalid COMDAT selection kind: {:?}", e))
@@ -67,7 +67,7 @@ impl Mappable<UnrolledRecord> for Comdat {
 
         Ok(Self {
             selection_kind,
-            name: name.into(),
+            name: name,
         })
     }
 }

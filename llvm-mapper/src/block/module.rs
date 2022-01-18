@@ -5,7 +5,7 @@ use llvm_constants::{IrBlockId, ModuleCode, TARGET_TRIPLE};
 use crate::block::attributes::{AttributeGroups, Attributes};
 use crate::block::type_table::TypeTable;
 use crate::block::{BlockId, BlockMapError, IrBlock};
-use crate::map::{MapCtx, Mappable};
+use crate::map::{CtxMappable, PartialCtxMappable, PartialMapCtx};
 use crate::record::{Comdat, DataLayout, Function as FunctionRecord, RecordMapError};
 use crate::unroll::UnrolledBlock;
 
@@ -26,7 +26,10 @@ pub struct Module {
 impl IrBlock for Module {
     const BLOCK_ID: IrBlockId = IrBlockId::Module;
 
-    fn try_map_inner(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
+    fn try_map_inner(
+        block: &UnrolledBlock,
+        ctx: &mut PartialMapCtx,
+    ) -> Result<Self, BlockMapError> {
         let version = {
             let version = block.one_record(ModuleCode::Version as u64)?;
 
@@ -82,13 +85,6 @@ impl IrBlock for Module {
             .collect::<Result<Vec<_>, _>>()
             .map_err(RecordMapError::from)?;
 
-        // Build the Comdat list. We'll reference this later.
-        let _comdats = block
-            .records(ModuleCode::Comdat as u64)
-            .map(|rec| Comdat::try_map(rec, ctx))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(RecordMapError::from)?;
-
         // Build the type table.
         ctx.type_table = Some(TypeTable::try_map(
             block.one_block(BlockId::Ir(IrBlockId::Type))?,
@@ -97,7 +93,7 @@ impl IrBlock for Module {
 
         // Collect all attribute groups and individual attribute references.
         // The order here is important: attribute groups must be mapped
-        // and stored in the `MapCtx` before the attribute block itself can be mapped.
+        // and stored in the `PartialMapCtx` before the attribute block itself can be mapped.
         // Neither block is mandatory.
         ctx.attribute_groups = block
             .maybe_one_block(BlockId::Ir(IrBlockId::ParamAttrGroup))?
@@ -111,10 +107,20 @@ impl IrBlock for Module {
 
         log::debug!("attributes: {:?}", ctx.attributes);
 
+        // After this point, `ctx` refers to a fully reified `MapCtx`.
+        let ctx = ctx.reify()?;
+
+        // Build the Comdat list. We'll reference this later.
+        let _comdats = block
+            .records(ModuleCode::Comdat as u64)
+            .map(|rec| Comdat::try_map(rec, &ctx))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(RecordMapError::from)?;
+
         // Collect the function records and blocks in this module.
         let functions = block
             .records(ModuleCode::Function as u64)
-            .map(|rec| FunctionRecord::try_map(rec, ctx))
+            .map(|rec| FunctionRecord::try_map(rec, &ctx))
             .collect::<Result<Vec<_>, _>>()
             .map_err(RecordMapError::from)?;
 

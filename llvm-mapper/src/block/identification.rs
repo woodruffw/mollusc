@@ -3,7 +3,7 @@
 use llvm_constants::{IdentificationCode, IrBlockId};
 
 use crate::block::{BlockMapError, IrBlock};
-use crate::map::MapCtx;
+use crate::map::PartialMapCtx;
 use crate::record::RecordMapError;
 use crate::unroll::UnrolledBlock;
 
@@ -20,7 +20,10 @@ pub struct Identification {
 impl IrBlock for Identification {
     const BLOCK_ID: IrBlockId = IrBlockId::Identification;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
+    fn try_map_inner(
+        block: &UnrolledBlock,
+        _ctx: &mut PartialMapCtx,
+    ) -> Result<Self, BlockMapError> {
         let producer = {
             let producer = block.one_record(IdentificationCode::ProducerString as u64)?;
 

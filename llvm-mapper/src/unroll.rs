@@ -11,7 +11,7 @@ use llvm_constants::IrBlockId;
 
 use crate::block::{BlockId, BlockMapError, Identification, Module, Strtab, Symtab};
 use crate::error::Error;
-use crate::map::{MapCtx, Mappable};
+use crate::map::{PartialCtxMappable, PartialMapCtx};
 use crate::record::{RecordMapError, RecordStringError};
 
 /// An "unrolled" record. This is internally indistinguishable from a raw bitstream
@@ -394,7 +394,7 @@ impl PartialBitcodeModule {
     /// Returns an error if the `PartialBitcodeModule` is lacking necessary state, or if
     /// block and record mapping fails for any reason.
     pub(self) fn reify(self) -> Result<BitcodeModule, Error> {
-        let mut ctx = MapCtx::default();
+        let mut ctx = PartialMapCtx::default();
 
         // Grab the string table early, so that we can move it into our mapping context and
         // use it for the remainder of the mapping phase.

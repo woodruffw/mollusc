@@ -9,7 +9,7 @@ use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 use thiserror::Error;
 
 use crate::block::{BlockMapError, IrBlock};
-use crate::map::MapCtx;
+use crate::map::PartialMapCtx;
 use crate::record::RecordMapError;
 use crate::unroll::{UnrolledBlock, UnrolledRecord};
 
@@ -406,7 +406,10 @@ pub struct Attributes(Vec<AttributeEntry>);
 impl IrBlock for Attributes {
     const BLOCK_ID: IrBlockId = IrBlockId::ParamAttr;
 
-    fn try_map_inner(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
+    fn try_map_inner(
+        block: &UnrolledBlock,
+        ctx: &mut PartialMapCtx,
+    ) -> Result<Self, BlockMapError> {
         let mut entries = vec![];
 
         for record in block.all_records() {
@@ -488,7 +491,10 @@ impl AttributeGroups {
 impl IrBlock for AttributeGroups {
     const BLOCK_ID: IrBlockId = IrBlockId::ParamAttrGroup;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
+    fn try_map_inner(
+        block: &UnrolledBlock,
+        _ctx: &mut PartialMapCtx,
+    ) -> Result<Self, BlockMapError> {
         let mut groups = HashMap::new();
 
         for record in block.all_records() {

@@ -17,7 +17,7 @@ pub use self::comdat::*;
 pub use self::datalayout::*;
 pub use self::function::*;
 use crate::block::StrtabError;
-use crate::map::{MapCtxError, Mappable};
+use crate::map::MapCtxError;
 
 /// Potential errors when trying to extract a string from a record.
 #[non_exhaustive]

@@ -8,7 +8,7 @@ use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
 use crate::block::type_table::{TypeRef, TypeTableError};
-use crate::map::{MapCtx, MapCtxError, Mappable};
+use crate::map::{CtxMappable, MapCtx, MapCtxError};
 use crate::record::StrtabError;
 use crate::unroll::UnrolledRecord;
 
@@ -43,12 +43,12 @@ pub enum FunctionError {
 /// Models the `MODULE_CODE_FUNCTION` record.
 #[non_exhaustive]
 #[derive(Debug)]
-pub struct Function {
+pub struct Function<'ctx> {
     /// The function's name.
-    pub name: String,
+    pub name: &'ctx str,
 
     /// A reference to the function's type in the type table.
-    pub ty: Type,
+    pub ty: &'ctx Type,
 
     /// The function's calling convention.
     pub calling_convention: CallingConvention,
@@ -60,13 +60,13 @@ pub struct Function {
     pub linkage: Linkage,
 }
 
-impl Mappable<UnrolledRecord> for Function {
+impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
     type Error = FunctionError;
 
-    fn try_map(record: &UnrolledRecord, ctx: &mut MapCtx) -> Result<Self, Self::Error> {
+    fn try_map(record: &UnrolledRecord, ctx: &'ctx MapCtx) -> Result<Self, Self::Error> {
         let fields = record.fields();
 
-        if !ctx.use_strtab()? {
+        if !ctx.use_strtab() {
             return Err(FunctionError::V1Unsupported);
         }
 
@@ -77,13 +77,12 @@ impl Mappable<UnrolledRecord> for Function {
             return Err(FunctionError::TooShort(fields.len()));
         }
 
-        let name = ctx.strtab()?.read_name(record)?.to_owned();
+        let name = ctx.strtab.read_name(record)?;
 
         let ty = {
             let typ_ref = TypeRef(fields[2] as usize);
-            ctx.type_table()?.get(&typ_ref)?
-        }
-        .clone();
+            ctx.type_table.get(&typ_ref)?
+        };
 
         let calling_convention = CallingConvention::try_from(fields[3])?;
         let is_declaration = fields[3] != 0;
