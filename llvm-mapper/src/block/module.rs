@@ -15,8 +15,6 @@ use crate::unroll::UnrolledBlock;
 pub struct Module {
     /// The target triple specification.
     pub triple: String,
-    /// The data layout specification.
-    pub datalayout: DataLayout,
     /// Any assembly block lines in the module.
     pub asm: Vec<String>,
     /// Any dependent libraries listed in the module.
@@ -30,46 +28,18 @@ impl IrBlock for Module {
         block: &UnrolledBlock,
         ctx: &mut PartialMapCtx,
     ) -> Result<Self, BlockMapError> {
-        let version = {
+        // Mapping the module requires us to fill in the `PartialMapCtx` first,
+        // so we can reify it into a `MapCtx` for subsequent steps.
+        ctx.version = Some({
             let version = block.one_record(ModuleCode::Version as u64)?;
 
             version.get_field(0)?
-        };
-
-        ctx.version = Some(version);
-
-        // Each module *should* have a target triple, but doesn't necessarily.
-        let triple = if let Some(record) = block.maybe_one_record(ModuleCode::Triple as u64)? {
-            record.try_string(0).map_err(RecordMapError::from)?
-        } else {
-            TARGET_TRIPLE.into()
-        };
+        });
 
         // Each module *should* have a datalayout record, but doesn't necessarily.
-        let datalayout =
-            if let Some(record) = block.maybe_one_record(ModuleCode::DataLayout as u64)? {
-                DataLayout::try_map(record, ctx).map_err(RecordMapError::from)?
-            } else {
-                DataLayout::default()
-            };
-
-        // Each module has zero or exactly one MODULE_CODE_ASM records.
-        let asm = match block.maybe_one_record(ModuleCode::Asm as u64)? {
-            Some(rec) => rec
-                .try_string(0)
-                .map_err(RecordMapError::from)?
-                .split('\n')
-                .map(String::from)
-                .collect::<Vec<_>>(),
-            None => Vec::new(),
+        if let Some(record) = block.maybe_one_record(ModuleCode::DataLayout as u64)? {
+            ctx.datalayout = DataLayout::try_map(record, ctx).map_err(RecordMapError::from)?
         };
-
-        // Deplib records are deprecated, but we might be parsing an older bitstream.
-        let deplibs = block
-            .records(ModuleCode::DepLib as u64)
-            .map(|rec| rec.try_string(0))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(RecordMapError::from)?;
 
         // Build the section table. We'll reference this later.
         let _section_table = block
@@ -110,6 +80,31 @@ impl IrBlock for Module {
         // After this point, `ctx` refers to a fully reified `MapCtx`.
         let ctx = ctx.reify()?;
 
+        // Each module *should* have a target triple, but doesn't necessarily.
+        let triple = if let Some(record) = block.maybe_one_record(ModuleCode::Triple as u64)? {
+            record.try_string(0).map_err(RecordMapError::from)?
+        } else {
+            TARGET_TRIPLE.into()
+        };
+
+        // Each module has zero or exactly one MODULE_CODE_ASM records.
+        let asm = match block.maybe_one_record(ModuleCode::Asm as u64)? {
+            Some(rec) => rec
+                .try_string(0)
+                .map_err(RecordMapError::from)?
+                .split('\n')
+                .map(String::from)
+                .collect::<Vec<_>>(),
+            None => Vec::new(),
+        };
+
+        // Deplib records are deprecated, but we might be parsing an older bitstream.
+        let deplibs = block
+            .records(ModuleCode::DepLib as u64)
+            .map(|rec| rec.try_string(0))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(RecordMapError::from)?;
+
         // Build the Comdat list. We'll reference this later.
         let _comdats = block
             .records(ModuleCode::Comdat as u64)
@@ -128,7 +123,6 @@ impl IrBlock for Module {
 
         Ok(Self {
             triple,
-            datalayout,
             asm,
             deplibs,
         })

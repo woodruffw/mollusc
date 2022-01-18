@@ -4,6 +4,7 @@ use thiserror::Error;
 
 use crate::block::Strtab;
 use crate::block::{AttributeGroups, Attributes, TypeTable};
+use crate::record::DataLayout;
 
 /// Errors that can occur when accessing a [`MapCtx`](MapCtx).
 #[derive(Debug, Error)]
@@ -31,6 +32,7 @@ pub enum MapCtxError {
 #[derive(Debug, Default)]
 pub(crate) struct PartialMapCtx {
     pub(crate) version: Option<u64>,
+    pub(crate) datalayout: DataLayout,
     pub(crate) strtab: Option<Strtab>,
     pub(crate) attribute_groups: Option<AttributeGroups>,
     pub(crate) attributes: Option<Attributes>,
@@ -41,6 +43,7 @@ impl PartialMapCtx {
     pub(crate) fn reify(&self) -> Result<MapCtx, MapCtxError> {
         Ok(MapCtx {
             version: self.version.ok_or(MapCtxError::NoVersion)?,
+            datalayout: &self.datalayout,
             strtab: self.strtab.as_ref().ok_or(MapCtxError::NoStrtab)?,
             attribute_groups: self
                 .attribute_groups
@@ -76,6 +79,9 @@ impl PartialMapCtx {
 pub struct MapCtx<'ctx> {
     /// The `MODULE_CODE_VERSION` for the IR module being mapped.
     pub version: u64,
+
+    /// The datalayout specification.
+    pub datalayout: &'ctx DataLayout,
 
     /// The string table.
     pub strtab: &'ctx Strtab,
