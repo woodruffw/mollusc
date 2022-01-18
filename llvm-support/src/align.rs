@@ -507,14 +507,8 @@ pub enum AddressSpaceError {
 }
 
 /// An invariant-preserving newtype for representing the address space of a pointer type.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Ord, PartialOrd)]
 pub struct AddressSpace(u32);
-
-impl Default for AddressSpace {
-    fn default() -> Self {
-        Self(0)
-    }
-}
 
 impl TryFrom<u32> for AddressSpace {
     type Error = AddressSpaceError;

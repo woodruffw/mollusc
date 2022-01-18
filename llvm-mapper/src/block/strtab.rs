@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use crate::block::{BlockMapError, IrBlock};
 use crate::map::MapCtx;
-use crate::unroll::UnrolledBlock;
+use crate::unroll::{UnrolledBlock, UnrolledRecord};
 
 /// Errors that can occur when accessing a string table.
 #[derive(Debug, Error)]
@@ -72,6 +72,18 @@ impl Strtab {
         Ok(std::str::from_utf8(
             &inner[sref.offset..sref.offset + sref.size],
         )?)
+    }
+
+    /// Attempts to read a record's name from the string table.
+    ///
+    /// Adheres to the convention that the first two fields in the record are
+    /// the string's offset and length into the string table.
+    ///
+    /// Panic safety: precondition: `record.fields().len() >= 2`
+    pub(crate) fn read_name(&self, record: &UnrolledRecord) -> Result<&str, StrtabError> {
+        let fields = record.fields();
+
+        self.try_get(&(fields[0], fields[1]).into())
     }
 }
 

@@ -4,6 +4,7 @@ use llvm_constants::{IdentificationCode, IrBlockId};
 
 use crate::block::{BlockMapError, IrBlock};
 use crate::map::MapCtx;
+use crate::record::RecordMapError;
 use crate::unroll::UnrolledBlock;
 
 /// Models the `IDENTIFICATION_BLOCK` block.
@@ -23,7 +24,7 @@ impl IrBlock for Identification {
         let producer = {
             let producer = block.one_record(IdentificationCode::ProducerString as u64)?;
 
-            producer.try_string(0)?
+            producer.try_string(0).map_err(RecordMapError::from)?
         };
 
         let epoch = {

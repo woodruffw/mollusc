@@ -12,7 +12,7 @@ use llvm_constants::IrBlockId;
 use crate::block::{BlockId, BlockMapError, Identification, Module, Strtab, Symtab};
 use crate::error::Error;
 use crate::map::{MapCtx, Mappable};
-use crate::record::RecordMapError;
+use crate::record::{RecordMapError, RecordStringError};
 
 /// An "unrolled" record. This is internally indistinguishable from a raw bitstream
 /// [`Record`](llvm_bitstream::record::Record), but is newtyped to enforce proper
@@ -30,26 +30,21 @@ impl UnrolledRecord {
     ///
     /// Strings are always the last fields in a record, so only the start
     /// index is required.
-    pub fn try_string(&self, idx: usize) -> Result<String, RecordMapError> {
+    pub fn try_string(&self, idx: usize) -> Result<String, RecordStringError> {
         // If our start index lies beyond the record fields or would produce
         // an empty string, it's invalid.
         if idx >= self.0.fields.len() - 1 {
-            return Err(RecordMapError::BadField(format!(
-                "impossible string index: {} exceeds record fields",
-                idx
-            )));
+            return Err(RecordStringError::BadIndex(idx, self.0.fields.len()));
         }
 
         // Each individual field in our string must fit into a byte.
         let raw = self.0.fields[idx..]
             .iter()
             .map(|f| u8::try_from(*f))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| RecordMapError::BadField("impossible character value in string".into()))?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         // Finally, the buffer itself must decode correctly.
-        String::from_utf8(raw)
-            .map_err(|_| RecordMapError::BadField("invalid string encoding".into()))
+        String::from_utf8(raw).map_err(RecordStringError::from)
     }
 
     /// Attempt to pull a blob of bytes from this record's fields.
@@ -199,7 +194,8 @@ impl UnrolledBlock {
 /// which corresponds to a single LLVM IR module. In the simplest case, there will only be one.
 #[derive(Debug)]
 pub struct UnrolledBitcode {
-    pub(crate) modules: Vec<BitcodeModule>,
+    /// The modules present in this bitcode stream.
+    pub modules: Vec<BitcodeModule>,
 }
 
 impl TryFrom<&[u8]> for UnrolledBitcode {

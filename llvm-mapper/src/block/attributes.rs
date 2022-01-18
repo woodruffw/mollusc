@@ -469,8 +469,10 @@ impl From<u32> for AttributeGroupDisposition {
 /// Represents a single attribute group.
 #[derive(Clone, Debug)]
 pub struct AttributeGroup {
-    disposition: AttributeGroupDisposition,
-    attributes: Vec<Attribute>,
+    /// The "disposition" of this attribute group.
+    pub disposition: AttributeGroupDisposition,
+    /// The attributes in this group.
+    pub attributes: Vec<Attribute>,
 }
 
 /// Maps all attribute groups in an IR module.

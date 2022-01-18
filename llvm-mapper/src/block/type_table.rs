@@ -12,6 +12,7 @@ use thiserror::Error;
 
 use crate::block::{BlockMapError, IrBlock};
 use crate::map::MapCtx;
+use crate::record::RecordMapError;
 use crate::unroll::UnrolledBlock;
 
 /// Errors that can occur when mapping the type table.
@@ -49,7 +50,7 @@ pub enum TypeTableError {
 /// A symbolic type reference, which is really just an index into some
 /// unspecified type table.
 #[derive(Debug)]
-struct TypeRef(usize);
+pub(crate) struct TypeRef(pub(crate) usize);
 
 /// Represents a "partial type," i.e. a type whose subtypes may be symbolic
 /// and not fully resolved against a type table.
@@ -253,6 +254,14 @@ impl PartialTypeTable {
 #[derive(Clone, Debug)]
 pub struct TypeTable(Vec<Type>);
 
+impl TypeTable {
+    pub(crate) fn get(&self, ty_ref: &TypeRef) -> Result<&Type, TypeTableError> {
+        self.0
+            .get(ty_ref.0)
+            .ok_or(TypeTableError::BadIndex(ty_ref.0))
+    }
+}
+
 impl IrBlock for TypeTable {
     const BLOCK_ID: IrBlockId = IrBlockId::Type;
 
@@ -397,7 +406,7 @@ impl IrBlock for TypeTable {
                 TypeCode::StructName => {
                     // A `TYPE_CODE_STRUCT_NAME` is not a type in its own right; it merely
                     // supplies the name for a future type record.
-                    last_type_name.push_str(&record.try_string(0)?);
+                    last_type_name.push_str(&record.try_string(0).map_err(RecordMapError::from)?);
                     continue;
                 }
                 TypeCode::StructNamed => {

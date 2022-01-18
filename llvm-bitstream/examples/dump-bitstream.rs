@@ -11,7 +11,7 @@ fn app<'a>() -> App<'a> {
         .about(env!("CARGO_PKG_DESCRIPTION"))
         .arg(
             Arg::new("input")
-                .about("the bitstream input to dump")
+                .help("the bitstream input to dump")
                 .index(1)
                 .required(true),
         )
