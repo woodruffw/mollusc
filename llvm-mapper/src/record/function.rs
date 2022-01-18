@@ -7,6 +7,7 @@ use llvm_support::{Linkage, Type};
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
+use crate::block::attributes::AttributeEntry;
 use crate::block::type_table::{TypeRef, TypeTableError};
 use crate::map::{CtxMappable, MapCtx, MapCtxError};
 use crate::record::StrtabError;
@@ -38,6 +39,10 @@ pub enum FunctionError {
     /// The function has a bad or unknown type.
     #[error("invalid type: {0}")]
     BadType(#[from] TypeTableError),
+
+    /// The function has an invalid attribute entry ID.
+    #[error("invalid attribute entry ID: {0}")]
+    BadAttribute(u64),
 }
 
 /// Models the `MODULE_CODE_FUNCTION` record.
@@ -58,6 +63,9 @@ pub struct Function<'ctx> {
 
     /// The function's linkage.
     pub linkage: Linkage,
+
+    /// The function's attributes, if it has any.
+    pub attributes: Option<&'ctx AttributeEntry>,
 }
 
 impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
@@ -85,8 +93,26 @@ impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
         };
 
         let calling_convention = CallingConvention::try_from(fields[3])?;
-        let is_declaration = fields[3] != 0;
-        let linkage = Linkage::from(fields[4]);
+        let is_declaration = fields[4] != 0;
+        let linkage = Linkage::from(fields[5]);
+
+        let attributes = {
+            let paramattr = fields[6];
+            // An ID of 0 is a special sentinel for no attributes,
+            // so any nonzero ID is a 1-based index.
+            if paramattr == 0 {
+                None
+            } else {
+                // NOTE(ww): This is more conservative than LLVM: LLVM treats an
+                // unknown attribute ID as an empty set of attributes,
+                // rather than a hard failure.
+                Some(
+                    ctx.attributes
+                        .get(paramattr - 1)
+                        .ok_or_else(|| FunctionError::BadAttribute(paramattr))?,
+                )
+            }
+        };
 
         Ok(Self {
             name,
@@ -94,6 +120,7 @@ impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
             calling_convention,
             is_declaration,
             linkage,
+            attributes,
         })
     }
 }

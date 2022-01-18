@@ -403,6 +403,12 @@ pub struct AttributeEntry(Vec<AttributeGroup>);
 #[derive(Debug)]
 pub struct Attributes(Vec<AttributeEntry>);
 
+impl Attributes {
+    pub(crate) fn get(&self, id: u64) -> Option<&AttributeEntry> {
+        self.0.get(id as usize)
+    }
+}
+
 impl IrBlock for Attributes {
     const BLOCK_ID: IrBlockId = IrBlockId::ParamAttr;
 
@@ -483,7 +489,7 @@ pub struct AttributeGroup {
 pub struct AttributeGroups(HashMap<u32, AttributeGroup>);
 
 impl AttributeGroups {
-    fn get(&self, group_id: u32) -> Option<&AttributeGroup> {
+    pub(crate) fn get(&self, group_id: u32) -> Option<&AttributeGroup> {
         self.0.get(&group_id)
     }
 }
