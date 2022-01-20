@@ -87,8 +87,12 @@ impl UnrolledRecords {
     /// are iterated in the order of insertion.
     ///
     /// The returned iterator is empty if the block doesn't have any matching records.
-    pub(crate) fn by_code(&self, code: u64) -> impl Iterator<Item = &UnrolledRecord> + '_ {
-        self.0.iter().filter(move |r| r.code() == code)
+    pub(crate) fn by_code<'a>(
+        &'a self,
+        code: impl Into<u64> + 'a,
+    ) -> impl Iterator<Item = &UnrolledRecord> + 'a {
+        let code = code.into();
+        self.0.iter().filter(move |r| r.code() == code.into())
     }
 
     /// Returns the first record matching the given code, or `None` if there are

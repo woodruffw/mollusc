@@ -67,7 +67,7 @@ impl IrBlock for Module {
         // Build the section table. We'll reference this later.
         let _section_table = block
             .records()
-            .by_code(ModuleCode::SectionName as u64)
+            .by_code(ModuleCode::SectionName)
             .map(|rec| rec.try_string(0))
             .collect::<Result<Vec<_>, _>>()
             .map_err(RecordMapError::from)?;
@@ -75,7 +75,7 @@ impl IrBlock for Module {
         // Build the GC table. We'll reference this later.
         let _gc_table = block
             .records()
-            .by_code(ModuleCode::GcName as u64)
+            .by_code(ModuleCode::GcName)
             .map(|rec| rec.try_string(0))
             .collect::<Result<Vec<_>, _>>()
             .map_err(RecordMapError::from)?;
@@ -131,7 +131,7 @@ impl IrBlock for Module {
         // Deplib records are deprecated, but we might be parsing an older bitstream.
         let deplibs = block
             .records()
-            .by_code(ModuleCode::DepLib as u64)
+            .by_code(ModuleCode::DepLib)
             .map(|rec| rec.try_string(0))
             .collect::<Result<Vec<_>, _>>()
             .map_err(RecordMapError::from)?;
@@ -139,7 +139,7 @@ impl IrBlock for Module {
         // Build the Comdat list. We'll reference this later.
         let _comdats = block
             .records()
-            .by_code(ModuleCode::Comdat as u64)
+            .by_code(ModuleCode::Comdat)
             .map(|rec| Comdat::try_map(rec, &ctx))
             .collect::<Result<Vec<_>, _>>()
             .map_err(RecordMapError::from)?;
@@ -147,7 +147,7 @@ impl IrBlock for Module {
         // Collect the function records and blocks in this module.
         let functions = block
             .records()
-            .by_code(ModuleCode::Function as u64)
+            .by_code(ModuleCode::Function)
             .map(|rec| FunctionRecord::try_map(rec, &ctx))
             .collect::<Result<Vec<_>, _>>()
             .map_err(RecordMapError::from)?;

@@ -1,6 +1,6 @@
 //! Enum constants for `llvm-constants`.
 
-use num_enum::TryFromPrimitive;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::constants::FIRST_APPLICATION_BLOCK_ID;
 
@@ -179,7 +179,7 @@ pub enum IdentificationCode {
 
 /// Codes for each record in `MODULE_BLOCK`.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum ModuleCode {
     /// MODULE_CODE_VERSION: `[version#]`
@@ -229,7 +229,7 @@ pub enum ModuleCode {
 
 /// Codes for each record in `TYPE_BLOCK` (i.e., `TYPE_BLOCK_ID_NEW`).
 #[non_exhaustive]
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum TypeCode {
     /// TYPE_CODE_NUMENTRY: `[numentries]`
@@ -286,7 +286,7 @@ pub enum TypeCode {
 
 /// Codes for each record in `STRTAB_BLOCK`.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum StrtabCode {
     /// STRTAB_BLOB: `[...string...]`
@@ -295,7 +295,7 @@ pub enum StrtabCode {
 
 /// Codes for each record in `SYMTAB_BLOCK`.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum SymtabCode {
     /// SYMTAB_BLOB: `[...data...]`
@@ -306,7 +306,7 @@ pub enum SymtabCode {
 // NOTE(ww): For whatever reason, these two blocks share the same enum for
 // record codes.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum AttributeCode {
     /// PARAMATTR_CODE_ENTRY_OLD: `[paramidx0, attr0, paramidx1, attr1...]`
