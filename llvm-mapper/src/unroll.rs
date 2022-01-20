@@ -92,7 +92,7 @@ impl UnrolledRecords {
         code: impl Into<u64> + 'a,
     ) -> impl Iterator<Item = &UnrolledRecord> + 'a {
         let code = code.into();
-        self.0.iter().filter(move |r| r.code() == code.into())
+        self.0.iter().filter(move |r| r.code() == code)
     }
 
     /// Returns the first record matching the given code, or `None` if there are
