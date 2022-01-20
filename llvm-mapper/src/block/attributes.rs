@@ -433,7 +433,7 @@ impl IrBlock for Attributes {
     ) -> Result<Self, BlockMapError> {
         let mut entries = vec![];
 
-        for record in block.all_records() {
+        for record in block.records() {
             let code = AttributeCode::try_from(record.code()).map_err(AttributeError::from)?;
 
             match code {
@@ -518,7 +518,7 @@ impl IrBlock for AttributeGroups {
     ) -> Result<Self, BlockMapError> {
         let mut groups = HashMap::new();
 
-        for record in block.all_records() {
+        for record in block.records() {
             let code = AttributeCode::try_from(record.code()).map_err(AttributeError::from)?;
 
             if code != AttributeCode::GroupCodeEntry {

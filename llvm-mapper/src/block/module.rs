@@ -8,7 +8,7 @@ use crate::block::type_table::TypeTable;
 use crate::block::{BlockId, BlockMapError, IrBlock};
 use crate::map::{CtxMappable, PartialCtxMappable, PartialMapCtx};
 use crate::record::{Comdat, DataLayout, Function as FunctionRecord, RecordMapError};
-use crate::unroll::UnrolledBlock;
+use crate::unroll::{ByCode, UnrolledBlock};
 
 /// Errors that can occur while mapping a module.
 #[derive(Debug, Error)]
@@ -16,6 +16,10 @@ pub enum ModuleError {
     /// The `MODULE_CODE_VERSION` couldn't be found.
     #[error("bitcode module has no version")]
     MissingVersion,
+
+    /// The module contains some unspecified invalid state.
+    #[error("invalid module state: {0}")]
+    Invalid(&'static str),
 }
 
 /// Models the `MODULE_BLOCK` block.
@@ -40,26 +44,38 @@ impl IrBlock for Module {
         // Mapping the module requires us to fill in the `PartialMapCtx` first,
         // so we can reify it into a `MapCtx` for subsequent steps.
         ctx.version = Some({
-            let version = block.one_record(ModuleCode::Version as u64)?;
+            let version = match block.records().exactly_one(ModuleCode::Version as u64) {
+                ByCode::None | ByCode::TooMany => return Err(ModuleError::MissingVersion.into()),
+                ByCode::One(record) => record,
+            };
 
             *version.fields().get(0).ok_or(ModuleError::MissingVersion)?
         });
 
         // Each module *should* have a datalayout record, but doesn't necessarily.
-        if let Some(record) = block.maybe_one_record(ModuleCode::DataLayout as u64)? {
-            ctx.datalayout = DataLayout::try_map(record, ctx).map_err(RecordMapError::from)?
-        };
+        match block.records().exactly_one(ModuleCode::DataLayout as u64) {
+            // ctx.datalayout is already default-constructed, so we don't need to redo it here.
+            ByCode::None => (),
+            ByCode::One(record) => {
+                ctx.datalayout = DataLayout::try_map(record, ctx).map_err(RecordMapError::from)?
+            }
+            ByCode::TooMany => {
+                return Err(ModuleError::Invalid("too many datalayout records").into())
+            }
+        }
 
         // Build the section table. We'll reference this later.
         let _section_table = block
-            .records(ModuleCode::SectionName as u64)
+            .records()
+            .by_code(ModuleCode::SectionName as u64)
             .map(|rec| rec.try_string(0))
             .collect::<Result<Vec<_>, _>>()
             .map_err(RecordMapError::from)?;
 
         // Build the GC table. We'll reference this later.
         let _gc_table = block
-            .records(ModuleCode::GcName as u64)
+            .records()
+            .by_code(ModuleCode::GcName as u64)
             .map(|rec| rec.try_string(0))
             .collect::<Result<Vec<_>, _>>()
             .map_err(RecordMapError::from)?;
@@ -90,40 +106,48 @@ impl IrBlock for Module {
         let ctx = ctx.reify()?;
 
         // Each module *should* have a target triple, but doesn't necessarily.
-        let triple = if let Some(record) = block.maybe_one_record(ModuleCode::Triple as u64)? {
-            record.try_string(0).map_err(RecordMapError::from)?
-        } else {
-            TARGET_TRIPLE.into()
+        let triple = match block.records().exactly_one(ModuleCode::Triple as u64) {
+            ByCode::None => TARGET_TRIPLE.into(),
+            ByCode::One(record) => record.try_string(0).map_err(RecordMapError::from)?,
+            ByCode::TooMany => {
+                return Err(ModuleError::Invalid("too many target triple records").into())
+            }
         };
 
         // Each module has zero or exactly one MODULE_CODE_ASM records.
-        let asm = match block.maybe_one_record(ModuleCode::Asm as u64)? {
-            Some(rec) => rec
+        let asm = match block.records().exactly_one(ModuleCode::Asm as u64) {
+            ByCode::None => Vec::new(),
+            ByCode::One(record) => record
                 .try_string(0)
                 .map_err(RecordMapError::from)?
                 .split('\n')
                 .map(String::from)
                 .collect::<Vec<_>>(),
-            None => Vec::new(),
+            ByCode::TooMany => {
+                return Err(ModuleError::Invalid("too many module inline assembly records").into())
+            }
         };
 
         // Deplib records are deprecated, but we might be parsing an older bitstream.
         let deplibs = block
-            .records(ModuleCode::DepLib as u64)
+            .records()
+            .by_code(ModuleCode::DepLib as u64)
             .map(|rec| rec.try_string(0))
             .collect::<Result<Vec<_>, _>>()
             .map_err(RecordMapError::from)?;
 
         // Build the Comdat list. We'll reference this later.
         let _comdats = block
-            .records(ModuleCode::Comdat as u64)
+            .records()
+            .by_code(ModuleCode::Comdat as u64)
             .map(|rec| Comdat::try_map(rec, &ctx))
             .collect::<Result<Vec<_>, _>>()
             .map_err(RecordMapError::from)?;
 
         // Collect the function records and blocks in this module.
         let functions = block
-            .records(ModuleCode::Function as u64)
+            .records()
+            .by_code(ModuleCode::Function as u64)
             .map(|rec| FunctionRecord::try_map(rec, &ctx))
             .collect::<Result<Vec<_>, _>>()
             .map_err(RecordMapError::from)?;

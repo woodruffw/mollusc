@@ -14,6 +14,10 @@ use crate::unroll::{UnrolledBlock, UnrolledRecord};
 /// Errors that can occur when accessing a string table.
 #[derive(Debug, Error)]
 pub enum StrtabError {
+    /// The string table is missing its blob.
+    #[error("malformed string table: missing blob")]
+    MissingBlob,
+
     /// The blob containing the string table is invalid.
     #[error("invalid string table: {0}")]
     BadBlob(#[from] RecordBlobError),
@@ -48,11 +52,11 @@ impl IrBlock for Strtab {
         // but at least one person has reported otherwise here:
         // https://lists.llvm.org/pipermail/llvm-dev/2020-August/144327.html
         // Needs investigation.
-        let strtab = {
-            let strtab = block.one_record(StrtabCode::Blob as u64)?;
-
-            strtab.try_blob(0).map_err(StrtabError::from)?
-        };
+        let strtab = block
+            .records()
+            .one(StrtabCode::Blob as u64)
+            .ok_or(StrtabError::MissingBlob)
+            .and_then(|r| r.try_blob(0).map_err(StrtabError::from))?;
 
         Ok(Self(strtab))
     }

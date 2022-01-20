@@ -126,6 +126,26 @@ impl<T: IrBlock> PartialCtxMappable<UnrolledBlock> for T {
     }
 }
 
+// impl<T: IrBlock> PartialCtxMappable<UnrolledBlock> for T
+// where
+//     T::Error: From<BlockMapError>,
+// {
+//     type Error = T::Error;
+
+//     fn try_map(block: &UnrolledBlock, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+//         if block.id != BlockId::Ir(T::BLOCK_ID) {
+//             return Err(BlockMapError::BadBlockMap(format!(
+//                 "can't map {:?} into {:?}",
+//                 block.id,
+//                 Identification::BLOCK_ID
+//             ))
+//             .into());
+//         }
+
+//         IrBlock::try_map_inner(block, ctx)
+//     }
+// }
+
 #[cfg(test)]
 mod tests {
     use super::*;

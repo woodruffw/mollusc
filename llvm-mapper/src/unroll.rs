@@ -70,6 +70,59 @@ impl UnrolledRecord {
     }
 }
 
+/// Represents the "result" of searching for a particular record with
+/// [`UnrolledRecords::one`](UnrolledRecords::one).
+pub(crate) enum ByCode<'a> {
+    None,
+    One(&'a UnrolledRecord),
+    TooMany,
+}
+
+/// Represents a collection of unrolled records.
+#[derive(Clone, Debug, Default)]
+pub struct UnrolledRecords(Vec<UnrolledRecord>);
+
+impl UnrolledRecords {
+    /// Return an iterator for all records that share the given code. Records
+    /// are iterated in the order of insertion.
+    ///
+    /// The returned iterator is empty if the block doesn't have any matching records.
+    pub(crate) fn by_code(&self, code: u64) -> impl Iterator<Item = &UnrolledRecord> + '_ {
+        self.0.iter().filter(move |r| r.code() == code)
+    }
+
+    /// Returns the first record matching the given code, or `None` if there are
+    /// no matches.
+    ///
+    /// Ignores any subsequent matches.
+    pub(crate) fn one(&self, code: u64) -> Option<&UnrolledRecord> {
+        self.by_code(code).next()
+    }
+
+    /// Returns exactly one record matching the given code, or a variant indicating
+    /// the error condition (no matching records, or too many records).
+    pub(crate) fn exactly_one(&self, code: u64) -> ByCode {
+        let mut records = self.by_code(code);
+
+        match records.next() {
+            None => ByCode::None,
+            Some(r) => match records.next() {
+                None => ByCode::One(r),
+                Some(_) => ByCode::TooMany,
+            },
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a UnrolledRecords {
+    type Item = &'a UnrolledRecord;
+    type IntoIter = std::slice::Iter<'a, UnrolledRecord>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
 /// A fully unrolled block within the bitstream, with potential records
 /// and sub-blocks.
 #[derive(Clone, Debug)]
@@ -82,7 +135,7 @@ pub struct UnrolledBlock {
     // kinds of records. Doing so correctly is tricky: even with an order-preserving
     // structure like IndexMap, we'd lose the correct order as we insert each record
     // into its bucket.
-    records: Vec<UnrolledRecord>,
+    records: UnrolledRecords,
     /// The blocks directly contained by this block, mapped by their IDs. Like with records,
     /// a block can contain multiple sub-blocks of the same ID.
     blocks: IndexMap<BlockId, Vec<UnrolledBlock>>,
@@ -92,57 +145,15 @@ impl UnrolledBlock {
     pub(self) fn new(id: u64) -> Self {
         Self {
             id: id.into(),
-            records: vec![],
+            records: UnrolledRecords::default(),
             // TODO(ww): Figure out a default capacity here.
             blocks: IndexMap::new(),
         }
     }
 
-    /// Get zero or one records from this block by the given record code.
-    ///
-    /// Returns an error if the block has more than one record for this code.
-    pub fn maybe_one_record(&self, code: u64) -> Result<Option<&UnrolledRecord>, BlockMapError> {
-        let records = self.records(code).collect::<Vec<_>>();
-
-        match records.len() {
-            0 => Ok(None),
-            1 => Ok(Some(records[0])),
-            _ => Err(BlockMapError::BlockRecordMismatch(code, self.id)),
-        }
-    }
-
-    /// Get a single record from this block by its record code.
-    ///
-    /// Returns an error if the block either lacks an appropriate record or has more than one.
-    pub fn one_record(&self, code: u64) -> Result<&UnrolledRecord, BlockMapError> {
-        let records = self.records(code).collect::<Vec<_>>();
-
-        // The empty case here would indicate API misuse, since we should only
-        // create the vector upon inserting at least one record for a given code.
-        // But it doesn't hurt (much) to be cautious.
-        if records.is_empty() || records.len() > 1 {
-            return Err(BlockMapError::BlockRecordMismatch(code, self.id));
-        }
-
-        // Panic safety: we check for exactly one member directly above.
-        Ok(records[0])
-    }
-
-    /// Return an iterator for all records that share the given code. Records are iterated in
-    /// the order of insertion.
-    ///
-    /// The returned iterator is empty if the block doesn't have any matching records.
-    pub fn records(&self, code: u64) -> impl Iterator<Item = &UnrolledRecord> + '_ {
-        self.records.iter().filter(move |r| r.code() == code)
-    }
-
-    /// Return an iterator over all records in the block, regardless of their codes. Records
-    /// are iterated in the order of insertion.
-    ///
-    /// This is useful in contexts where the mapper's behavior does not vary significantly
-    /// by record code, such as within the type table mapper.
-    pub fn all_records(&self) -> impl Iterator<Item = &UnrolledRecord> + '_ {
-        self.records.iter()
+    /// Return a reference to all of the records in this block.
+    pub fn records(&self) -> &UnrolledRecords {
+        &self.records
     }
 
     /// Return an iterator over all sub-blocks within this block that share the given ID.
@@ -220,7 +231,7 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
 
                 match entry? {
                     StreamEntry::Record(record) => {
-                        unrolled_block.records.push(UnrolledRecord(record))
+                        unrolled_block.records.0.push(UnrolledRecord(record))
                     }
                     StreamEntry::SubBlock(block) => {
                         let unrolled_child = enter_block(bitstream, block)?;

@@ -5,12 +5,19 @@ use thiserror::Error;
 
 use crate::block::{BlockMapError, IrBlock};
 use crate::map::PartialMapCtx;
-use crate::record::RecordMapError;
 use crate::unroll::UnrolledBlock;
 
 /// Errors that can occur while mapping the identification block.
 #[derive(Debug, Error)]
 pub enum IdentificationError {
+    /// The `IDENTIFICATION_CODE_PRODUCER` couldn't be found.
+    #[error("identification block has no producer")]
+    MissingProducer,
+
+    /// The producer string is malformed.
+    #[error("malformed producer string")]
+    BadProducer,
+
     /// The `IDENTIFICATION_CODE_EPOCH` couldn't be found.
     #[error("identification block has no epoch")]
     MissingEpoch,
@@ -33,20 +40,20 @@ impl IrBlock for Identification {
         block: &UnrolledBlock,
         _ctx: &mut PartialMapCtx,
     ) -> Result<Self, BlockMapError> {
-        let producer = {
-            let producer = block.one_record(IdentificationCode::ProducerString as u64)?;
+        let producer = block
+            .records()
+            .one(IdentificationCode::ProducerString as u64)
+            .ok_or(IdentificationError::MissingProducer)
+            .and_then(|r| {
+                r.try_string(0)
+                    .map_err(|_| IdentificationError::BadProducer)
+            })?;
 
-            producer.try_string(0).map_err(RecordMapError::from)?
-        };
-
-        let epoch = {
-            let epoch = block.one_record(IdentificationCode::Epoch as u64)?;
-
-            *epoch
-                .fields()
-                .get(0)
-                .ok_or(IdentificationError::MissingEpoch)?
-        };
+        let epoch = *block
+            .records()
+            .one(IdentificationCode::Epoch as u64)
+            .ok_or(IdentificationError::MissingEpoch)
+            .and_then(|r| r.fields().get(0).ok_or(IdentificationError::MissingEpoch))?;
 
         Ok(Self { producer, epoch })
     }

@@ -11,6 +11,10 @@ use crate::unroll::UnrolledBlock;
 /// Errors that can occur when accessing a symbol table.
 #[derive(Debug, Error)]
 pub enum SymtabError {
+    /// The symbol table is missing its blob.
+    #[error("malformed symbol table: missing blob")]
+    MissingBlob,
+
     /// The blob containing the symbol table is invalid.
     #[error("invalid string table: {0}")]
     BadBlob(#[from] RecordBlobError),
@@ -36,11 +40,11 @@ impl IrBlock for Symtab {
         block: &UnrolledBlock,
         _ctx: &mut PartialMapCtx,
     ) -> Result<Self, BlockMapError> {
-        let symtab = {
-            let symtab = block.one_record(SymtabCode::Blob as u64)?;
-
-            symtab.try_blob(0).map_err(SymtabError::from)?
-        };
+        let symtab = block
+            .records()
+            .one(SymtabCode::Blob as u64)
+            .ok_or(SymtabError::MissingBlob)
+            .and_then(|r| r.try_blob(0).map_err(SymtabError::from))?;
 
         Ok(Self(symtab))
     }
