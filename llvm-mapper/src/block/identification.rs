@@ -1,11 +1,20 @@
 //! Functionality for mapping the `IDENTIFICATION_BLOCK` block.
 
 use llvm_constants::{IdentificationCode, IrBlockId};
+use thiserror::Error;
 
 use crate::block::{BlockMapError, IrBlock};
 use crate::map::PartialMapCtx;
 use crate::record::RecordMapError;
 use crate::unroll::UnrolledBlock;
+
+/// Errors that can occur while mapping the identification block.
+#[derive(Debug, Error)]
+pub enum IdentificationError {
+    /// The `IDENTIFICATION_CODE_EPOCH` couldn't be found.
+    #[error("identification block has no epoch")]
+    MissingEpoch,
+}
 
 /// Models the `IDENTIFICATION_BLOCK` block.
 #[non_exhaustive]
@@ -33,7 +42,10 @@ impl IrBlock for Identification {
         let epoch = {
             let epoch = block.one_record(IdentificationCode::Epoch as u64)?;
 
-            epoch.get_field(0)?
+            *epoch
+                .fields()
+                .get(0)
+                .ok_or(IdentificationError::MissingEpoch)?
         };
 
         Ok(Self { producer, epoch })

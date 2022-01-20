@@ -8,14 +8,20 @@ use thiserror::Error;
 
 use crate::block::{BlockMapError, IrBlock};
 use crate::map::PartialMapCtx;
+use crate::record::RecordBlobError;
 use crate::unroll::{UnrolledBlock, UnrolledRecord};
 
 /// Errors that can occur when accessing a string table.
 #[derive(Debug, Error)]
 pub enum StrtabError {
+    /// The blob containing the string table is invalid.
+    #[error("invalid string table: {0}")]
+    BadBlob(#[from] RecordBlobError),
+
     /// The requested range is invalid.
     #[error("requested range in string table is invalid")]
     BadRange,
+
     /// The requested string is not UTF-8.
     #[error("could not decode range into a UTF-8 string: {0}")]
     BadString(#[from] Utf8Error),
@@ -45,7 +51,7 @@ impl IrBlock for Strtab {
         let strtab = {
             let strtab = block.one_record(StrtabCode::Blob as u64)?;
 
-            strtab.try_blob(0)?
+            strtab.try_blob(0).map_err(StrtabError::from)?
         };
 
         Ok(Self(strtab))

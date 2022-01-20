@@ -12,7 +12,7 @@ use llvm_constants::IrBlockId;
 use crate::block::{BlockId, BlockMapError, Identification, Module, Strtab, Symtab};
 use crate::error::Error;
 use crate::map::{PartialCtxMappable, PartialMapCtx};
-use crate::record::{RecordMapError, RecordStringError};
+use crate::record::{RecordBlobError, RecordStringError};
 
 /// An "unrolled" record. This is internally indistinguishable from a raw bitstream
 /// [`Record`](llvm_bitstream::record::Record), but is newtyped to enforce proper
@@ -50,34 +50,23 @@ impl UnrolledRecord {
     /// Attempt to pull a blob of bytes from this record's fields.
     ///
     /// Blobs are always the last fields in a record, so only the start index is required.
-    pub fn try_blob(&self, idx: usize) -> Result<Vec<u8>, RecordMapError> {
+    pub fn try_blob(&self, idx: usize) -> Result<Vec<u8>, RecordBlobError> {
         // If our start index lies beyond the record fields or would produce
         // an empty string, it's invalid.
         if idx >= self.0.fields.len() - 1 {
-            return Err(RecordMapError::BadField(format!(
-                "impossible blob index: {} exceeds record fields",
-                idx
-            )));
+            return Err(RecordBlobError::BadIndex(idx, self.0.fields.len()));
         }
 
         // Each individual field in our blob must fit into a byte.
-        self.0.fields[idx..]
+        Ok(self.0.fields[idx..]
             .iter()
             .map(|f| u8::try_from(*f))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| RecordMapError::BadField("impossible byte value in blob".into()))
+            .collect::<Result<Vec<_>, _>>()?)
     }
 
     /// Returns a reference to this record's fields.
     pub fn fields(&self) -> &[u64] {
         &self.0.fields
-    }
-
-    /// Attempt to get a field from this record by index.
-    pub fn get_field(&self, idx: usize) -> Result<u64, RecordMapError> {
-        self.0.fields.get(idx).copied().ok_or_else(|| {
-            RecordMapError::BadField(format!("invalid field index for {:?}: {}", self, idx))
-        })
     }
 }
 

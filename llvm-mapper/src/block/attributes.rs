@@ -10,7 +10,6 @@ use thiserror::Error;
 
 use crate::block::{BlockMapError, IrBlock};
 use crate::map::PartialMapCtx;
-use crate::record::RecordMapError;
 use crate::unroll::{UnrolledBlock, UnrolledRecord};
 
 /// Errors that can occur when mapping attribute blocks.
@@ -19,30 +18,46 @@ pub enum AttributeError {
     /// An unknown record code was seen.
     #[error("unknown attribute code")]
     UnknownAttributeCode(#[from] TryFromPrimitiveError<AttributeCode>),
+
     /// An unknown attribute kind (format) was seen.
     #[error("unknown attribute kind")]
     UnknownAttributeKind(#[from] TryFromPrimitiveError<AttributeKind>),
+
     /// The given code was seen in an unexpected block.
     #[error("wrong block for code: {0:?}")]
     WrongBlock(AttributeCode),
+
     /// The attribute couldn't be constructed because of missing fields.
     #[error("attribute structure too short")]
     TooShort,
+
     /// The attribute has an invalid string key or string balue.
     #[error("bad attribute string")]
     BadString,
+
     /// The attribute has an unknown (integral) ID.
     #[error("unknown attribute ID")]
     UnknownAttributeId(#[from] TryFromPrimitiveError<AttributeId>),
+
     /// The attribute's ID doesn't match the format supplied.
     #[error("malformed attribute (format doesn't match ID): {0}: {1:?}")]
     AttributeMalformed(&'static str, AttributeId),
+
     /// We recognize the attribute's ID as an integer attribute, but we don't support it yet.
     #[error("FIXME: unsupported integer attribute: {0:?}")]
     IntAttributeUnsupported(AttributeId),
+
     /// An entry record asked for a nonexistent attribute group.
     #[error("nonexistent attribute group: {0}")]
     BadAttributeGroup(u32),
+
+    /// An attribute group record was too short.
+    #[error("attribute group record for {0:?} too short ({1} < 3)")]
+    GroupTooShort(AttributeCode, usize),
+
+    /// Parsing an attribute group didn't fully consume the underlying record fields.
+    #[error("under/overconsumed fields in attribute group record ({0} fields, {1} consumed)")]
+    GroupSizeMismatch(usize, usize),
 }
 
 /// Represents the "enum" attributes, i.e. those with a single integer identifier.
@@ -513,12 +528,7 @@ impl IrBlock for AttributeGroups {
             // Structure: [grpid, paramidx, <attr0>, <attr1>, ...]
             // Every group record must have at least one attribute.
             if record.fields().len() < 3 {
-                return Err(RecordMapError::BadRecordLayout(format!(
-                    "too few fields in {:?}, expected {} >= 3",
-                    code,
-                    record.fields().len()
-                ))
-                .into());
+                return Err(AttributeError::GroupTooShort(code, record.fields().len()).into());
             }
 
             // Panic safety: We check for at least three fields above.
@@ -538,12 +548,9 @@ impl IrBlock for AttributeGroups {
 
             // Sanity check: we should have consumed every single record.
             if fieldidx != record.fields().len() {
-                return Err(RecordMapError::BadRecordLayout(format!(
-                    "under/overconsumed fields in attribute group record ({} fields, {} consumed)",
-                    fieldidx,
-                    record.fields().len(),
-                ))
-                .into());
+                return Err(
+                    AttributeError::GroupSizeMismatch(fieldidx, record.fields().len()).into(),
+                );
             }
 
             groups.insert(

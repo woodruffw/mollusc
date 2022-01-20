@@ -1,6 +1,7 @@
 //! Functionality for mapping the `MODULE_BLOCK` block.
 
 use llvm_constants::{IrBlockId, ModuleCode, TARGET_TRIPLE};
+use thiserror::Error;
 
 use crate::block::attributes::{AttributeGroups, Attributes};
 use crate::block::type_table::TypeTable;
@@ -8,6 +9,14 @@ use crate::block::{BlockId, BlockMapError, IrBlock};
 use crate::map::{CtxMappable, PartialCtxMappable, PartialMapCtx};
 use crate::record::{Comdat, DataLayout, Function as FunctionRecord, RecordMapError};
 use crate::unroll::UnrolledBlock;
+
+/// Errors that can occur while mapping a module.
+#[derive(Debug, Error)]
+pub enum ModuleError {
+    /// The `MODULE_CODE_VERSION` couldn't be found.
+    #[error("bitcode module has no version")]
+    MissingVersion,
+}
 
 /// Models the `MODULE_BLOCK` block.
 #[non_exhaustive]
@@ -33,7 +42,7 @@ impl IrBlock for Module {
         ctx.version = Some({
             let version = block.one_record(ModuleCode::Version as u64)?;
 
-            version.get_field(0)?
+            *version.fields().get(0).ok_or(ModuleError::MissingVersion)?
         });
 
         // Each module *should* have a datalayout record, but doesn't necessarily.

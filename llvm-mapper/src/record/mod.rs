@@ -17,7 +17,6 @@ pub use self::comdat::*;
 pub use self::datalayout::*;
 pub use self::function::*;
 use crate::block::StrtabError;
-use crate::map::MapCtxError;
 
 /// Potential errors when trying to extract a string from a record.
 #[non_exhaustive]
@@ -34,10 +33,26 @@ pub enum RecordStringError {
     BadEncoding(#[from] FromUtf8Error),
 }
 
+/// Potential errors when trying to extract a blob from a record.
+#[non_exhaustive]
+#[derive(Debug, Error)]
+pub enum RecordBlobError {
+    /// The start index for the blob is invalid.
+    #[error("impossible blob index: {0} >= {1} (field count)")]
+    BadIndex(usize, usize),
+    /// A field in the record is too large to fit in a byte.
+    #[error("impossible byte value in blob: {0}")]
+    BadByte(#[from] TryFromIntError),
+}
+
 /// Potential errors when mapping a single bitstream record.
 #[non_exhaustive]
 #[derive(Debug, Error)]
 pub enum RecordMapError {
+    /// Mapping a COMDAT record failed.
+    #[error("error while mapping COMDAT record: {0}")]
+    Comdat(#[from] ComdatError),
+
     /// Parsing the datalayout specification failed.
     #[error("error while parsing datalayout: {0}")]
     DataLayout(#[from] DataLayoutParseError),
@@ -46,27 +61,7 @@ pub enum RecordMapError {
     #[error("error while mapping function record: {0}")]
     Function(#[from] FunctionError),
 
-    /// We couldn't interpret a record field, for any number of reasons.
-    #[error("error while decoding record field: {0}")]
-    BadField(String),
-
-    /// We encountered a record layout we didn't understand.
-    #[error("error while mapping record: {0}")]
-    BadRecordLayout(String),
-
     /// We encountered a string we couldn't parse.
     #[error("error while parsing string: {0}")]
     BadRecordString(#[from] RecordStringError),
-
-    /// Our mapping context was invalid for our operation.
-    #[error("invalid mapping context: {0}")]
-    BadContext(#[from] MapCtxError),
-
-    /// Retrieving a string from a string table failed.
-    #[error("error while accessing string table: {0}")]
-    BadStrtab(#[from] StrtabError),
-
-    /// We encountered an unsupported feature or layout.
-    #[error("unsupported: {0}")]
-    Unsupported(String),
 }

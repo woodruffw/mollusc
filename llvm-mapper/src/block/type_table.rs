@@ -21,27 +21,39 @@ pub enum TypeTableError {
     /// The size of the type table is invalid.
     #[error("invalid type table size (expected {0} elements, got {1})")]
     BadSize(usize, usize),
+
     /// An invalid type index was requested.
     #[error("invalid type table index: {0}")]
     BadIndex(usize),
+
     /// An unknown record code was seen.
     #[error("unknown type code")]
     UnknownTypeCode(#[from] TryFromPrimitiveError<TypeCode>),
+
+    /// The layout of the table itself (i.e., the record structures) is invalid.
+    #[error("invalid type table structure (broken records)")]
+    BadTable,
+
     /// An invalid integer type was seen.
     #[error("invalid integer type")]
     InvalidIntegerType(#[from] IntegerTypeError),
+
     /// An invalid pointer type was seen.
     #[error("invalid pointer type")]
     InvalidPointerType(#[from] PointerTypeError),
+
     /// An invalid array type was seen.
     #[error("invalid array type")]
     InvalidArrayType(#[from] ArrayTypeError),
+
     /// An invalid vector type was seen.
     #[error("invalid vector type")]
     InvalidVectorType(#[from] VectorTypeError),
+
     /// An invalid structure type was seen.
     #[error("invalid structure type")]
     InvalidStructType(#[from] StructTypeError),
+
     /// An invalid function type was seen.
     #[error("invalid function type")]
     InvalidFunctionType(#[from] FunctionTypeError),
@@ -273,7 +285,7 @@ impl IrBlock for TypeTable {
         let numentries = {
             let numentries = block.one_record(TypeCode::NumEntry as u64)?;
 
-            numentries.get_field(0)? as usize
+            *numentries.fields().get(0).ok_or(TypeTableError::BadTable)? as usize
         };
 
         // To map the type table, we perform two passes:
@@ -286,6 +298,17 @@ impl IrBlock for TypeTable {
         let mut partial_types = PartialTypeTable::new(numentries);
         let mut last_type_name = String::new();
         for record in block.all_records() {
+            //
+            macro_rules! type_field {
+                ($n:literal) => {
+                    record
+                        .fields()
+                        .get($n)
+                        .copied()
+                        .ok_or(TypeTableError::BadTable)?
+                };
+            }
+
             let code = TypeCode::try_from(record.code()).map_err(TypeTableError::from)?;
 
             match code {
@@ -331,19 +354,18 @@ impl IrBlock for TypeTable {
                     last_type_name.clear();
                 }
                 TypeCode::Integer => {
-                    let bit_width = record.get_field(0)? as u32;
+                    let bit_width = type_field!(0) as u32;
                     partial_types.add(PartialType::Integer(PartialIntegerType { bit_width }));
                 }
                 TypeCode::Pointer => {
-                    let pointee = TypeRef(record.get_field(0)? as usize);
+                    let pointee = TypeRef(type_field!(0) as usize);
 
-                    let address_space =
-                        AddressSpace::try_from(record.get_field(1)?).map_err(|e| {
-                            BlockMapError::BadBlockMap(format!(
-                                "bad address space for pointer type: {:?}",
-                                e
-                            ))
-                        })?;
+                    let address_space = AddressSpace::try_from(type_field!(1)).map_err(|e| {
+                        BlockMapError::BadBlockMap(format!(
+                            "bad address space for pointer type: {:?}",
+                            e
+                        ))
+                    })?;
 
                     partial_types.add(PartialType::Pointer(PartialPointerType {
                         pointee,
@@ -357,9 +379,9 @@ impl IrBlock for TypeTable {
                     ));
                 }
                 TypeCode::Array => {
-                    let num_elements = record.get_field(0)?;
+                    let num_elements = type_field!(0);
 
-                    let element_type = TypeRef(record.get_field(1)? as usize);
+                    let element_type = TypeRef(type_field!(1) as usize);
 
                     partial_types.add(PartialType::Array(PartialArrayType {
                         num_elements,
@@ -367,13 +389,13 @@ impl IrBlock for TypeTable {
                     }));
                 }
                 TypeCode::Vector => {
-                    let num_elements = record.get_field(0)?;
+                    let num_elements = type_field!(0);
 
-                    let element_type = TypeRef(record.get_field(1)? as usize);
+                    let element_type = TypeRef(type_field!(1) as usize);
 
                     // A vector type is either fixed or scalable, depending on the
                     // third field (which can also be absent, indicating fixed).
-                    let scalable = record.get_field(2).map_or_else(|_| false, |f| f > 0);
+                    let scalable = record.fields().get(2).map_or_else(|| false, |f| *f > 0);
                     let new_type = match scalable {
                         true => PartialType::ScalableVector(PartialVectorType {
                             num_elements,
@@ -393,7 +415,7 @@ impl IrBlock for TypeTable {
                 TypeCode::Metadata => partial_types.add(PartialType::Metadata),
                 TypeCode::X86Mmx => partial_types.add(PartialType::X86Mmx),
                 TypeCode::StructAnon => {
-                    let is_packed = record.get_field(0).map(|f| f > 0)?;
+                    let is_packed = type_field!(0) > 0;
 
                     let field_types = record.fields()[1..]
                         .iter()
@@ -416,7 +438,7 @@ impl IrBlock for TypeTable {
                     // TODO(ww): Should probably be deduped with StructAnon above,
                     // since they're 90% identical.
 
-                    let is_packed = record.get_field(0).map(|f| f > 0)?;
+                    let is_packed = type_field!(0) > 0;
 
                     let field_types = record.fields()[1..]
                         .iter()
@@ -447,8 +469,8 @@ impl IrBlock for TypeTable {
                     last_type_name.clear();
                 }
                 TypeCode::Function => {
-                    let is_vararg = record.get_field(0).map(|f| f > 0)?;
-                    let return_type = TypeRef(record.get_field(1)? as usize);
+                    let is_vararg = type_field!(0) > 0;
+                    let return_type = TypeRef(type_field!(1) as usize);
 
                     let param_types = record.fields()[2..]
                         .iter()
@@ -464,13 +486,9 @@ impl IrBlock for TypeTable {
                 TypeCode::Token => partial_types.add(PartialType::Token),
                 TypeCode::X86Amx => partial_types.add(PartialType::X86Amx),
                 TypeCode::OpaquePointer => {
-                    let address_space =
-                        AddressSpace::try_from(record.get_field(0)?).map_err(|e| {
-                            BlockMapError::BadBlockMap(format!(
-                                "bad address space in type: {:?}",
-                                e
-                            ))
-                        })?;
+                    let address_space = AddressSpace::try_from(type_field!(0)).map_err(|e| {
+                        BlockMapError::BadBlockMap(format!("bad address space in type: {:?}", e))
+                    })?;
 
                     partial_types.add(PartialType::OpaquePointer(address_space))
                 }

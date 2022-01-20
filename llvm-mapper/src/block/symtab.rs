@@ -1,10 +1,20 @@
 //! Functionality for mapping the `SYMTAB_BLOCK` block.
 
 use llvm_constants::{IrBlockId, SymtabCode};
+use thiserror::Error;
 
 use crate::block::{BlockMapError, IrBlock};
 use crate::map::PartialMapCtx;
+use crate::record::RecordBlobError;
 use crate::unroll::UnrolledBlock;
+
+/// Errors that can occur when accessing a symbol table.
+#[derive(Debug, Error)]
+pub enum SymtabError {
+    /// The blob containing the symbol table is invalid.
+    #[error("invalid string table: {0}")]
+    BadBlob(#[from] RecordBlobError),
+}
 
 /// Models the `SYMTAB_BLOCK` block.
 ///
@@ -29,7 +39,7 @@ impl IrBlock for Symtab {
         let symtab = {
             let symtab = block.one_record(SymtabCode::Blob as u64)?;
 
-            symtab.try_blob(0)?
+            symtab.try_blob(0).map_err(SymtabError::from)?
         };
 
         Ok(Self(symtab))

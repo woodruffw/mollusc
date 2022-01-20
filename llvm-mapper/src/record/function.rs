@@ -9,7 +9,7 @@ use thiserror::Error;
 
 use crate::block::attributes::AttributeEntry;
 use crate::block::type_table::{TypeRef, TypeTableError};
-use crate::map::{CtxMappable, MapCtx, MapCtxError};
+use crate::map::{CtxMappable, MapCtx};
 use crate::record::StrtabError;
 use crate::unroll::UnrolledRecord;
 
@@ -23,10 +23,6 @@ pub enum FunctionError {
     /// The function record is in an old unsupported format.
     #[error("unsupported function record format (v1)")]
     V1Unsupported,
-
-    /// Our mapping context was invalid for our operation.
-    #[error("invalid mapping context: {0}")]
-    BadContext(#[from] MapCtxError),
 
     /// Retrieving a string from a string table failed.
     #[error("error while accessing string table: {0}")]
@@ -109,7 +105,7 @@ impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
                 Some(
                     ctx.attributes
                         .get(paramattr - 1)
-                        .ok_or_else(|| FunctionError::BadAttribute(paramattr))?,
+                        .ok_or(FunctionError::BadAttribute(paramattr))?,
                 )
             }
         };

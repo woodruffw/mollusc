@@ -46,6 +46,22 @@ pub enum BlockMapError {
     #[error("expected exactly one block of ID {0:?} in block {1:?}")]
     BlockBlockMismatch(BlockId, BlockId),
 
+    /// We couldn't map the identification block.
+    #[error("error while mapping identification block")]
+    BadIdentification(#[from] IdentificationError),
+
+    /// We couldn't map the module block.
+    #[error("error while mapping module")]
+    BadModule(#[from] ModuleError),
+
+    /// We couldn't map the string table.
+    #[error("error while mapping string table")]
+    BadStrtab(#[from] StrtabError),
+
+    /// We couldn't map the symbol table.
+    #[error("error while mapping symbol table")]
+    BadSymtab(#[from] SymtabError),
+
     /// We couldn't map the type table.
     #[error("error while mapping type table")]
     BadTypeTable(#[from] TypeTableError),
