@@ -123,6 +123,19 @@ impl<'a> IntoIterator for &'a UnrolledRecords {
     }
 }
 
+/// Represents a collection of unrolled blocks.
+#[derive(Clone, Debug, Default)]
+pub struct UnrolledBlocks(IndexMap<BlockId, Vec<UnrolledBlock>>);
+
+impl UnrolledBlocks {
+    /// Return an iterator over all sub-blocks within this block that share the given ID.
+    ///
+    /// The returned iterator is empty if the block doesn't have any matching sub-blocks.
+    pub(crate) fn by_id(&self, id: BlockId) -> impl Iterator<Item = &UnrolledBlock> + '_ {
+        self.0.get(&id).into_iter().flatten()
+    }
+}
+
 /// A fully unrolled block within the bitstream, with potential records
 /// and sub-blocks.
 #[derive(Clone, Debug)]
@@ -138,7 +151,7 @@ pub struct UnrolledBlock {
     records: UnrolledRecords,
     /// The blocks directly contained by this block, mapped by their IDs. Like with records,
     /// a block can contain multiple sub-blocks of the same ID.
-    blocks: IndexMap<BlockId, Vec<UnrolledBlock>>,
+    blocks: UnrolledBlocks,
 }
 
 impl UnrolledBlock {
@@ -147,7 +160,7 @@ impl UnrolledBlock {
             id: id.into(),
             records: UnrolledRecords::default(),
             // TODO(ww): Figure out a default capacity here.
-            blocks: IndexMap::new(),
+            blocks: UnrolledBlocks::default(),
         }
     }
 
@@ -156,18 +169,16 @@ impl UnrolledBlock {
         &self.records
     }
 
-    /// Return an iterator over all sub-blocks within this block that share the given ID.
-    ///
-    /// The returned iterator is empty if the block doesn't have any matching sub-blocks.
-    pub fn blocks(&self, id: BlockId) -> impl Iterator<Item = &UnrolledBlock> + '_ {
-        self.blocks.get(&id).into_iter().flatten()
+    /// Return a reference to all of the sub-blocks of this block.
+    pub fn blocks(&self) -> &UnrolledBlocks {
+        &self.blocks
     }
 
     /// Get zero or one sub-blocks from this block by the given block ID.
     ///
     /// Returns an error if the block has more than one matching sub-block.
     pub fn maybe_one_block(&self, id: BlockId) -> Result<Option<&UnrolledBlock>, BlockMapError> {
-        let blocks = self.blocks(id).collect::<Vec<_>>();
+        let blocks = self.blocks().by_id(id).collect::<Vec<_>>();
 
         match blocks.len() {
             0 => Ok(None),
@@ -237,6 +248,7 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
                         let unrolled_child = enter_block(bitstream, block)?;
                         unrolled_block
                             .blocks
+                            .0
                             .entry(unrolled_child.id)
                             .or_insert_with(Vec::new)
                             .push(unrolled_child);
