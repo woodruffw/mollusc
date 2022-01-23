@@ -55,6 +55,8 @@ pub enum Mangling {
 }
 
 /// Global value linkage types.
+///
+/// See: <https://llvm.org/docs/LangRef.html#linkage-types>
 #[non_exhaustive]
 #[derive(Debug, PartialEq)]
 #[repr(u64)]
