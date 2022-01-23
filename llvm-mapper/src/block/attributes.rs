@@ -4,7 +4,7 @@ use std::convert::{TryFrom, TryInto};
 
 use hashbrown::HashMap;
 use llvm_constants::{AttributeCode, IrBlockId};
-use llvm_support::{Align, AttributeId, AttributeKind};
+use llvm_support::{AttributeId, AttributeKind, MaybeAlign};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 use thiserror::Error;
 
@@ -230,9 +230,9 @@ impl TryFrom<AttributeId> for EnumAttribute {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum IntAttribute {
     /// `align(<n>)`
-    Alignment(Align),
+    Alignment(MaybeAlign),
     /// `alignstack(<n>)`
-    StackAlignment(Align),
+    StackAlignment(MaybeAlign),
     /// `dereferenceable(<n>)`
     Dereferenceable(u64),
     /// `dereferenceable_or_null(<n>)`
@@ -266,7 +266,7 @@ impl TryFrom<(AttributeId, u64)> for IntAttribute {
                 })?;
 
                 IntAttribute::Alignment(
-                    Align::from_shift(value).map_err(|_| {
+                    MaybeAlign::try_from(value).map_err(|_| {
                         AttributeError::AttributeMalformed("invalid alignment", key)
                     })?,
                 )
@@ -280,7 +280,7 @@ impl TryFrom<(AttributeId, u64)> for IntAttribute {
                 })?;
 
                 IntAttribute::StackAlignment(
-                    Align::from_shift(value).map_err(|_| {
+                    MaybeAlign::try_from(value).map_err(|_| {
                         AttributeError::AttributeMalformed("invalid alignment", key)
                     })?,
                 )

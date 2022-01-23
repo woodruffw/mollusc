@@ -64,6 +64,8 @@ pub enum MapCtxError {
 pub(crate) struct PartialMapCtx {
     pub(crate) version: Option<u64>,
     pub(crate) datalayout: DataLayout,
+    pub(crate) section_table: Vec<String>,
+    pub(crate) gc_table: Vec<String>,
     pub(crate) strtab: Option<Strtab>,
     pub(crate) attribute_groups: Option<AttributeGroups>,
     pub(crate) attributes: Option<Attributes>,
@@ -75,6 +77,8 @@ impl PartialMapCtx {
         Ok(MapCtx {
             version: self.version.ok_or(MapCtxError::NoVersion)?,
             datalayout: &self.datalayout,
+            section_table: &self.section_table,
+            gc_table: &self.gc_table,
             strtab: self.strtab.as_ref().ok_or(MapCtxError::NoStrtab)?,
             attribute_groups: self
                 .attribute_groups
@@ -113,6 +117,12 @@ pub struct MapCtx<'ctx> {
 
     /// The datalayout specification.
     pub datalayout: &'ctx DataLayout,
+
+    /// The section table.
+    pub section_table: &'ctx [String],
+
+    /// The GC table.
+    pub gc_table: &'ctx [String],
 
     /// The string table.
     pub strtab: &'ctx Strtab,

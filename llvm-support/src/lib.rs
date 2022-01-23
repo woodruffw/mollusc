@@ -10,6 +10,8 @@ pub mod align;
 pub mod attribute;
 pub mod ty;
 
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+
 pub use self::align::*;
 pub use self::attribute::*;
 pub use self::ty::*;
@@ -112,4 +114,20 @@ impl From<(u64, u64)> for StrtabRef {
     fn from(value: (u64, u64)) -> Self {
         Self::from((value.0 as usize, value.1 as usize))
     }
+}
+
+/// Valid visibility styles.
+///
+/// See: https://llvm.org/docs/LangRef.html#visibility-styles
+#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[repr(u64)]
+pub enum Visibility {
+    /// Default visibility.
+    Default = 0,
+
+    /// Hidden visibility.
+    Hidden,
+
+    /// Protected visibility.
+    Protected,
 }

@@ -84,7 +84,7 @@ impl IrBlock for Module {
         }
 
         // Build the section table. We'll reference this later.
-        let _section_table = block
+        ctx.section_table = block
             .records()
             .by_code(ModuleCode::SectionName)
             .map(|rec| rec.try_string(0))
@@ -92,7 +92,7 @@ impl IrBlock for Module {
             .map_err(MapError::RecordString)?;
 
         // Build the GC table. We'll reference this later.
-        let _gc_table = block
+        ctx.gc_table = block
             .records()
             .by_code(ModuleCode::GcName)
             .map(|rec| rec.try_string(0))
