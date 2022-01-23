@@ -4,7 +4,38 @@ use thiserror::Error;
 
 use crate::block::Strtab;
 use crate::block::{AttributeGroups, Attributes, TypeTable};
-use crate::record::DataLayout;
+use crate::record::{DataLayout, RecordStringError};
+use crate::unroll::ConsistencyError;
+
+/// Generic errors that can occur when mapping.
+#[derive(Debug, Error)]
+pub enum MapError {
+    /// We couldn't map a block, for any number of reasons.
+    #[error("error while mapping block: {0}")]
+    BadBlockMap(String),
+
+    /// We encountered an inconsistent block or record state.
+    #[error("inconsistent block or record state")]
+    Inconsistent(#[from] ConsistencyError),
+
+    /// We encountered an unsupported feature or layout.
+    #[error("unsupported: {0}")]
+    Unsupported(String),
+
+    /// We encountered an invalid state or combination of states.
+    ///
+    /// This variant should be used extremely sparingly.
+    #[error("invalid: {0}")]
+    Invalid(String),
+
+    /// We couldn't extract a string from a record.
+    #[error("error while extracting string: {0}")]
+    RecordString(#[from] RecordStringError),
+
+    /// We don't have the appropriate context for a mapping operation.
+    #[error("missing context for mapping")]
+    Context(MapCtxError),
+}
 
 /// Errors that can occur when accessing a [`MapCtx`](MapCtx).
 #[derive(Debug, Error)]

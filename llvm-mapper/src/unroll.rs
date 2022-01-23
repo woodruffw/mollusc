@@ -10,7 +10,7 @@ use llvm_bitstream::Bitstream;
 use llvm_constants::IrBlockId;
 use thiserror::Error;
 
-use crate::block::{BlockId, Identification, Module, Strtab, Symtab};
+use crate::block::{BlockId, BlockMapError, Identification, Module, Strtab, Symtab};
 use crate::error::Error;
 use crate::map::{PartialCtxMappable, PartialMapCtx};
 use crate::record::{RecordBlobError, RecordStringError};
@@ -281,9 +281,9 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
             //    (which is either the bitstream context or another parent block)
             //    can add us to its block map.
             loop {
-                let entry = bitstream.next().ok_or_else(|| {
-                    Error::BadUnroll("unexpected stream end during unroll".into())
-                })?;
+                let entry = bitstream
+                    .next()
+                    .ok_or_else(|| Error::Unroll("unexpected stream end during unroll".into()))?;
 
                 match entry? {
                     StreamEntry::Record(record) => {
@@ -329,7 +329,7 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
                 // bitstream here, but it's difficult to represent that at the type level during unrolling.
                 #[allow(clippy::unwrap_used)]
                 let block = entry.unwrap()?.as_block().ok_or_else(|| {
-                    Error::BadUnroll("bitstream has non-blocks at the top-level scope".into())
+                    Error::Unroll("bitstream has non-blocks at the top-level scope".into())
                 })?;
 
                 enter_block(&mut bitstream, block)?
@@ -358,12 +358,12 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
                     // the most recent one, but the PartialBitcodeModule -> BitcodeModule reification
                     // step will take care of that for us.
                     let last_partial = partial_modules.last_mut().ok_or_else(|| {
-                        Error::BadUnroll("malformed bitstream: MODULE_BLOCK with no preceding IDENTIFICATION_BLOCK".into())
+                        Error::Unroll("malformed bitstream: MODULE_BLOCK with no preceding IDENTIFICATION_BLOCK".into())
                     })?;
 
                     match &last_partial.module {
                         Some(_) => {
-                            return Err(Error::BadUnroll(
+                            return Err(Error::Unroll(
                                 "malformed bitstream: adjacent MODULE_BLOCKs".into(),
                             ))
                         }
@@ -406,7 +406,7 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
                     }
                 }
                 _ => {
-                    return Err(Error::BadUnroll(format!(
+                    return Err(Error::Unroll(format!(
                         "unexpected top-level block: {:?}",
                         top_block.id
                     )))
@@ -456,25 +456,31 @@ impl PartialBitcodeModule {
         // Grab the string table early, so that we can move it into our mapping context and
         // use it for the remainder of the mapping phase.
         let strtab = Strtab::try_map(
-            &self.strtab.ok_or_else(|| {
-                Error::BadUnroll("missing STRTAB_BLOCK for bitcode module".into())
-            })?,
+            &self
+                .strtab
+                .ok_or_else(|| Error::Unroll("missing STRTAB_BLOCK for bitcode module".into()))?,
             &mut ctx,
-        )?;
+        )
+        .map_err(BlockMapError::Strtab)?;
 
         ctx.strtab = Some(strtab);
 
-        let identification = Identification::try_map(&self.identification, &mut ctx)?;
+        let identification = Identification::try_map(&self.identification, &mut ctx)
+            .map_err(BlockMapError::Identification)?;
+
         let module = Module::try_map(
-            &self.module.ok_or_else(|| {
-                Error::BadUnroll("missing MODULE_BLOCK for bitcode module".into())
-            })?,
+            &self
+                .module
+                .ok_or_else(|| Error::Unroll("missing MODULE_BLOCK for bitcode module".into()))?,
             &mut ctx,
-        )?;
+        )
+        .map_err(BlockMapError::Module)?;
+
         let symtab = self
             .symtab
             .map(|s| Symtab::try_map(&s, &mut ctx))
-            .transpose()?;
+            .transpose()
+            .map_err(BlockMapError::Symtab)?;
 
         #[allow(clippy::unwrap_used)]
         Ok(BitcodeModule {

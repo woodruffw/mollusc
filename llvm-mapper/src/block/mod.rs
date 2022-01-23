@@ -18,57 +18,28 @@ pub use self::module::*;
 pub use self::strtab::*;
 pub use self::symtab::*;
 pub use self::type_table::*;
-use crate::map::{MapCtxError, PartialCtxMappable, PartialMapCtx};
-use crate::record::RecordMapError;
-use crate::unroll::{ConsistencyError, UnrolledBlock};
+use crate::map::{MapError, PartialCtxMappable, PartialMapCtx};
+use crate::unroll::UnrolledBlock;
 
 /// Potential errors when mapping a single bitstream block.
 #[non_exhaustive]
 #[derive(Debug, Error)]
 pub enum BlockMapError {
-    /// Parsing a record failed, for some internal reason.
-    #[error("error while mapping record")]
-    BadRecord(#[from] RecordMapError),
-
-    /// Our mapping context was invalid for our operation.
-    #[error("invalid mapping context")]
-    BadContext(#[from] MapCtxError),
-
-    /// We couldn't map a block, for any number of reasons.
-    #[error("error while mapping block: {0}")]
-    BadBlockMap(String),
-
     /// We couldn't map the identification block.
     #[error("error while mapping identification block")]
-    BadIdentification(#[from] IdentificationError),
+    Identification(#[from] IdentificationError),
 
     /// We couldn't map the module block.
     #[error("error while mapping module")]
-    BadModule(#[from] ModuleError),
+    Module(#[from] ModuleError),
 
     /// We couldn't map the string table.
     #[error("error while mapping string table")]
-    BadStrtab(#[from] StrtabError),
+    Strtab(#[from] StrtabError),
 
     /// We couldn't map the symbol table.
     #[error("error while mapping symbol table")]
-    BadSymtab(#[from] SymtabError),
-
-    /// We couldn't map the type table.
-    #[error("error while mapping type table")]
-    BadTypeTable(#[from] TypeTableError),
-
-    /// We couldn't map one of the attribute blocks.
-    #[error("error while mapping attributes")]
-    BadAttributes(#[from] AttributeError),
-
-    /// We encountered an unsupported feature or layout.
-    #[error("unsupported: {0}")]
-    Unsupported(String),
-
-    /// The module has an invalid block or record state.
-    #[error("invalid block or record in module")]
-    Invalid(#[from] ConsistencyError),
+    Symtab(#[from] SymtabError),
 }
 
 /// A holistic model of all possible block IDs, spanning reserved, IR, and unknown IDs.
@@ -96,51 +67,36 @@ impl From<u64> for BlockId {
 /// A trait implemented by all blocks that correspond to IR models, allowing them
 /// to be mapped into their corresponding model.
 pub(crate) trait IrBlock: Sized {
+    type Error;
+
     /// The `IrBlockId` that corresponds to this IR model.
     const BLOCK_ID: IrBlockId;
 
     /// Attempt to map the given block to the implementing type, returning an error if mapping fails.
     ///
     /// This is an interior trait that shouldn't be used directly.
-    fn try_map_inner(block: &UnrolledBlock, ctx: &mut PartialMapCtx)
-        -> Result<Self, BlockMapError>;
+    fn try_map_inner(block: &UnrolledBlock, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error>;
 }
 
-impl<T: IrBlock> PartialCtxMappable<UnrolledBlock> for T {
-    type Error = BlockMapError;
+impl<T: IrBlock> PartialCtxMappable<UnrolledBlock> for T
+where
+    T::Error: From<MapError>,
+{
+    type Error = T::Error;
 
     fn try_map(block: &UnrolledBlock, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         if block.id != BlockId::Ir(T::BLOCK_ID) {
-            return Err(BlockMapError::BadBlockMap(format!(
+            return Err(MapError::BadBlockMap(format!(
                 "can't map {:?} into {:?}",
                 block.id,
                 Identification::BLOCK_ID
-            )));
+            ))
+            .into());
         }
 
         IrBlock::try_map_inner(block, ctx)
     }
 }
-
-// impl<T: IrBlock> PartialCtxMappable<UnrolledBlock> for T
-// where
-//     T::Error: From<BlockMapError>,
-// {
-//     type Error = T::Error;
-
-//     fn try_map(block: &UnrolledBlock, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
-//         if block.id != BlockId::Ir(T::BLOCK_ID) {
-//             return Err(BlockMapError::BadBlockMap(format!(
-//                 "can't map {:?} into {:?}",
-//                 block.id,
-//                 Identification::BLOCK_ID
-//             ))
-//             .into());
-//         }
-
-//         IrBlock::try_map_inner(block, ctx)
-//     }
-// }
 
 #[cfg(test)]
 mod tests {

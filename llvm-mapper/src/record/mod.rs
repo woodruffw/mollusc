@@ -55,13 +55,13 @@ pub enum RecordMapError {
 
     /// Parsing the datalayout specification failed.
     #[error("error while parsing datalayout: {0}")]
-    DataLayout(#[from] DataLayoutParseError),
+    DataLayout(#[from] DataLayoutError),
 
     /// Mapping a function record failed.
     #[error("error while mapping function record: {0}")]
     Function(#[from] FunctionError),
 
-    /// We encountered a string we couldn't parse.
-    #[error("error while parsing string: {0}")]
+    /// We encountered a string we couldn't extract.
+    #[error("error while extracting string: {0}")]
     BadRecordString(#[from] RecordStringError),
 }

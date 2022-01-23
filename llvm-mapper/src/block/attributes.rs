@@ -8,8 +8,8 @@ use llvm_support::{Align, AttributeId, AttributeKind};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 use thiserror::Error;
 
-use crate::block::{BlockMapError, IrBlock};
-use crate::map::PartialMapCtx;
+use crate::block::IrBlock;
+use crate::map::{MapError, PartialMapCtx};
 use crate::unroll::{UnrolledBlock, UnrolledRecord};
 
 /// Errors that can occur when mapping attribute blocks.
@@ -58,6 +58,10 @@ pub enum AttributeError {
     /// Parsing an attribute group didn't fully consume the underlying record fields.
     #[error("under/overconsumed fields in attribute group record ({0} fields, {1} consumed)")]
     GroupSizeMismatch(usize, usize),
+
+    /// A generic mapping error occured.
+    #[error("mapping error in string table")]
+    Map(#[from] MapError),
 }
 
 /// Represents the "enum" attributes, i.e. those with a single integer identifier.
@@ -425,25 +429,28 @@ impl Attributes {
 }
 
 impl IrBlock for Attributes {
+    type Error = AttributeError;
+
     const BLOCK_ID: IrBlockId = IrBlockId::ParamAttr;
 
-    fn try_map_inner(
-        block: &UnrolledBlock,
-        ctx: &mut PartialMapCtx,
-    ) -> Result<Self, BlockMapError> {
+    fn try_map_inner(block: &UnrolledBlock, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let mut entries = vec![];
 
         for record in block.records() {
             let code = AttributeCode::try_from(record.code()).map_err(AttributeError::from)?;
 
             match code {
+                AttributeCode::EntryOld => {
+                    unimplemented!();
+                }
                 AttributeCode::Entry => {
                     let mut groups = vec![];
                     for group_id in record.fields() {
                         let group_id = *group_id as u32;
                         log::debug!("group id: {}", group_id);
                         groups.push(
-                            ctx.attribute_groups()?
+                            ctx.attribute_groups()
+                                .map_err(MapError::Context)?
                                 .get(group_id)
                                 .ok_or(AttributeError::BadAttributeGroup(group_id))?
                                 .clone(),
@@ -454,12 +461,6 @@ impl IrBlock for Attributes {
                 AttributeCode::GroupCodeEntry => {
                     // This is a valid attribute code, but it isn't valid in this block.
                     return Err(AttributeError::WrongBlock(code).into());
-                }
-                _ => {
-                    return Err(BlockMapError::Unsupported(format!(
-                        "unsupported attribute block code: {:?}",
-                        code,
-                    )))
                 }
             }
         }
@@ -510,12 +511,11 @@ impl AttributeGroups {
 }
 
 impl IrBlock for AttributeGroups {
+    type Error = AttributeError;
+
     const BLOCK_ID: IrBlockId = IrBlockId::ParamAttrGroup;
 
-    fn try_map_inner(
-        block: &UnrolledBlock,
-        _ctx: &mut PartialMapCtx,
-    ) -> Result<Self, BlockMapError> {
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let mut groups = HashMap::new();
 
         for record in block.records() {

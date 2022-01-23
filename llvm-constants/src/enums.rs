@@ -228,7 +228,6 @@ pub enum ModuleCode {
 }
 
 /// Codes for each record in `TYPE_BLOCK` (i.e., `TYPE_BLOCK_ID_NEW`).
-#[non_exhaustive]
 #[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum TypeCode {
@@ -305,7 +304,6 @@ pub enum SymtabCode {
 /// Codes for each record in `PARAMATTR_BLOCK` or `PARAMATTR_GROUP_BLOCK`.
 // NOTE(ww): For whatever reason, these two blocks share the same enum for
 // record codes.
-#[non_exhaustive]
 #[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum AttributeCode {

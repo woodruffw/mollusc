@@ -6,8 +6,8 @@ use llvm_constants::{IrBlockId, StrtabCode};
 use llvm_support::StrtabRef;
 use thiserror::Error;
 
-use crate::block::{BlockMapError, IrBlock};
-use crate::map::PartialMapCtx;
+use crate::block::IrBlock;
+use crate::map::{MapError, PartialMapCtx};
 use crate::record::RecordBlobError;
 use crate::unroll::{UnrolledBlock, UnrolledRecord};
 
@@ -29,6 +29,10 @@ pub enum StrtabError {
     /// The requested string is not UTF-8.
     #[error("could not decode range into a UTF-8 string: {0}")]
     BadString(#[from] Utf8Error),
+
+    /// A generic mapping error occured.
+    #[error("mapping error in string table")]
+    Map(#[from] MapError),
 }
 
 /// Models the `STRTAB_BLOCK` block.
@@ -42,12 +46,11 @@ impl AsRef<[u8]> for Strtab {
 }
 
 impl IrBlock for Strtab {
+    type Error = StrtabError;
+
     const BLOCK_ID: IrBlockId = IrBlockId::Strtab;
 
-    fn try_map_inner(
-        block: &UnrolledBlock,
-        _ctx: &mut PartialMapCtx,
-    ) -> Result<Self, BlockMapError> {
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         // TODO(ww): The docs also claim that there's only one STRTAB_BLOB per STRTAB_BLOCK,
         // but at least one person has reported otherwise here:
         // https://lists.llvm.org/pipermail/llvm-dev/2020-August/144327.html

@@ -3,8 +3,8 @@
 use llvm_constants::{IdentificationCode, IrBlockId};
 use thiserror::Error;
 
-use crate::block::{BlockMapError, IrBlock};
-use crate::map::PartialMapCtx;
+use crate::block::IrBlock;
+use crate::map::{MapError, PartialMapCtx};
 use crate::unroll::UnrolledBlock;
 
 /// Errors that can occur while mapping the identification block.
@@ -21,6 +21,10 @@ pub enum IdentificationError {
     /// The `IDENTIFICATION_CODE_EPOCH` couldn't be found.
     #[error("identification block has no epoch")]
     MissingEpoch,
+
+    /// A generic mapping error occured.
+    #[error("mapping error in string table")]
+    Map(#[from] MapError),
 }
 
 /// Models the `IDENTIFICATION_BLOCK` block.
@@ -34,12 +38,11 @@ pub struct Identification {
 }
 
 impl IrBlock for Identification {
+    type Error = IdentificationError;
+
     const BLOCK_ID: IrBlockId = IrBlockId::Identification;
 
-    fn try_map_inner(
-        block: &UnrolledBlock,
-        _ctx: &mut PartialMapCtx,
-    ) -> Result<Self, BlockMapError> {
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let producer = block
             .records()
             .one(IdentificationCode::ProducerString as u64)

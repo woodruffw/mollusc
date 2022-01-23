@@ -17,7 +17,7 @@ use crate::unroll::UnrolledRecord;
 
 /// Potential errors when parsing an LLVM datalayout string.
 #[derive(Debug, Error)]
-pub enum DataLayoutParseError {
+pub enum DataLayoutError {
     /// The datalayout string can't be extracted from the record.
     #[error("malformed datalayout record: {0}")]
     BadString(#[from] RecordStringError),
@@ -97,17 +97,17 @@ impl Default for DataLayout {
 }
 
 impl FromStr for DataLayout {
-    type Err = DataLayoutParseError;
+    type Err = DataLayoutError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         if !value.is_ascii() {
-            return Err(DataLayoutParseError::BadEncoding);
+            return Err(DataLayoutError::BadEncoding);
         }
 
         let mut datalayout = Self::default();
         for spec in value.split('-') {
             if spec.is_empty() {
-                return Err(DataLayoutParseError::EmptySpec);
+                return Err(DataLayoutError::EmptySpec);
             }
 
             let body = &spec[1..];
@@ -151,7 +151,7 @@ impl FromStr for DataLayout {
                                 abi_alignment: align,
                             },
                             o => {
-                                return Err(DataLayoutParseError::BadSpecParse(format!(
+                                return Err(DataLayoutError::BadSpecParse(format!(
                                     "unknown function pointer alignment specifier: {}",
                                     o
                                 )))
@@ -160,7 +160,7 @@ impl FromStr for DataLayout {
                         datalayout.function_pointer_alignment = Some(align);
                     }
                     None => {
-                        return Err(DataLayoutParseError::BadSpecParse(
+                        return Err(DataLayoutError::BadSpecParse(
                             "function pointer alignment spec is empty".into(),
                         ))
                     }
@@ -172,13 +172,13 @@ impl FromStr for DataLayout {
                     match mangling.next() {
                         Some(':') => {}
                         Some(u) => {
-                            return Err(DataLayoutParseError::BadSpecParse(format!(
+                            return Err(DataLayoutError::BadSpecParse(format!(
                                 "bad separator for mangling spec: {}",
                                 u
                             )))
                         }
                         None => {
-                            return Err(DataLayoutParseError::BadSpecParse(
+                            return Err(DataLayoutError::BadSpecParse(
                                 "mangling spec is empty".into(),
                             ))
                         }
@@ -187,7 +187,7 @@ impl FromStr for DataLayout {
                     // TODO(ww): This could be FromStr on Mangling.
                     let kind = match mangling.next() {
                         None => {
-                            return Err(DataLayoutParseError::BadSpecParse(
+                            return Err(DataLayoutError::BadSpecParse(
                                 "mangling spec has no mangling kind".into(),
                             ))
                         }
@@ -198,7 +198,7 @@ impl FromStr for DataLayout {
                         Some('w') => Mangling::WindowsCoff,
                         Some('a') => Mangling::XCoff,
                         Some(u) => {
-                            return Err(DataLayoutParseError::BadSpecParse(format!(
+                            return Err(DataLayoutError::BadSpecParse(format!(
                                 "unknown mangling kind in spec: {}",
                                 u
                             )))
@@ -215,11 +215,11 @@ impl FromStr for DataLayout {
                                 .split(':')
                                 .map(|s| {
                                     s.parse::<u32>()
-                                        .map_err(DataLayoutParseError::from)
+                                        .map_err(DataLayoutError::from)
                                         .and_then(|a| AddressSpace::try_from(a).map_err(Into::into))
                                         .and_then(|a| {
                                             if a == AddressSpace::default() {
-                                                Err(DataLayoutParseError::BadSpecParse(
+                                                Err(DataLayoutError::BadSpecParse(
                                                     "address space 0 cannot be non-integral".into(),
                                                 ))
                                             } else {
@@ -236,13 +236,13 @@ impl FromStr for DataLayout {
                                 .collect::<Result<_, _>>()?;
                         }
                         None => {
-                            return Err(DataLayoutParseError::BadSpecParse(
+                            return Err(DataLayoutError::BadSpecParse(
                                 "integer width spec is empty".into(),
                             ))
                         }
                     }
                 }
-                u => return Err(DataLayoutParseError::UnknownSpec(u)),
+                u => return Err(DataLayoutError::UnknownSpec(u)),
             }
         }
 
@@ -251,7 +251,7 @@ impl FromStr for DataLayout {
 }
 
 impl PartialCtxMappable<UnrolledRecord> for DataLayout {
-    type Error = DataLayoutParseError;
+    type Error = DataLayoutError;
 
     fn try_map(record: &UnrolledRecord, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let datalayout = record.try_string(0)?;

@@ -3,8 +3,8 @@
 use llvm_constants::{IrBlockId, SymtabCode};
 use thiserror::Error;
 
-use crate::block::{BlockMapError, IrBlock};
-use crate::map::PartialMapCtx;
+use crate::block::IrBlock;
+use crate::map::{MapError, PartialMapCtx};
 use crate::record::RecordBlobError;
 use crate::unroll::UnrolledBlock;
 
@@ -17,7 +17,11 @@ pub enum SymtabError {
 
     /// The blob containing the symbol table is invalid.
     #[error("invalid string table: {0}")]
-    BadBlob(#[from] RecordBlobError),
+    InvalidBlob(#[from] RecordBlobError),
+
+    /// A generic mapping error occured.
+    #[error("mapping error in string table")]
+    Map(#[from] MapError),
 }
 
 /// Models the `SYMTAB_BLOCK` block.
@@ -34,12 +38,11 @@ impl AsRef<[u8]> for Symtab {
 }
 
 impl IrBlock for Symtab {
+    type Error = SymtabError;
+
     const BLOCK_ID: IrBlockId = IrBlockId::Symtab;
 
-    fn try_map_inner(
-        block: &UnrolledBlock,
-        _ctx: &mut PartialMapCtx,
-    ) -> Result<Self, BlockMapError> {
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let symtab = block
             .records()
             .one(SymtabCode::Blob as u64)
