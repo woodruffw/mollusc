@@ -118,7 +118,7 @@ impl From<(u64, u64)> for StrtabRef {
 
 /// Valid visibility styles.
 ///
-/// See: https://llvm.org/docs/LangRef.html#visibility-styles
+/// See: <https://llvm.org/docs/LangRef.html#visibility-styles>
 #[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum Visibility {

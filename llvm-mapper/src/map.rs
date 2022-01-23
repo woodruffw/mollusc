@@ -103,10 +103,6 @@ impl PartialMapCtx {
 /// A handle for various bits of state that are necessary for correct block
 /// and record mapping in the context of a particular IR module.
 ///
-/// Internally, this is a mushy state object that may or may not contain
-/// sufficient information for parsing a particular block or record; hence
-/// the fallible access methods.
-///
 /// Block and record mapping operations are expected to update the supplied context,
 /// as appropriate.
 #[non_exhaustive]
