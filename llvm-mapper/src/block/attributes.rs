@@ -460,7 +460,7 @@ impl IrBlock for Attributes {
                 }
                 AttributeCode::GroupCodeEntry => {
                     // This is a valid attribute code, but it isn't valid in this block.
-                    return Err(AttributeError::WrongBlock(code).into());
+                    return Err(AttributeError::WrongBlock(code));
                 }
             }
         }
@@ -522,13 +522,13 @@ impl IrBlock for AttributeGroups {
             let code = AttributeCode::try_from(record.code()).map_err(AttributeError::from)?;
 
             if code != AttributeCode::GroupCodeEntry {
-                return Err(AttributeError::WrongBlock(code).into());
+                return Err(AttributeError::WrongBlock(code));
             }
 
             // Structure: [grpid, paramidx, <attr0>, <attr1>, ...]
             // Every group record must have at least one attribute.
             if record.fields().len() < 3 {
-                return Err(AttributeError::GroupTooShort(code, record.fields().len()).into());
+                return Err(AttributeError::GroupTooShort(code, record.fields().len()));
             }
 
             // Panic safety: We check for at least three fields above.
@@ -548,9 +548,10 @@ impl IrBlock for AttributeGroups {
 
             // Sanity check: we should have consumed every single record.
             if fieldidx != record.fields().len() {
-                return Err(
-                    AttributeError::GroupSizeMismatch(fieldidx, record.fields().len()).into(),
-                );
+                return Err(AttributeError::GroupSizeMismatch(
+                    fieldidx,
+                    record.fields().len(),
+                ));
             }
 
             groups.insert(

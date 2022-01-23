@@ -499,6 +499,6 @@ impl IrBlock for TypeTable {
             }
         }
 
-        Ok(partial_types.reify()?)
+        partial_types.reify()
     }
 }
