@@ -20,7 +20,7 @@ pub use self::symtab::*;
 pub use self::type_table::*;
 use crate::map::{MapCtxError, PartialCtxMappable, PartialMapCtx};
 use crate::record::RecordMapError;
-use crate::unroll::UnrolledBlock;
+use crate::unroll::{ConsistencyError, UnrolledBlock};
 
 /// Potential errors when mapping a single bitstream block.
 #[non_exhaustive]
@@ -37,14 +37,6 @@ pub enum BlockMapError {
     /// We couldn't map a block, for any number of reasons.
     #[error("error while mapping block: {0}")]
     BadBlockMap(String),
-
-    /// We expected exactly one record with this code in this block.
-    #[error("expected exactly one record of code {0} in block {1:?}")]
-    BlockRecordMismatch(u64, BlockId),
-
-    /// We expected exactly one sub-block with this ID in this block.
-    #[error("expected exactly one block of ID {0:?} in block {1:?}")]
-    BlockBlockMismatch(BlockId, BlockId),
 
     /// We couldn't map the identification block.
     #[error("error while mapping identification block")]
@@ -73,6 +65,10 @@ pub enum BlockMapError {
     /// We encountered an unsupported feature or layout.
     #[error("unsupported: {0}")]
     Unsupported(String),
+
+    /// The module has an invalid block or record state.
+    #[error("invalid block or record in module")]
+    Invalid(#[from] ConsistencyError),
 }
 
 /// A holistic model of all possible block IDs, spanning reserved, IR, and unknown IDs.

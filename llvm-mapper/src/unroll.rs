@@ -8,8 +8,9 @@ use llvm_bitstream::parser::StreamEntry;
 use llvm_bitstream::record::{Block, Record};
 use llvm_bitstream::Bitstream;
 use llvm_constants::IrBlockId;
+use thiserror::Error;
 
-use crate::block::{BlockId, BlockMapError, Identification, Module, Strtab, Symtab};
+use crate::block::{BlockId, Identification, Module, Strtab, Symtab};
 use crate::error::Error;
 use crate::map::{PartialCtxMappable, PartialMapCtx};
 use crate::record::{RecordBlobError, RecordStringError};
@@ -70,12 +71,25 @@ impl UnrolledRecord {
     }
 }
 
-/// Represents the "result" of searching for a particular record with
-/// [`UnrolledRecords::one`](UnrolledRecords::one).
-pub(crate) enum ByCode<'a> {
-    None,
-    One(&'a UnrolledRecord),
-    TooMany,
+/// Errors that can occur when attempting to search for blocks and records within
+/// an unrolled bitstream.
+#[derive(Debug, Error)]
+pub enum ConsistencyError {
+    /// We expected a (sub-)block of the given ID, but couldn't find one.
+    #[error("expected a block with {0:?} but not present")]
+    MissingBlock(BlockId),
+
+    /// We expected exactly one (sub-)block of the given ID, but found more than one.
+    #[error("expected exactly one block with {0:?} but got more than one")]
+    TooManyBlocks(BlockId),
+
+    /// We expected a record of the given code, but couldn't find one.
+    #[error("expected a record of code {0} but not present")]
+    MissingRecord(u64),
+
+    /// We expected exactly one record of the given code, but found more than one.
+    #[error("expected exactly one record of code {0} but got more than one")]
+    TooManyRecords(u64),
 }
 
 /// Represents a collection of unrolled records.
@@ -99,20 +113,42 @@ impl UnrolledRecords {
     /// no matches.
     ///
     /// Ignores any subsequent matches.
-    pub(crate) fn one(&self, code: u64) -> Option<&UnrolledRecord> {
+    pub(crate) fn one<'a>(&'a self, code: impl Into<u64> + 'a) -> Option<&UnrolledRecord> {
         self.by_code(code).next()
     }
 
     /// Returns exactly one record matching the given code, or a variant indicating
     /// the error condition (no matching records, or too many records).
-    pub(crate) fn exactly_one(&self, code: u64) -> ByCode {
+    pub(crate) fn exactly_one<'a>(
+        &'a self,
+        code: impl Into<u64> + 'a,
+    ) -> Result<&UnrolledRecord, ConsistencyError> {
+        let code = code.into();
         let mut records = self.by_code(code);
 
         match records.next() {
-            None => ByCode::None,
+            None => Err(ConsistencyError::MissingRecord(code)),
             Some(r) => match records.next() {
-                None => ByCode::One(r),
-                Some(_) => ByCode::TooMany,
+                None => Ok(r),
+                Some(_) => Err(ConsistencyError::TooManyRecords(code)),
+            },
+        }
+    }
+
+    /// Return an option of one record matching the given code or `None`, or an
+    /// `Err` variant if more than one matching record is present.
+    pub(crate) fn one_or_none<'a>(
+        &'a self,
+        code: impl Into<u64> + 'a,
+    ) -> Result<Option<&UnrolledRecord>, ConsistencyError> {
+        let code = code.into();
+        let mut records = self.by_code(code);
+
+        match records.next() {
+            None => Ok(None),
+            Some(r) => match records.next() {
+                None => Ok(Some(r)),
+                Some(_) => Err(ConsistencyError::TooManyRecords(code)),
             },
         }
     }
@@ -137,6 +173,35 @@ impl UnrolledBlocks {
     /// The returned iterator is empty if the block doesn't have any matching sub-blocks.
     pub(crate) fn by_id(&self, id: BlockId) -> impl Iterator<Item = &UnrolledBlock> + '_ {
         self.0.get(&id).into_iter().flatten()
+    }
+
+    pub(crate) fn exactly_one(&self, id: BlockId) -> Result<&UnrolledBlock, ConsistencyError> {
+        let mut blocks = self.by_id(id);
+
+        match blocks.next() {
+            None => Err(ConsistencyError::MissingBlock(id)),
+            Some(b) => match blocks.next() {
+                None => Ok(b),
+                Some(_) => Err(ConsistencyError::TooManyBlocks(id)),
+            },
+        }
+    }
+
+    /// Return an option of one block matching the given code or `None`, or an
+    /// `Err` variant if more than one matching block is present.
+    pub(crate) fn one_or_none(
+        &self,
+        id: BlockId,
+    ) -> Result<Option<&UnrolledBlock>, ConsistencyError> {
+        let mut blocks = self.by_id(id);
+
+        match blocks.next() {
+            None => Ok(None),
+            Some(b) => match blocks.next() {
+                None => Ok(Some(b)),
+                Some(_) => Err(ConsistencyError::TooManyBlocks(id)),
+            },
+        }
     }
 }
 
@@ -176,30 +241,6 @@ impl UnrolledBlock {
     /// Return a reference to all of the sub-blocks of this block.
     pub fn blocks(&self) -> &UnrolledBlocks {
         &self.blocks
-    }
-
-    /// Get zero or one sub-blocks from this block by the given block ID.
-    ///
-    /// Returns an error if the block has more than one matching sub-block.
-    pub fn maybe_one_block(&self, id: BlockId) -> Result<Option<&UnrolledBlock>, BlockMapError> {
-        let blocks = self.blocks().by_id(id).collect::<Vec<_>>();
-
-        match blocks.len() {
-            0 => Ok(None),
-            1 => Ok(Some(blocks[0])),
-            _ => Err(BlockMapError::BlockBlockMismatch(id, self.id)),
-        }
-    }
-
-    /// Get a single sub-block from this block by its block ID.
-    ///
-    /// Returns an error if the block either lacks an appropriate block or has more than one.
-    pub fn one_block(&self, id: BlockId) -> Result<&UnrolledBlock, BlockMapError> {
-        if let Some(block) = self.maybe_one_block(id)? {
-            Ok(block)
-        } else {
-            Err(BlockMapError::BlockBlockMismatch(id, self.id))
-        }
     }
 }
 
