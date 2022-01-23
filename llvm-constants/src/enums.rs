@@ -179,7 +179,7 @@ pub enum IdentificationCode {
 
 /// Codes for each record in `MODULE_BLOCK`.
 #[non_exhaustive]
-#[derive(Copy, Clone, Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum ModuleCode {
     /// MODULE_CODE_VERSION: `[version#]`
