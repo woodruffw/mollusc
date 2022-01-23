@@ -6,19 +6,33 @@ use llvm_constants::{IrBlockId, StrtabCode};
 use llvm_support::StrtabRef;
 use thiserror::Error;
 
-use crate::block::{BlockMapError, IrBlock};
-use crate::map::MapCtx;
+use crate::block::IrBlock;
+use crate::map::{MapError, PartialMapCtx};
+use crate::record::RecordBlobError;
 use crate::unroll::{UnrolledBlock, UnrolledRecord};
 
 /// Errors that can occur when accessing a string table.
 #[derive(Debug, Error)]
 pub enum StrtabError {
+    /// The string table is missing its blob.
+    #[error("malformed string table: missing blob")]
+    MissingBlob,
+
+    /// The blob containing the string table is invalid.
+    #[error("invalid string table: {0}")]
+    BadBlob(#[from] RecordBlobError),
+
     /// The requested range is invalid.
     #[error("requested range in string table is invalid")]
     BadRange,
+
     /// The requested string is not UTF-8.
     #[error("could not decode range into a UTF-8 string: {0}")]
     BadString(#[from] Utf8Error),
+
+    /// A generic mapping error occured.
+    #[error("mapping error in string table")]
+    Map(#[from] MapError),
 }
 
 /// Models the `STRTAB_BLOCK` block.
@@ -32,18 +46,20 @@ impl AsRef<[u8]> for Strtab {
 }
 
 impl IrBlock for Strtab {
+    type Error = StrtabError;
+
     const BLOCK_ID: IrBlockId = IrBlockId::Strtab;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         // TODO(ww): The docs also claim that there's only one STRTAB_BLOB per STRTAB_BLOCK,
         // but at least one person has reported otherwise here:
         // https://lists.llvm.org/pipermail/llvm-dev/2020-August/144327.html
         // Needs investigation.
-        let strtab = {
-            let strtab = block.one_record(StrtabCode::Blob as u64)?;
-
-            strtab.try_blob(0)?
-        };
+        let strtab = block
+            .records()
+            .one(StrtabCode::Blob as u64)
+            .ok_or(StrtabError::MissingBlob)
+            .and_then(|r| r.try_blob(0).map_err(StrtabError::from))?;
 
         Ok(Self(strtab))
     }

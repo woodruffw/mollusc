@@ -12,14 +12,14 @@ use crate::block::BlockMapError;
 #[derive(Debug, ThisError)]
 pub enum Error {
     /// We encountered an error while performing the underlying bitstream parse.
-    #[error("error while parsing the bitstream: {0}")]
+    #[error("error while parsing the bitstream")]
     Parse(#[from] BitstreamError),
 
     /// We couldn't unroll the stream because of a structural error.
     #[error("error while unrolling the bitstream: {0}")]
-    BadUnroll(String),
+    Unroll(String),
 
-    /// We couldn't map a block, for some internal reason.
-    #[error("error while mapping block: {0}")]
-    BadBlock(#[from] BlockMapError),
+    /// We couldn't perform the bitstream map.
+    #[error("error while mapping the bitsteam")]
+    Map(#[from] BlockMapError),
 }

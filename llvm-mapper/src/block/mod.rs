@@ -18,45 +18,28 @@ pub use self::module::*;
 pub use self::strtab::*;
 pub use self::symtab::*;
 pub use self::type_table::*;
-use crate::map::{MapCtx, MapCtxError, Mappable};
-use crate::record::RecordMapError;
+use crate::map::{MapError, PartialCtxMappable, PartialMapCtx};
 use crate::unroll::UnrolledBlock;
 
 /// Potential errors when mapping a single bitstream block.
 #[non_exhaustive]
 #[derive(Debug, Error)]
 pub enum BlockMapError {
-    /// Parsing a record failed, for some internal reason.
-    #[error("error while mapping record")]
-    BadRecord(#[from] RecordMapError),
+    /// We couldn't map the identification block.
+    #[error("error while mapping identification block")]
+    Identification(#[from] IdentificationError),
 
-    /// Our mapping context was invalid for our operation.
-    #[error("invalid mapping context")]
-    BadContext(#[from] MapCtxError),
+    /// We couldn't map the module block.
+    #[error("error while mapping module")]
+    Module(#[from] ModuleError),
 
-    /// We couldn't map a block, for any number of reasons.
-    #[error("error while mapping block: {0}")]
-    BadBlockMap(String),
+    /// We couldn't map the string table.
+    #[error("error while mapping string table")]
+    Strtab(#[from] StrtabError),
 
-    /// We expected exactly one record with this code in this block.
-    #[error("expected exactly one record of code {0} in block {1:?}")]
-    BlockRecordMismatch(u64, BlockId),
-
-    /// We expected exactly one sub-block with this ID in this block.
-    #[error("expected exactly one block of ID {0:?} in block {1:?}")]
-    BlockBlockMismatch(BlockId, BlockId),
-
-    /// We couldn't map the type table.
-    #[error("error while mapping type table")]
-    BadTypeTable(#[from] TypeTableError),
-
-    /// We couldn't map one of the attribute blocks.
-    #[error("error while mapping attributes")]
-    BadAttributes(#[from] AttributeError),
-
-    /// We encountered an unsupported feature or layout.
-    #[error("unsupported: {0}")]
-    Unsupported(String),
+    /// We couldn't map the symbol table.
+    #[error("error while mapping symbol table")]
+    Symtab(#[from] SymtabError),
 }
 
 /// A holistic model of all possible block IDs, spanning reserved, IR, and unknown IDs.
@@ -84,25 +67,31 @@ impl From<u64> for BlockId {
 /// A trait implemented by all blocks that correspond to IR models, allowing them
 /// to be mapped into their corresponding model.
 pub(crate) trait IrBlock: Sized {
+    type Error;
+
     /// The `IrBlockId` that corresponds to this IR model.
     const BLOCK_ID: IrBlockId;
 
     /// Attempt to map the given block to the implementing type, returning an error if mapping fails.
     ///
     /// This is an interior trait that shouldn't be used directly.
-    fn try_map_inner(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, BlockMapError>;
+    fn try_map_inner(block: &UnrolledBlock, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error>;
 }
 
-impl<T: IrBlock> Mappable<UnrolledBlock> for T {
-    type Error = BlockMapError;
+impl<T: IrBlock> PartialCtxMappable<UnrolledBlock> for T
+where
+    T::Error: From<MapError>,
+{
+    type Error = T::Error;
 
-    fn try_map(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, Self::Error> {
+    fn try_map(block: &UnrolledBlock, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         if block.id != BlockId::Ir(T::BLOCK_ID) {
-            return Err(BlockMapError::BadBlockMap(format!(
+            return Err(MapError::BadBlockMap(format!(
                 "can't map {:?} into {:?}",
                 block.id,
                 Identification::BLOCK_ID
-            )));
+            ))
+            .into());
         }
 
         IrBlock::try_map_inner(block, ctx)

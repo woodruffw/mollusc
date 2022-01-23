@@ -1,11 +1,31 @@
 //! Functionality for mapping the `IDENTIFICATION_BLOCK` block.
 
 use llvm_constants::{IdentificationCode, IrBlockId};
+use thiserror::Error;
 
-use crate::block::{BlockMapError, IrBlock};
-use crate::map::MapCtx;
-use crate::record::RecordMapError;
+use crate::block::IrBlock;
+use crate::map::{MapError, PartialMapCtx};
 use crate::unroll::UnrolledBlock;
+
+/// Errors that can occur while mapping the identification block.
+#[derive(Debug, Error)]
+pub enum IdentificationError {
+    /// The `IDENTIFICATION_CODE_PRODUCER` couldn't be found.
+    #[error("identification block has no producer")]
+    MissingProducer,
+
+    /// The producer string is malformed.
+    #[error("malformed producer string")]
+    BadProducer,
+
+    /// The `IDENTIFICATION_CODE_EPOCH` couldn't be found.
+    #[error("identification block has no epoch")]
+    MissingEpoch,
+
+    /// A generic mapping error occured.
+    #[error("mapping error in string table")]
+    Map(#[from] MapError),
+}
 
 /// Models the `IDENTIFICATION_BLOCK` block.
 #[non_exhaustive]
@@ -18,20 +38,25 @@ pub struct Identification {
 }
 
 impl IrBlock for Identification {
+    type Error = IdentificationError;
+
     const BLOCK_ID: IrBlockId = IrBlockId::Identification;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
-        let producer = {
-            let producer = block.one_record(IdentificationCode::ProducerString as u64)?;
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+        let producer = block
+            .records()
+            .one(IdentificationCode::ProducerString as u64)
+            .ok_or(IdentificationError::MissingProducer)
+            .and_then(|r| {
+                r.try_string(0)
+                    .map_err(|_| IdentificationError::BadProducer)
+            })?;
 
-            producer.try_string(0).map_err(RecordMapError::from)?
-        };
-
-        let epoch = {
-            let epoch = block.one_record(IdentificationCode::Epoch as u64)?;
-
-            epoch.get_field(0)?
-        };
+        let epoch = *block
+            .records()
+            .one(IdentificationCode::Epoch as u64)
+            .ok_or(IdentificationError::MissingEpoch)
+            .and_then(|r| r.fields().get(0).ok_or(IdentificationError::MissingEpoch))?;
 
         Ok(Self { producer, epoch })
     }

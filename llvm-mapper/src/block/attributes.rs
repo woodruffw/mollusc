@@ -8,9 +8,8 @@ use llvm_support::{Align, AttributeId, AttributeKind};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 use thiserror::Error;
 
-use crate::block::{BlockMapError, IrBlock};
-use crate::map::MapCtx;
-use crate::record::RecordMapError;
+use crate::block::IrBlock;
+use crate::map::{MapError, PartialMapCtx};
 use crate::unroll::{UnrolledBlock, UnrolledRecord};
 
 /// Errors that can occur when mapping attribute blocks.
@@ -19,30 +18,50 @@ pub enum AttributeError {
     /// An unknown record code was seen.
     #[error("unknown attribute code")]
     UnknownAttributeCode(#[from] TryFromPrimitiveError<AttributeCode>),
+
     /// An unknown attribute kind (format) was seen.
     #[error("unknown attribute kind")]
     UnknownAttributeKind(#[from] TryFromPrimitiveError<AttributeKind>),
+
     /// The given code was seen in an unexpected block.
     #[error("wrong block for code: {0:?}")]
     WrongBlock(AttributeCode),
+
     /// The attribute couldn't be constructed because of missing fields.
     #[error("attribute structure too short")]
     TooShort,
+
     /// The attribute has an invalid string key or string balue.
     #[error("bad attribute string")]
     BadString,
+
     /// The attribute has an unknown (integral) ID.
     #[error("unknown attribute ID")]
     UnknownAttributeId(#[from] TryFromPrimitiveError<AttributeId>),
+
     /// The attribute's ID doesn't match the format supplied.
     #[error("malformed attribute (format doesn't match ID): {0}: {1:?}")]
     AttributeMalformed(&'static str, AttributeId),
+
     /// We recognize the attribute's ID as an integer attribute, but we don't support it yet.
     #[error("FIXME: unsupported integer attribute: {0:?}")]
     IntAttributeUnsupported(AttributeId),
+
     /// An entry record asked for a nonexistent attribute group.
     #[error("nonexistent attribute group: {0}")]
     BadAttributeGroup(u32),
+
+    /// An attribute group record was too short.
+    #[error("attribute group record for {0:?} too short ({1} < 3)")]
+    GroupTooShort(AttributeCode, usize),
+
+    /// Parsing an attribute group didn't fully consume the underlying record fields.
+    #[error("under/overconsumed fields in attribute group record ({0} fields, {1} consumed)")]
+    GroupSizeMismatch(usize, usize),
+
+    /// A generic mapping error occured.
+    #[error("mapping error in string table")]
+    Map(#[from] MapError),
 }
 
 /// Represents the "enum" attributes, i.e. those with a single integer identifier.
@@ -403,23 +422,35 @@ pub struct AttributeEntry(Vec<AttributeGroup>);
 #[derive(Debug)]
 pub struct Attributes(Vec<AttributeEntry>);
 
+impl Attributes {
+    pub(crate) fn get(&self, id: u64) -> Option<&AttributeEntry> {
+        self.0.get(id as usize)
+    }
+}
+
 impl IrBlock for Attributes {
+    type Error = AttributeError;
+
     const BLOCK_ID: IrBlockId = IrBlockId::ParamAttr;
 
-    fn try_map_inner(block: &UnrolledBlock, ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
+    fn try_map_inner(block: &UnrolledBlock, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let mut entries = vec![];
 
-        for record in block.all_records() {
+        for record in block.records() {
             let code = AttributeCode::try_from(record.code()).map_err(AttributeError::from)?;
 
             match code {
+                AttributeCode::EntryOld => {
+                    unimplemented!();
+                }
                 AttributeCode::Entry => {
                     let mut groups = vec![];
                     for group_id in record.fields() {
                         let group_id = *group_id as u32;
                         log::debug!("group id: {}", group_id);
                         groups.push(
-                            ctx.attribute_groups()?
+                            ctx.attribute_groups()
+                                .map_err(MapError::Context)?
                                 .get(group_id)
                                 .ok_or(AttributeError::BadAttributeGroup(group_id))?
                                 .clone(),
@@ -429,13 +460,7 @@ impl IrBlock for Attributes {
                 }
                 AttributeCode::GroupCodeEntry => {
                     // This is a valid attribute code, but it isn't valid in this block.
-                    return Err(AttributeError::WrongBlock(code).into());
-                }
-                _ => {
-                    return Err(BlockMapError::Unsupported(format!(
-                        "unsupported attribute block code: {:?}",
-                        code,
-                    )))
+                    return Err(AttributeError::WrongBlock(code));
                 }
             }
         }
@@ -480,33 +505,30 @@ pub struct AttributeGroup {
 pub struct AttributeGroups(HashMap<u32, AttributeGroup>);
 
 impl AttributeGroups {
-    fn get(&self, group_id: u32) -> Option<&AttributeGroup> {
+    pub(crate) fn get(&self, group_id: u32) -> Option<&AttributeGroup> {
         self.0.get(&group_id)
     }
 }
 
 impl IrBlock for AttributeGroups {
+    type Error = AttributeError;
+
     const BLOCK_ID: IrBlockId = IrBlockId::ParamAttrGroup;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let mut groups = HashMap::new();
 
-        for record in block.all_records() {
+        for record in block.records() {
             let code = AttributeCode::try_from(record.code()).map_err(AttributeError::from)?;
 
             if code != AttributeCode::GroupCodeEntry {
-                return Err(AttributeError::WrongBlock(code).into());
+                return Err(AttributeError::WrongBlock(code));
             }
 
             // Structure: [grpid, paramidx, <attr0>, <attr1>, ...]
             // Every group record must have at least one attribute.
             if record.fields().len() < 3 {
-                return Err(RecordMapError::BadRecordLayout(format!(
-                    "too few fields in {:?}, expected {} >= 3",
-                    code,
-                    record.fields().len()
-                ))
-                .into());
+                return Err(AttributeError::GroupTooShort(code, record.fields().len()));
             }
 
             // Panic safety: We check for at least three fields above.
@@ -526,12 +548,10 @@ impl IrBlock for AttributeGroups {
 
             // Sanity check: we should have consumed every single record.
             if fieldidx != record.fields().len() {
-                return Err(RecordMapError::BadRecordLayout(format!(
-                    "under/overconsumed fields in attribute group record ({} fields, {} consumed)",
+                return Err(AttributeError::GroupSizeMismatch(
                     fieldidx,
                     record.fields().len(),
-                ))
-                .into());
+                ));
             }
 
             groups.insert(

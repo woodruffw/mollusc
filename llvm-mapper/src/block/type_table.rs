@@ -10,9 +10,8 @@ use llvm_support::{
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
-use crate::block::{BlockMapError, IrBlock};
-use crate::map::MapCtx;
-use crate::record::RecordMapError;
+use crate::block::IrBlock;
+use crate::map::{MapError, PartialMapCtx};
 use crate::unroll::UnrolledBlock;
 
 /// Errors that can occur when mapping the type table.
@@ -21,30 +20,46 @@ pub enum TypeTableError {
     /// The size of the type table is invalid.
     #[error("invalid type table size (expected {0} elements, got {1})")]
     BadSize(usize, usize),
+
     /// An invalid type index was requested.
     #[error("invalid type table index: {0}")]
     BadIndex(usize),
+
     /// An unknown record code was seen.
     #[error("unknown type code")]
     UnknownTypeCode(#[from] TryFromPrimitiveError<TypeCode>),
+
+    /// The layout of the table itself (i.e., the record structures) is invalid.
+    #[error("invalid type table structure (broken records)")]
+    BadTable,
+
     /// An invalid integer type was seen.
     #[error("invalid integer type")]
     InvalidIntegerType(#[from] IntegerTypeError),
+
     /// An invalid pointer type was seen.
     #[error("invalid pointer type")]
     InvalidPointerType(#[from] PointerTypeError),
+
     /// An invalid array type was seen.
     #[error("invalid array type")]
     InvalidArrayType(#[from] ArrayTypeError),
+
     /// An invalid vector type was seen.
     #[error("invalid vector type")]
     InvalidVectorType(#[from] VectorTypeError),
+
     /// An invalid structure type was seen.
     #[error("invalid structure type")]
     InvalidStructType(#[from] StructTypeError),
+
     /// An invalid function type was seen.
     #[error("invalid function type")]
     InvalidFunctionType(#[from] FunctionTypeError),
+
+    /// A generic mapping error occured.
+    #[error("mapping error in string table")]
+    Map(#[from] MapError),
 }
 
 /// A symbolic type reference, which is really just an index into some
@@ -263,15 +278,18 @@ impl TypeTable {
 }
 
 impl IrBlock for TypeTable {
+    type Error = TypeTableError;
+
     const BLOCK_ID: IrBlockId = IrBlockId::Type;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut MapCtx) -> Result<Self, BlockMapError> {
+    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         // Figure out how many type entries we have, and reserve the space for them up-front.
-        let numentries = {
-            let numentries = block.one_record(TypeCode::NumEntry as u64)?;
-
-            numentries.get_field(0)? as usize
-        };
+        let numentries = *block
+            .records()
+            .one(TypeCode::NumEntry)
+            .ok_or(TypeTableError::BadTable)
+            .and_then(|r| r.fields().get(0).ok_or(TypeTableError::BadTable))?
+            as usize;
 
         // To map the type table, we perform two passes:
         // 1. We iterate over all type records, building an initial table of "partial"
@@ -282,7 +300,18 @@ impl IrBlock for TypeTable {
         //    fully owned and expanded `Type`s.
         let mut partial_types = PartialTypeTable::new(numentries);
         let mut last_type_name = String::new();
-        for record in block.all_records() {
+        for record in block.records() {
+            // A convenience macro for turning a type record field access into an error on failure.
+            macro_rules! type_field {
+                ($n:literal) => {
+                    record
+                        .fields()
+                        .get($n)
+                        .copied()
+                        .ok_or(TypeTableError::BadTable)?
+                };
+            }
+
             let code = TypeCode::try_from(record.code()).map_err(TypeTableError::from)?;
 
             match code {
@@ -301,9 +330,10 @@ impl IrBlock for TypeTable {
                     // Not sure what's up with that.
 
                     if last_type_name.is_empty() {
-                        return Err(BlockMapError::BadBlockMap(
+                        return Err(MapError::Invalid(
                             "opaque type but no preceding type name".into(),
-                        ));
+                        )
+                        .into());
                     }
 
                     // Our opaque type might be forward-referenced. If so, we
@@ -311,9 +341,10 @@ impl IrBlock for TypeTable {
                     // a new structure type with no body.
                     if let Some(PartialType::Struct(s)) = partial_types.last_mut() {
                         if s.name.is_some() {
-                            return Err(BlockMapError::BadBlockMap(
+                            return Err(MapError::Invalid(
                                 "forward-declared opaque type already has name".into(),
-                            ));
+                            )
+                            .into());
                         }
 
                         s.name = Some(last_type_name.clone());
@@ -328,19 +359,15 @@ impl IrBlock for TypeTable {
                     last_type_name.clear();
                 }
                 TypeCode::Integer => {
-                    let bit_width = record.get_field(0)? as u32;
+                    let bit_width = type_field!(0) as u32;
                     partial_types.add(PartialType::Integer(PartialIntegerType { bit_width }));
                 }
                 TypeCode::Pointer => {
-                    let pointee = TypeRef(record.get_field(0)? as usize);
+                    let pointee = TypeRef(type_field!(0) as usize);
 
-                    let address_space =
-                        AddressSpace::try_from(record.get_field(1)?).map_err(|e| {
-                            BlockMapError::BadBlockMap(format!(
-                                "bad address space for pointer type: {:?}",
-                                e
-                            ))
-                        })?;
+                    let address_space = AddressSpace::try_from(type_field!(1)).map_err(|e| {
+                        MapError::Invalid(format!("bad address space for pointer type: {:?}", e))
+                    })?;
 
                     partial_types.add(PartialType::Pointer(PartialPointerType {
                         pointee,
@@ -349,14 +376,15 @@ impl IrBlock for TypeTable {
                 }
                 TypeCode::FunctionOld => {
                     // TODO(ww): These only show up in older bitcode, so don't bother with them for now.
-                    return Err(BlockMapError::Unsupported(
+                    return Err(MapError::Unsupported(
                         "unsupported: old function type codes; please implement!".into(),
-                    ));
+                    )
+                    .into());
                 }
                 TypeCode::Array => {
-                    let num_elements = record.get_field(0)?;
+                    let num_elements = type_field!(0);
 
-                    let element_type = TypeRef(record.get_field(1)? as usize);
+                    let element_type = TypeRef(type_field!(1) as usize);
 
                     partial_types.add(PartialType::Array(PartialArrayType {
                         num_elements,
@@ -364,13 +392,13 @@ impl IrBlock for TypeTable {
                     }));
                 }
                 TypeCode::Vector => {
-                    let num_elements = record.get_field(0)?;
+                    let num_elements = type_field!(0);
 
-                    let element_type = TypeRef(record.get_field(1)? as usize);
+                    let element_type = TypeRef(type_field!(1) as usize);
 
                     // A vector type is either fixed or scalable, depending on the
                     // third field (which can also be absent, indicating fixed).
-                    let scalable = record.get_field(2).map_or_else(|_| false, |f| f > 0);
+                    let scalable = record.fields().get(2).map_or_else(|| false, |f| *f > 0);
                     let new_type = match scalable {
                         true => PartialType::ScalableVector(PartialVectorType {
                             num_elements,
@@ -390,7 +418,7 @@ impl IrBlock for TypeTable {
                 TypeCode::Metadata => partial_types.add(PartialType::Metadata),
                 TypeCode::X86Mmx => partial_types.add(PartialType::X86Mmx),
                 TypeCode::StructAnon => {
-                    let is_packed = record.get_field(0).map(|f| f > 0)?;
+                    let is_packed = type_field!(0) > 0;
 
                     let field_types = record.fields()[1..]
                         .iter()
@@ -406,14 +434,14 @@ impl IrBlock for TypeTable {
                 TypeCode::StructName => {
                     // A `TYPE_CODE_STRUCT_NAME` is not a type in its own right; it merely
                     // supplies the name for a future type record.
-                    last_type_name.push_str(&record.try_string(0).map_err(RecordMapError::from)?);
+                    last_type_name.push_str(&record.try_string(0).map_err(MapError::RecordString)?);
                     continue;
                 }
                 TypeCode::StructNamed => {
                     // TODO(ww): Should probably be deduped with StructAnon above,
                     // since they're 90% identical.
 
-                    let is_packed = record.get_field(0).map(|f| f > 0)?;
+                    let is_packed = type_field!(0) > 0;
 
                     let field_types = record.fields()[1..]
                         .iter()
@@ -425,10 +453,11 @@ impl IrBlock for TypeTable {
                     // correct name and fields.
                     if let Some(PartialType::Struct(s)) = partial_types.last_mut() {
                         if s.name.is_some() || !s.field_types.is_empty() {
-                            return Err(BlockMapError::BadBlockMap(
+                            return Err(MapError::Invalid(
                                 "forward-declared struct type already has name and/or type fields"
                                     .into(),
-                            ));
+                            )
+                            .into());
                         }
 
                         s.name = Some(last_type_name.clone());
@@ -444,8 +473,8 @@ impl IrBlock for TypeTable {
                     last_type_name.clear();
                 }
                 TypeCode::Function => {
-                    let is_vararg = record.get_field(0).map(|f| f > 0)?;
-                    let return_type = TypeRef(record.get_field(1)? as usize);
+                    let is_vararg = type_field!(0) > 0;
+                    let return_type = TypeRef(type_field!(1) as usize);
 
                     let param_types = record.fields()[2..]
                         .iter()
@@ -461,25 +490,15 @@ impl IrBlock for TypeTable {
                 TypeCode::Token => partial_types.add(PartialType::Token),
                 TypeCode::X86Amx => partial_types.add(PartialType::X86Amx),
                 TypeCode::OpaquePointer => {
-                    let address_space =
-                        AddressSpace::try_from(record.get_field(0)?).map_err(|e| {
-                            BlockMapError::BadBlockMap(format!(
-                                "bad address space in type: {:?}",
-                                e
-                            ))
-                        })?;
+                    let address_space = AddressSpace::try_from(type_field!(0)).map_err(|e| {
+                        MapError::Invalid(format!("bad address space in type: {:?}", e))
+                    })?;
 
                     partial_types.add(PartialType::OpaquePointer(address_space))
-                }
-                o => {
-                    return Err(BlockMapError::Unsupported(format!(
-                        "unsupported type code: {:?}",
-                        o
-                    )))
                 }
             }
         }
 
-        Ok(partial_types.reify()?)
+        partial_types.reify()
     }
 }

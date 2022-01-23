@@ -8,11 +8,12 @@ use llvm_bitstream::parser::StreamEntry;
 use llvm_bitstream::record::{Block, Record};
 use llvm_bitstream::Bitstream;
 use llvm_constants::IrBlockId;
+use thiserror::Error;
 
 use crate::block::{BlockId, BlockMapError, Identification, Module, Strtab, Symtab};
 use crate::error::Error;
-use crate::map::{MapCtx, Mappable};
-use crate::record::{RecordMapError, RecordStringError};
+use crate::map::{PartialCtxMappable, PartialMapCtx};
+use crate::record::{RecordBlobError, RecordStringError};
 
 /// An "unrolled" record. This is internally indistinguishable from a raw bitstream
 /// [`Record`](llvm_bitstream::record::Record), but is newtyped to enforce proper
@@ -50,34 +51,157 @@ impl UnrolledRecord {
     /// Attempt to pull a blob of bytes from this record's fields.
     ///
     /// Blobs are always the last fields in a record, so only the start index is required.
-    pub fn try_blob(&self, idx: usize) -> Result<Vec<u8>, RecordMapError> {
+    pub fn try_blob(&self, idx: usize) -> Result<Vec<u8>, RecordBlobError> {
         // If our start index lies beyond the record fields or would produce
         // an empty string, it's invalid.
         if idx >= self.0.fields.len() - 1 {
-            return Err(RecordMapError::BadField(format!(
-                "impossible blob index: {} exceeds record fields",
-                idx
-            )));
+            return Err(RecordBlobError::BadIndex(idx, self.0.fields.len()));
         }
 
         // Each individual field in our blob must fit into a byte.
-        self.0.fields[idx..]
+        Ok(self.0.fields[idx..]
             .iter()
             .map(|f| u8::try_from(*f))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| RecordMapError::BadField("impossible byte value in blob".into()))
+            .collect::<Result<Vec<_>, _>>()?)
     }
 
     /// Returns a reference to this record's fields.
     pub fn fields(&self) -> &[u64] {
         &self.0.fields
     }
+}
 
-    /// Attempt to get a field from this record by index.
-    pub fn get_field(&self, idx: usize) -> Result<u64, RecordMapError> {
-        self.0.fields.get(idx).copied().ok_or_else(|| {
-            RecordMapError::BadField(format!("invalid field index for {:?}: {}", self, idx))
-        })
+/// Errors that can occur when attempting to search for blocks and records within
+/// an unrolled bitstream.
+#[derive(Debug, Error)]
+pub enum ConsistencyError {
+    /// We expected a (sub-)block of the given ID, but couldn't find one.
+    #[error("expected a block with {0:?} but not present")]
+    MissingBlock(BlockId),
+
+    /// We expected exactly one (sub-)block of the given ID, but found more than one.
+    #[error("expected exactly one block with {0:?} but got more than one")]
+    TooManyBlocks(BlockId),
+
+    /// We expected a record of the given code, but couldn't find one.
+    #[error("expected a record of code {0} but not present")]
+    MissingRecord(u64),
+
+    /// We expected exactly one record of the given code, but found more than one.
+    #[error("expected exactly one record of code {0} but got more than one")]
+    TooManyRecords(u64),
+}
+
+/// Represents a collection of unrolled records.
+#[derive(Clone, Debug, Default)]
+pub struct UnrolledRecords(Vec<UnrolledRecord>);
+
+impl UnrolledRecords {
+    /// Return an iterator for all records that share the given code. Records
+    /// are iterated in the order of insertion.
+    ///
+    /// The returned iterator is empty if the block doesn't have any matching records.
+    pub(crate) fn by_code<'a>(
+        &'a self,
+        code: impl Into<u64> + 'a,
+    ) -> impl Iterator<Item = &UnrolledRecord> + 'a {
+        let code = code.into();
+        self.0.iter().filter(move |r| r.code() == code)
+    }
+
+    /// Returns the first record matching the given code, or `None` if there are
+    /// no matches.
+    ///
+    /// Ignores any subsequent matches.
+    pub(crate) fn one<'a>(&'a self, code: impl Into<u64> + 'a) -> Option<&UnrolledRecord> {
+        self.by_code(code).next()
+    }
+
+    /// Returns exactly one record matching the given code, or a variant indicating
+    /// the error condition (no matching records, or too many records).
+    pub(crate) fn exactly_one<'a>(
+        &'a self,
+        code: impl Into<u64> + 'a,
+    ) -> Result<&UnrolledRecord, ConsistencyError> {
+        let code = code.into();
+        let mut records = self.by_code(code);
+
+        match records.next() {
+            None => Err(ConsistencyError::MissingRecord(code)),
+            Some(r) => match records.next() {
+                None => Ok(r),
+                Some(_) => Err(ConsistencyError::TooManyRecords(code)),
+            },
+        }
+    }
+
+    /// Return an option of one record matching the given code or `None`, or an
+    /// `Err` variant if more than one matching record is present.
+    pub(crate) fn one_or_none<'a>(
+        &'a self,
+        code: impl Into<u64> + 'a,
+    ) -> Result<Option<&UnrolledRecord>, ConsistencyError> {
+        let code = code.into();
+        let mut records = self.by_code(code);
+
+        match records.next() {
+            None => Ok(None),
+            Some(r) => match records.next() {
+                None => Ok(Some(r)),
+                Some(_) => Err(ConsistencyError::TooManyRecords(code)),
+            },
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a UnrolledRecords {
+    type Item = &'a UnrolledRecord;
+    type IntoIter = std::slice::Iter<'a, UnrolledRecord>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+/// Represents a collection of unrolled blocks.
+#[derive(Clone, Debug, Default)]
+pub struct UnrolledBlocks(IndexMap<BlockId, Vec<UnrolledBlock>>);
+
+impl UnrolledBlocks {
+    /// Return an iterator over all sub-blocks within this block that share the given ID.
+    ///
+    /// The returned iterator is empty if the block doesn't have any matching sub-blocks.
+    pub(crate) fn by_id(&self, id: BlockId) -> impl Iterator<Item = &UnrolledBlock> + '_ {
+        self.0.get(&id).into_iter().flatten()
+    }
+
+    pub(crate) fn exactly_one(&self, id: BlockId) -> Result<&UnrolledBlock, ConsistencyError> {
+        let mut blocks = self.by_id(id);
+
+        match blocks.next() {
+            None => Err(ConsistencyError::MissingBlock(id)),
+            Some(b) => match blocks.next() {
+                None => Ok(b),
+                Some(_) => Err(ConsistencyError::TooManyBlocks(id)),
+            },
+        }
+    }
+
+    /// Return an option of one block matching the given code or `None`, or an
+    /// `Err` variant if more than one matching block is present.
+    pub(crate) fn one_or_none(
+        &self,
+        id: BlockId,
+    ) -> Result<Option<&UnrolledBlock>, ConsistencyError> {
+        let mut blocks = self.by_id(id);
+
+        match blocks.next() {
+            None => Ok(None),
+            Some(b) => match blocks.next() {
+                None => Ok(Some(b)),
+                Some(_) => Err(ConsistencyError::TooManyBlocks(id)),
+            },
+        }
     }
 }
 
@@ -93,98 +217,30 @@ pub struct UnrolledBlock {
     // kinds of records. Doing so correctly is tricky: even with an order-preserving
     // structure like IndexMap, we'd lose the correct order as we insert each record
     // into its bucket.
-    records: Vec<UnrolledRecord>,
+    records: UnrolledRecords,
     /// The blocks directly contained by this block, mapped by their IDs. Like with records,
     /// a block can contain multiple sub-blocks of the same ID.
-    blocks: IndexMap<BlockId, Vec<UnrolledBlock>>,
+    blocks: UnrolledBlocks,
 }
 
 impl UnrolledBlock {
     pub(self) fn new(id: u64) -> Self {
         Self {
             id: id.into(),
-            records: vec![],
+            records: UnrolledRecords::default(),
             // TODO(ww): Figure out a default capacity here.
-            blocks: IndexMap::new(),
+            blocks: UnrolledBlocks::default(),
         }
     }
 
-    /// Get zero or one records from this block by the given record code.
-    ///
-    /// Returns an error if the block has more than one record for this code.
-    pub fn maybe_one_record(&self, code: u64) -> Result<Option<&UnrolledRecord>, BlockMapError> {
-        let records = self.records(code).collect::<Vec<_>>();
-
-        match records.len() {
-            0 => Ok(None),
-            1 => Ok(Some(records[0])),
-            _ => Err(BlockMapError::BlockRecordMismatch(code, self.id)),
-        }
+    /// Return a reference to all of the records in this block.
+    pub fn records(&self) -> &UnrolledRecords {
+        &self.records
     }
 
-    /// Get a single record from this block by its record code.
-    ///
-    /// Returns an error if the block either lacks an appropriate record or has more than one.
-    pub fn one_record(&self, code: u64) -> Result<&UnrolledRecord, BlockMapError> {
-        let records = self.records(code).collect::<Vec<_>>();
-
-        // The empty case here would indicate API misuse, since we should only
-        // create the vector upon inserting at least one record for a given code.
-        // But it doesn't hurt (much) to be cautious.
-        if records.is_empty() || records.len() > 1 {
-            return Err(BlockMapError::BlockRecordMismatch(code, self.id));
-        }
-
-        // Panic safety: we check for exactly one member directly above.
-        Ok(records[0])
-    }
-
-    /// Return an iterator for all records that share the given code. Records are iterated in
-    /// the order of insertion.
-    ///
-    /// The returned iterator is empty if the block doesn't have any matching records.
-    pub fn records(&self, code: u64) -> impl Iterator<Item = &UnrolledRecord> + '_ {
-        self.records.iter().filter(move |r| r.code() == code)
-    }
-
-    /// Return an iterator over all records in the block, regardless of their codes. Records
-    /// are iterated in the order of insertion.
-    ///
-    /// This is useful in contexts where the mapper's behavior does not vary significantly
-    /// by record code, such as within the type table mapper.
-    pub fn all_records(&self) -> impl Iterator<Item = &UnrolledRecord> + '_ {
-        self.records.iter()
-    }
-
-    /// Return an iterator over all sub-blocks within this block that share the given ID.
-    ///
-    /// The returned iterator is empty if the block doesn't have any matching sub-blocks.
-    pub fn blocks(&self, id: BlockId) -> impl Iterator<Item = &UnrolledBlock> + '_ {
-        self.blocks.get(&id).into_iter().flatten()
-    }
-
-    /// Get zero or one sub-blocks from this block by the given block ID.
-    ///
-    /// Returns an error if the block has more than one matching sub-block.
-    pub fn maybe_one_block(&self, id: BlockId) -> Result<Option<&UnrolledBlock>, BlockMapError> {
-        let blocks = self.blocks(id).collect::<Vec<_>>();
-
-        match blocks.len() {
-            0 => Ok(None),
-            1 => Ok(Some(blocks[0])),
-            _ => Err(BlockMapError::BlockBlockMismatch(id, self.id)),
-        }
-    }
-
-    /// Get a single sub-block from this block by its block ID.
-    ///
-    /// Returns an error if the block either lacks an appropriate block or has more than one.
-    pub fn one_block(&self, id: BlockId) -> Result<&UnrolledBlock, BlockMapError> {
-        if let Some(block) = self.maybe_one_block(id)? {
-            Ok(block)
-        } else {
-            Err(BlockMapError::BlockBlockMismatch(id, self.id))
-        }
+    /// Return a reference to all of the sub-blocks of this block.
+    pub fn blocks(&self) -> &UnrolledBlocks {
+        &self.blocks
     }
 }
 
@@ -225,18 +281,19 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
             //    (which is either the bitstream context or another parent block)
             //    can add us to its block map.
             loop {
-                let entry = bitstream.next().ok_or_else(|| {
-                    Error::BadUnroll("unexpected stream end during unroll".into())
-                })?;
+                let entry = bitstream
+                    .next()
+                    .ok_or_else(|| Error::Unroll("unexpected stream end during unroll".into()))?;
 
                 match entry? {
                     StreamEntry::Record(record) => {
-                        unrolled_block.records.push(UnrolledRecord(record))
+                        unrolled_block.records.0.push(UnrolledRecord(record))
                     }
                     StreamEntry::SubBlock(block) => {
                         let unrolled_child = enter_block(bitstream, block)?;
                         unrolled_block
                             .blocks
+                            .0
                             .entry(unrolled_child.id)
                             .or_insert_with(Vec::new)
                             .push(unrolled_child);
@@ -272,7 +329,7 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
                 // bitstream here, but it's difficult to represent that at the type level during unrolling.
                 #[allow(clippy::unwrap_used)]
                 let block = entry.unwrap()?.as_block().ok_or_else(|| {
-                    Error::BadUnroll("bitstream has non-blocks at the top-level scope".into())
+                    Error::Unroll("bitstream has non-blocks at the top-level scope".into())
                 })?;
 
                 enter_block(&mut bitstream, block)?
@@ -301,12 +358,12 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
                     // the most recent one, but the PartialBitcodeModule -> BitcodeModule reification
                     // step will take care of that for us.
                     let last_partial = partial_modules.last_mut().ok_or_else(|| {
-                        Error::BadUnroll("malformed bitstream: MODULE_BLOCK with no preceding IDENTIFICATION_BLOCK".into())
+                        Error::Unroll("malformed bitstream: MODULE_BLOCK with no preceding IDENTIFICATION_BLOCK".into())
                     })?;
 
                     match &last_partial.module {
                         Some(_) => {
-                            return Err(Error::BadUnroll(
+                            return Err(Error::Unroll(
                                 "malformed bitstream: adjacent MODULE_BLOCKs".into(),
                             ))
                         }
@@ -349,7 +406,7 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
                     }
                 }
                 _ => {
-                    return Err(Error::BadUnroll(format!(
+                    return Err(Error::Unroll(format!(
                         "unexpected top-level block: {:?}",
                         top_block.id
                     )))
@@ -394,30 +451,36 @@ impl PartialBitcodeModule {
     /// Returns an error if the `PartialBitcodeModule` is lacking necessary state, or if
     /// block and record mapping fails for any reason.
     pub(self) fn reify(self) -> Result<BitcodeModule, Error> {
-        let mut ctx = MapCtx::default();
+        let mut ctx = PartialMapCtx::default();
 
         // Grab the string table early, so that we can move it into our mapping context and
         // use it for the remainder of the mapping phase.
         let strtab = Strtab::try_map(
-            &self.strtab.ok_or_else(|| {
-                Error::BadUnroll("missing STRTAB_BLOCK for bitcode module".into())
-            })?,
+            &self
+                .strtab
+                .ok_or_else(|| Error::Unroll("missing STRTAB_BLOCK for bitcode module".into()))?,
             &mut ctx,
-        )?;
+        )
+        .map_err(BlockMapError::Strtab)?;
 
         ctx.strtab = Some(strtab);
 
-        let identification = Identification::try_map(&self.identification, &mut ctx)?;
+        let identification = Identification::try_map(&self.identification, &mut ctx)
+            .map_err(BlockMapError::Identification)?;
+
         let module = Module::try_map(
-            &self.module.ok_or_else(|| {
-                Error::BadUnroll("missing MODULE_BLOCK for bitcode module".into())
-            })?,
+            &self
+                .module
+                .ok_or_else(|| Error::Unroll("missing MODULE_BLOCK for bitcode module".into()))?,
             &mut ctx,
-        )?;
+        )
+        .map_err(BlockMapError::Module)?;
+
         let symtab = self
             .symtab
             .map(|s| Symtab::try_map(&s, &mut ctx))
-            .transpose()?;
+            .transpose()
+            .map_err(BlockMapError::Symtab)?;
 
         #[allow(clippy::unwrap_used)]
         Ok(BitcodeModule {
