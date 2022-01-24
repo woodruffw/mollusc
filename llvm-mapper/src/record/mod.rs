@@ -4,6 +4,7 @@
 //! structure or mapping implementation. Simpler records are mapped inline within their
 //! blocks.
 
+pub mod alias;
 pub mod comdat;
 pub mod datalayout;
 pub mod function;
@@ -13,6 +14,7 @@ use std::string::FromUtf8Error;
 
 use thiserror::Error;
 
+pub use self::alias::*;
 pub use self::comdat::*;
 pub use self::datalayout::*;
 pub use self::function::*;

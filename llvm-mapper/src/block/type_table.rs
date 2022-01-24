@@ -67,6 +67,18 @@ pub enum TypeTableError {
 #[derive(Debug)]
 pub(crate) struct TypeRef(pub(crate) usize);
 
+impl From<usize> for TypeRef {
+    fn from(value: usize) -> TypeRef {
+        TypeRef(value)
+    }
+}
+
+impl From<u64> for TypeRef {
+    fn from(value: u64) -> TypeRef {
+        TypeRef::from(value as usize)
+    }
+}
+
 /// Represents a "partial type," i.e. a type whose subtypes may be symbolic
 /// and not fully resolved against a type table.
 #[derive(Debug)]
@@ -270,10 +282,9 @@ impl PartialTypeTable {
 pub struct TypeTable(Vec<Type>);
 
 impl TypeTable {
-    pub(crate) fn get(&self, ty_ref: &TypeRef) -> Result<&Type, TypeTableError> {
-        self.0
-            .get(ty_ref.0)
-            .ok_or(TypeTableError::BadIndex(ty_ref.0))
+    pub(crate) fn get(&self, ty_ref: impl Into<TypeRef>) -> Option<&Type> {
+        let ty_ref = ty_ref.into();
+        self.0.get(ty_ref.0)
     }
 }
 

@@ -8,7 +8,6 @@ use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
 use crate::block::attributes::AttributeEntry;
-use crate::block::type_table::{TypeRef, TypeTableError};
 use crate::map::{CtxMappable, MapCtx};
 use crate::record::StrtabError;
 use crate::unroll::UnrolledRecord;
@@ -26,15 +25,15 @@ pub enum FunctionError {
 
     /// Retrieving a string from a string table failed.
     #[error("error while accessing string table")]
-    BadStrtab(#[from] StrtabError),
+    Strtab(#[from] StrtabError),
 
     /// This function has an unknown calling convention.
     #[error("unknown calling convention")]
     CallingConvention(#[from] TryFromPrimitiveError<CallingConvention>),
 
     /// The function has a bad or unknown type.
-    #[error("invalid type")]
-    Type(#[from] TypeTableError),
+    #[error("invalid type table index: {0}")]
+    Type(u64),
 
     /// The function has an invalid attribute entry ID.
     #[error("invalid attribute entry ID: {0}")]
@@ -102,20 +101,18 @@ impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
             return Err(FunctionError::V1Unsupported);
         }
 
-        // Every function record has at least 10 records, corresponding to
-        // [strtab_offset, strtab_size, *v1], where v1 has 8 mandatory records:
+        // Every function record has at least 10 fields, corresponding to
+        // [strtab_offset, strtab_size, *v1], where v1 has 8 mandatory fields:
         // [type, callingconv, isproto, linkage, paramattr, alignment, section, visibility, ...]
         if fields.len() < 10 {
             return Err(FunctionError::TooShort(fields.len()));
         }
 
         let name = ctx.strtab.read_name(record)?;
-
-        let ty = {
-            let typ_ref = TypeRef(fields[2] as usize);
-            ctx.type_table.get(&typ_ref)?
-        };
-
+        let ty = ctx
+            .type_table
+            .get(fields[2])
+            .ok_or(FunctionError::Type(fields[2]))?;
         let calling_convention = CallingConvention::try_from(fields[3])?;
         let is_declaration = fields[4] != 0;
         let linkage = Linkage::from(fields[5]);
