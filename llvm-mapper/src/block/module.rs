@@ -84,7 +84,7 @@ impl IrBlock for Module {
         }
 
         // Build the section table. We'll reference this later.
-        let _section_table = block
+        ctx.section_table = block
             .records()
             .by_code(ModuleCode::SectionName)
             .map(|rec| rec.try_string(0))
@@ -92,7 +92,7 @@ impl IrBlock for Module {
             .map_err(MapError::RecordString)?;
 
         // Build the GC table. We'll reference this later.
-        let _gc_table = block
+        ctx.gc_table = block
             .records()
             .by_code(ModuleCode::GcName)
             .map(|rec| rec.try_string(0))
@@ -126,7 +126,12 @@ impl IrBlock for Module {
             .map(|b| Attributes::try_map(b, ctx))
             .transpose()?;
 
-        log::debug!("attributes: {:?}", ctx.attributes);
+        // Build the list of COMDATs. We'll reference this later.
+        ctx.comdats = block
+            .records()
+            .by_code(ModuleCode::Comdat)
+            .map(|rec| Comdat::try_map(rec, ctx))
+            .collect::<Result<Vec<_>, _>>()?;
 
         // After this point, `ctx` refers to a fully reified `MapCtx`.
         let ctx = ctx.reify().map_err(MapError::Context)?;
@@ -163,13 +168,6 @@ impl IrBlock for Module {
             .map(|rec| rec.try_string(0))
             .collect::<Result<Vec<_>, _>>()
             .map_err(MapError::RecordString)?;
-
-        // Build the Comdat list. We'll reference this later.
-        let _comdats = block
-            .records()
-            .by_code(ModuleCode::Comdat)
-            .map(|rec| Comdat::try_map(rec, &ctx))
-            .collect::<Result<Vec<_>, _>>()?;
 
         // Collect the function records and blocks in this module.
         let functions = block

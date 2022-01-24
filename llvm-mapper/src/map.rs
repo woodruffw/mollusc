@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use crate::block::Strtab;
 use crate::block::{AttributeGroups, Attributes, TypeTable};
-use crate::record::{DataLayout, RecordStringError};
+use crate::record::{Comdat, DataLayout, RecordStringError};
 use crate::unroll::ConsistencyError;
 
 /// Generic errors that can occur when mapping.
@@ -64,10 +64,13 @@ pub enum MapCtxError {
 pub(crate) struct PartialMapCtx {
     pub(crate) version: Option<u64>,
     pub(crate) datalayout: DataLayout,
-    pub(crate) strtab: Option<Strtab>,
+    pub(crate) section_table: Vec<String>,
+    pub(crate) gc_table: Vec<String>,
+    pub(crate) strtab: Strtab,
     pub(crate) attribute_groups: Option<AttributeGroups>,
     pub(crate) attributes: Option<Attributes>,
     pub(crate) type_table: Option<TypeTable>,
+    pub(crate) comdats: Vec<Comdat>,
 }
 
 impl PartialMapCtx {
@@ -75,7 +78,9 @@ impl PartialMapCtx {
         Ok(MapCtx {
             version: self.version.ok_or(MapCtxError::NoVersion)?,
             datalayout: &self.datalayout,
-            strtab: self.strtab.as_ref().ok_or(MapCtxError::NoStrtab)?,
+            section_table: &self.section_table,
+            gc_table: &self.gc_table,
+            strtab: &self.strtab,
             attribute_groups: self
                 .attribute_groups
                 .as_ref()
@@ -85,7 +90,15 @@ impl PartialMapCtx {
                 .as_ref()
                 .ok_or(MapCtxError::NoAttributeGroups)?,
             type_table: self.type_table.as_ref().ok_or(MapCtxError::NoTypeTable)?,
+            comdats: &self.comdats,
         })
+    }
+
+    /// A helper function for whether or not to use an associated string table for string lookups.
+    ///
+    /// This corresponds to `MODULE_CODE_VERSION`s of 2 and higher.
+    pub fn use_strtab(&self) -> Result<bool, MapCtxError> {
+        self.version.map(|v| v >= 2).ok_or(MapCtxError::NoVersion)
     }
 
     /// Returns the attribute groups stored in this context, or an error if not available.
@@ -99,10 +112,6 @@ impl PartialMapCtx {
 /// A handle for various bits of state that are necessary for correct block
 /// and record mapping in the context of a particular IR module.
 ///
-/// Internally, this is a mushy state object that may or may not contain
-/// sufficient information for parsing a particular block or record; hence
-/// the fallible access methods.
-///
 /// Block and record mapping operations are expected to update the supplied context,
 /// as appropriate.
 #[non_exhaustive]
@@ -113,6 +122,12 @@ pub struct MapCtx<'ctx> {
 
     /// The datalayout specification.
     pub datalayout: &'ctx DataLayout,
+
+    /// The section table.
+    pub section_table: &'ctx [String],
+
+    /// The GC table.
+    pub gc_table: &'ctx [String],
 
     /// The string table.
     pub strtab: &'ctx Strtab,
@@ -125,6 +140,9 @@ pub struct MapCtx<'ctx> {
 
     /// The type table.
     pub type_table: &'ctx TypeTable,
+
+    /// The COMDAT list.
+    pub comdats: &'ctx [Comdat],
     // TODO(ww): Maybe symtab and identification in here?
 }
 

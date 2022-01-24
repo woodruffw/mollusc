@@ -463,7 +463,7 @@ impl PartialBitcodeModule {
         )
         .map_err(BlockMapError::Strtab)?;
 
-        ctx.strtab = Some(strtab);
+        ctx.strtab = strtab;
 
         let identification = Identification::try_map(&self.identification, &mut ctx)
             .map_err(BlockMapError::Identification)?;
@@ -486,8 +486,7 @@ impl PartialBitcodeModule {
         Ok(BitcodeModule {
             identification: identification,
             module: module,
-            // Unwrap safety: we unconditionally assign `strtab` to `Some(...)` above.
-            strtab: ctx.strtab.unwrap(),
+            strtab: ctx.strtab,
             symtab: symtab,
         })
     }

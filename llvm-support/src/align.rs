@@ -134,6 +134,21 @@ pub enum AlignedTypeWidthError {
     TooBig(u32),
 }
 
+/// Represents a potentially unknown (unspecified) alignment.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct MaybeAlign(Option<Align>);
+
+impl TryFrom<u8> for MaybeAlign {
+    type Error = AlignError;
+
+    fn try_from(value: u8) -> Result<MaybeAlign, AlignError> {
+        match value {
+            0 => Ok(MaybeAlign(None)),
+            _ => Ok(MaybeAlign(Some(Align::from_shift(value - 1)?))),
+        }
+    }
+}
+
 /// An invariant-preserving newtype for representing the bitwidth of an
 /// alignable type.
 #[derive(Debug, Copy, Clone, Eq, Ord, PartialEq, PartialOrd)]

@@ -3,7 +3,7 @@
 use std::convert::TryFrom;
 
 use llvm_constants::CallingConvention;
-use llvm_support::{Linkage, Type};
+use llvm_support::{AlignError, Linkage, MaybeAlign, Type, Visibility};
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
@@ -25,7 +25,7 @@ pub enum FunctionError {
     V1Unsupported,
 
     /// Retrieving a string from a string table failed.
-    #[error("error while accessing string table: {0}")]
+    #[error("error while accessing string table")]
     BadStrtab(#[from] StrtabError),
 
     /// This function has an unknown calling convention.
@@ -33,12 +33,28 @@ pub enum FunctionError {
     CallingConvention(#[from] TryFromPrimitiveError<CallingConvention>),
 
     /// The function has a bad or unknown type.
-    #[error("invalid type: {0}")]
-    BadType(#[from] TypeTableError),
+    #[error("invalid type")]
+    Type(#[from] TypeTableError),
 
     /// The function has an invalid attribute entry ID.
     #[error("invalid attribute entry ID: {0}")]
-    BadAttribute(u64),
+    Attribute(u64),
+
+    /// The function has an invalid alignment.
+    #[error("invalid alignment")]
+    Alignment(#[from] AlignError),
+
+    /// The function has an invalid section table index.
+    #[error("invalid section table index: {0}")]
+    Section(usize),
+
+    /// The function has an invalid visibility.
+    #[error("invalid visibility")]
+    Visibility(#[from] TryFromPrimitiveError<Visibility>),
+
+    /// The function has an invalid GC table index.
+    #[error("invalid GC table index: {0}")]
+    Gc(usize),
 }
 
 /// Models the `MODULE_CODE_FUNCTION` record.
@@ -62,6 +78,18 @@ pub struct Function<'ctx> {
 
     /// The function's attributes, if it has any.
     pub attributes: Option<&'ctx AttributeEntry>,
+
+    /// The function's alignment.
+    pub alignment: MaybeAlign,
+
+    /// The function's custom section, if it has one.
+    pub section: Option<&'ctx str>,
+
+    /// The function's visibility.
+    pub visibility: Visibility,
+
+    /// The function's garbage collector, if it has one.
+    pub gc_name: Option<&'ctx str>,
 }
 
 impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
@@ -105,10 +133,49 @@ impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
                 Some(
                     ctx.attributes
                         .get(paramattr - 1)
-                        .ok_or(FunctionError::BadAttribute(paramattr))?,
+                        .ok_or(FunctionError::Attribute(paramattr))?,
                 )
             }
         };
+
+        // TODO: Upgrade attributes here? It's what LLVM does.
+
+        let alignment = MaybeAlign::try_from(fields[7] as u8)?;
+
+        let section = match fields[8] as usize {
+            0 => None,
+            idx => Some(
+                ctx.section_table
+                    .get(idx - 1)
+                    .map(AsRef::as_ref)
+                    .ok_or(FunctionError::Section(idx - 1))?,
+            ),
+        };
+
+        let visibility = Visibility::try_from(fields[9])?;
+
+        // From here, all fields are optional and need to be guarded as such.
+
+        let gc_name = fields
+            .get(10)
+            .and_then(|idx| match *idx as usize {
+                0 => None,
+                idx => Some(
+                    ctx.gc_table
+                        .get(idx - 1)
+                        .map(AsRef::as_ref)
+                        .ok_or(FunctionError::Gc(idx - 1)),
+                ),
+            })
+            .transpose()?;
+
+        // fields[11]: unnamed_addr
+        // fields[12]: prologuedata
+        // fields[13]: dllstorageclass
+        // fields[14]: comdat
+        // fields[15]: prefixdata
+        // fields[16]: personalityfn
+        // fields[16]: preemptionspecifier
 
         Ok(Self {
             name,
@@ -117,6 +184,10 @@ impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
             is_declaration,
             linkage,
             attributes,
+            alignment,
+            section,
+            visibility,
+            gc_name,
         })
     }
 }

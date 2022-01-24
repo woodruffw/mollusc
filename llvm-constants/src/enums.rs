@@ -303,7 +303,7 @@ pub enum SymtabCode {
 
 /// Codes for each record in `PARAMATTR_BLOCK` or `PARAMATTR_GROUP_BLOCK`.
 // NOTE(ww): For whatever reason, these two blocks share the same enum for
-// record codes.
+/// record codes.
 #[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum AttributeCode {
