@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use crate::block::Strtab;
 use crate::block::{AttributeGroups, Attributes, TypeTable};
-use crate::record::{DataLayout, RecordStringError};
+use crate::record::{Comdat, DataLayout, RecordStringError};
 use crate::unroll::ConsistencyError;
 
 /// Generic errors that can occur when mapping.
@@ -66,10 +66,11 @@ pub(crate) struct PartialMapCtx {
     pub(crate) datalayout: DataLayout,
     pub(crate) section_table: Vec<String>,
     pub(crate) gc_table: Vec<String>,
-    pub(crate) strtab: Option<Strtab>,
+    pub(crate) strtab: Strtab,
     pub(crate) attribute_groups: Option<AttributeGroups>,
     pub(crate) attributes: Option<Attributes>,
     pub(crate) type_table: Option<TypeTable>,
+    pub(crate) comdats: Vec<Comdat>,
 }
 
 impl PartialMapCtx {
@@ -79,7 +80,7 @@ impl PartialMapCtx {
             datalayout: &self.datalayout,
             section_table: &self.section_table,
             gc_table: &self.gc_table,
-            strtab: self.strtab.as_ref().ok_or(MapCtxError::NoStrtab)?,
+            strtab: &self.strtab,
             attribute_groups: self
                 .attribute_groups
                 .as_ref()
@@ -89,7 +90,15 @@ impl PartialMapCtx {
                 .as_ref()
                 .ok_or(MapCtxError::NoAttributeGroups)?,
             type_table: self.type_table.as_ref().ok_or(MapCtxError::NoTypeTable)?,
+            comdats: &self.comdats,
         })
+    }
+
+    /// A helper function for whether or not to use an associated string table for string lookups.
+    ///
+    /// This corresponds to `MODULE_CODE_VERSION`s of 2 and higher.
+    pub fn use_strtab(&self) -> Result<bool, MapCtxError> {
+        self.version.map(|v| v >= 2).ok_or(MapCtxError::NoVersion)
     }
 
     /// Returns the attribute groups stored in this context, or an error if not available.
@@ -131,6 +140,9 @@ pub struct MapCtx<'ctx> {
 
     /// The type table.
     pub type_table: &'ctx TypeTable,
+
+    /// The COMDAT list.
+    pub comdats: &'ctx [Comdat],
     // TODO(ww): Maybe symtab and identification in here?
 }
 

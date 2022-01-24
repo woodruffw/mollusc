@@ -36,7 +36,7 @@ pub enum StrtabError {
 }
 
 /// Models the `STRTAB_BLOCK` block.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Strtab(Vec<u8>);
 
 impl AsRef<[u8]> for Strtab {

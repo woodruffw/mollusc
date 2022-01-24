@@ -133,3 +133,19 @@ pub enum Visibility {
     /// Protected visibility.
     Protected,
 }
+
+/// DLL storage classes.
+///
+/// See: <https://llvm.org/docs/LangRef.html#dllstorageclass>
+#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[repr(u64)]
+pub enum DllStorageClass {
+    /// The default storage class.
+    Default = 0,
+
+    /// The `dllimport` storage class.
+    Import,
+
+    /// The `dllexport` storage class.
+    Export,
+}

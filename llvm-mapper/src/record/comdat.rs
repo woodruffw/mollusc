@@ -7,7 +7,7 @@ use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 use thiserror::Error;
 
 use crate::block::strtab::StrtabError;
-use crate::map::{CtxMappable, MapCtx};
+use crate::map::{MapError, PartialCtxMappable, PartialMapCtx};
 use crate::unroll::UnrolledRecord;
 
 /// Errors that can occur when mapping a COMDAT record.
@@ -29,6 +29,10 @@ pub enum ComdatError {
     /// The COMDAT's selection kind is invalid or unknown.
     #[error("unknown or invalid COMDAT selection kind: {0}")]
     SelectionKind(#[from] TryFromPrimitiveError<SelectionKind>),
+
+    /// A generic mapping error occured.
+    #[error("mapping error in comdat list")]
+    Map(#[from] MapError),
 }
 
 /// The different kinds of COMDAT selections.
@@ -53,18 +57,18 @@ pub enum SelectionKind {
 /// Models the `MODULE_CODE_COMDAT` record.
 #[non_exhaustive]
 #[derive(Debug)]
-pub struct Comdat<'ctx> {
+pub struct Comdat {
     /// The selection kind for this COMDAT.
     pub selection_kind: SelectionKind,
     /// The COMDAT key.
-    pub name: &'ctx str,
+    pub name: String,
 }
 
-impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Comdat<'ctx> {
+impl PartialCtxMappable<UnrolledRecord> for Comdat {
     type Error = ComdatError;
 
-    fn try_map(record: &UnrolledRecord, ctx: &'ctx MapCtx) -> Result<Self, Self::Error> {
-        if !ctx.use_strtab() {
+    fn try_map(record: &UnrolledRecord, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+        if !ctx.use_strtab().map_err(MapError::Context)? {
             return Err(ComdatError::V1Unsupported);
         }
 
@@ -76,7 +80,7 @@ impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Comdat<'ctx> {
         // Index safety: we check for at least 3 fields above.
         let name = {
             let sref: StrtabRef = (record.fields()[0], record.fields()[1]).into();
-            ctx.strtab.try_get(&sref)?
+            ctx.strtab.try_get(&sref)?.into()
         };
         let selection_kind: SelectionKind = record.fields()[2].try_into()?;
 

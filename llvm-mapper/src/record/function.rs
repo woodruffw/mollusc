@@ -169,6 +169,14 @@ impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
             })
             .transpose()?;
 
+        // fields[11]: unnamed_addr
+        // fields[12]: prologuedata
+        // fields[13]: dllstorageclass
+        // fields[14]: comdat
+        // fields[15]: prefixdata
+        // fields[16]: personalityfn
+        // fields[16]: preemptionspecifier
+
         Ok(Self {
             name,
             ty,
