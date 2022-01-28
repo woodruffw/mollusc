@@ -3,12 +3,13 @@
 use std::convert::TryFrom;
 
 use llvm_constants::CallingConvention;
-use llvm_support::{AlignError, Linkage, MaybeAlign, Type, Visibility};
+use llvm_support::{
+    AlignError, DllStorageClass, Linkage, MaybeAlign, Type, UnnamedAddr, Visibility,
+};
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
 use crate::block::attributes::AttributeEntry;
-use crate::block::type_table::{TypeRef, TypeTableError};
 use crate::map::{CtxMappable, MapCtx};
 use crate::record::StrtabError;
 use crate::unroll::UnrolledRecord;
@@ -26,15 +27,15 @@ pub enum FunctionError {
 
     /// Retrieving a string from a string table failed.
     #[error("error while accessing string table")]
-    BadStrtab(#[from] StrtabError),
+    Strtab(#[from] StrtabError),
 
     /// This function has an unknown calling convention.
     #[error("unknown calling convention")]
     CallingConvention(#[from] TryFromPrimitiveError<CallingConvention>),
 
     /// The function has a bad or unknown type.
-    #[error("invalid type")]
-    Type(#[from] TypeTableError),
+    #[error("invalid type table index: {0}")]
+    Type(u64),
 
     /// The function has an invalid attribute entry ID.
     #[error("invalid attribute entry ID: {0}")]
@@ -55,6 +56,10 @@ pub enum FunctionError {
     /// The function has an invalid GC table index.
     #[error("invalid GC table index: {0}")]
     Gc(usize),
+
+    /// The function has an invalid DLL storage class.
+    #[error("invalid storage class")]
+    DllStorageClass(#[from] TryFromPrimitiveError<DllStorageClass>),
 }
 
 /// Models the `MODULE_CODE_FUNCTION` record.
@@ -90,6 +95,12 @@ pub struct Function<'ctx> {
 
     /// The function's garbage collector, if it has one.
     pub gc_name: Option<&'ctx str>,
+
+    /// The function's `unnamed_addr` specifier.
+    pub unnamed_addr: UnnamedAddr,
+
+    /// The function's DLL storage class.
+    pub storage_class: DllStorageClass,
 }
 
 impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
@@ -102,20 +113,18 @@ impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
             return Err(FunctionError::V1Unsupported);
         }
 
-        // Every function record has at least 10 records, corresponding to
-        // [strtab_offset, strtab_size, *v1], where v1 has 8 mandatory records:
+        // Every function record has at least 10 fields, corresponding to
+        // [strtab_offset, strtab_size, *v1], where v1 has 8 mandatory fields:
         // [type, callingconv, isproto, linkage, paramattr, alignment, section, visibility, ...]
         if fields.len() < 10 {
             return Err(FunctionError::TooShort(fields.len()));
         }
 
         let name = ctx.strtab.read_name(record)?;
-
-        let ty = {
-            let typ_ref = TypeRef(fields[2] as usize);
-            ctx.type_table.get(&typ_ref)?
-        };
-
+        let ty = ctx
+            .type_table
+            .get(fields[2])
+            .ok_or(FunctionError::Type(fields[2]))?;
         let calling_convention = CallingConvention::try_from(fields[3])?;
         let is_declaration = fields[4] != 0;
         let linkage = Linkage::from(fields[5]);
@@ -169,9 +178,19 @@ impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
             })
             .transpose()?;
 
-        // fields[11]: unnamed_addr
+        let unnamed_addr = fields
+            .get(11)
+            .copied()
+            .map(UnnamedAddr::from)
+            .unwrap_or(UnnamedAddr::None);
+
         // fields[12]: prologuedata
-        // fields[13]: dllstorageclass
+
+        let storage_class = fields.get(13).map_or_else(
+            || Ok(DllStorageClass::Default),
+            |v| DllStorageClass::try_from(*v),
+        )?;
+
         // fields[14]: comdat
         // fields[15]: prefixdata
         // fields[16]: personalityfn
@@ -188,6 +207,8 @@ impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
             section,
             visibility,
             gc_name,
+            unnamed_addr,
+            storage_class,
         })
     }
 }

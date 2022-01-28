@@ -185,46 +185,46 @@ pub enum ModuleCode {
     /// MODULE_CODE_VERSION: `[version#]`
     Version = 1,
     /// MODULE_CODE_TRIPLE: `[...string...]`
-    Triple,
+    Triple = 2,
     /// MODULE_CODE_DATALAYOUT: `[...string...]`
-    DataLayout,
+    DataLayout = 3,
     /// MODULE_CODE_ASM: `[...string...]`
-    Asm,
+    Asm = 4,
     /// MODULE_CODE_SECTIONNAME: `[...string...]`
-    SectionName,
+    SectionName = 5,
     /// MODULE_CODE_DEPLIB: `[...string...]`
-    DepLib,
+    DepLib = 6,
     /// MODULE_CODE_GLOBALVAR: `[...fields...]`
     /// See: <https://llvm.org/docs/BitCodeFormat.html#module-code-globalvar-record>
-    GlobalVar,
+    GlobalVar = 7,
     /// MODULE_CODE_FUNCTION: `[...fields...]`
     /// See: <https://llvm.org/docs/BitCodeFormat.html#module-code-function-record>
-    Function,
+    Function = 8,
     /// MODULE_CODE_ALIAS_OLD: `[...fields...]`
     /// See: <https://llvm.org/docs/BitCodeFormat.html#module-code-alias-record>
-    AliasOld,
+    AliasOld = 9,
     /// MODULE_CODE_GCNAME: `[...string...]`
-    GcName,
+    GcName = 11,
     /// MODULE_CODE_COMDAT
     /// v1: `[selection_kind, name]`
     /// v2: `[strtab_offset, strtab_size, selection_kind]`
     /// Only `v2` is currently supported.
-    Comdat,
+    Comdat = 12,
     /// MODULE_CODE_VSTOFFSET: `[offset]`
-    VstOffset,
+    VstOffset = 13,
     /// MODULE_CODE_ALIAS: `[...fields...]`
     /// Not well documented; see `ModuleCodes` in `Bitcode/LLVMBitCodes.h`.
-    Alias,
+    Alias = 14,
     /// MODULE_CODE_METADATA_VALUES_UNUSED
     /// Not documented at all; see `ModuleCodes` in `Bitcode/LLVMBitCodes.h`.
-    MetadataValuesUnused,
+    MetadataValuesUnused = 15,
     /// MODULE_CODE_SOURCE_FILENAME: `[...string...]`
-    SourceFilename,
+    SourceFilename = 16,
     /// MODULE_CODE_HASH: `[5*i32]`
-    Hash,
+    Hash = 17,
     /// MODULE_CODE_IFUNC: `[...fields...]`
     /// Not well documented; see `ModuleCodes` in `Bitcode/LLVMBitCodes.h`.
-    IFunc,
+    IFunc = 18,
 }
 
 /// Codes for each record in `TYPE_BLOCK` (i.e., `TYPE_BLOCK_ID_NEW`).

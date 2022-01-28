@@ -8,8 +8,8 @@ use crate::block::type_table::{TypeTable, TypeTableError};
 use crate::block::{BlockId, IrBlock};
 use crate::map::{CtxMappable, MapError, PartialCtxMappable, PartialMapCtx};
 use crate::record::{
-    Comdat, ComdatError, DataLayout, DataLayoutError, Function as FunctionRecord,
-    FunctionError as FunctionRecordError,
+    Alias, AliasError, Comdat, ComdatError, DataLayout, DataLayoutError,
+    Function as FunctionRecord, FunctionError as FunctionRecordError,
 };
 use crate::unroll::UnrolledBlock;
 
@@ -39,6 +39,10 @@ pub enum ModuleError {
     /// An error occurred while mapping a function record.
     #[error("invalid function record")]
     FunctionRecord(#[from] FunctionRecordError),
+
+    /// An error occurred while mapping an alias record.
+    #[error("invalid alias record")]
+    Alias(#[from] AliasError),
 
     /// A generic mapping error occurred.
     #[error("mapping error in string table")]
@@ -176,7 +180,16 @@ impl IrBlock for Module {
             .map(|rec| FunctionRecord::try_map(rec, &ctx))
             .collect::<Result<Vec<_>, _>>()?;
 
+        // TODO: Handle function blocks as well.
         log::debug!("functions: {:?}", functions);
+
+        let aliases = block
+            .records()
+            .by_code(ModuleCode::Alias)
+            .map(|rec| Alias::try_map(rec, &ctx))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        log::debug!("aliases: {:?}", aliases);
 
         Ok(Self {
             triple,
