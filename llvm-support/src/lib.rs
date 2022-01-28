@@ -149,3 +149,92 @@ pub enum DllStorageClass {
     /// The `dllexport` storage class.
     Export,
 }
+
+/// Thread local storage modes.
+///
+/// See: <https://llvm.org/docs/LangRef.html#thread-local-storage-models>
+/// See also: <https://www.akkadia.org/drepper/tls.pdf>
+#[derive(Debug, PartialEq, IntoPrimitive)]
+#[repr(u64)]
+pub enum ThreadLocalMode {
+    /// Not thread local.
+    NotThreadLocal = 0,
+
+    /// The general dynamic TLS model.
+    GeneralDynamicTls,
+
+    /// The local dynamic TLS model.
+    LocalDynamicTls,
+
+    /// The initial exec TLS model.
+    InitialExecTls,
+
+    /// The local exec TLS model.
+    LocalExecTls,
+}
+
+impl From<u64> for ThreadLocalMode {
+    fn from(value: u64) -> ThreadLocalMode {
+        match value {
+            0 => ThreadLocalMode::NotThreadLocal,
+            1 => ThreadLocalMode::GeneralDynamicTls,
+            2 => ThreadLocalMode::LocalDynamicTls,
+            3 => ThreadLocalMode::InitialExecTls,
+            4 => ThreadLocalMode::LocalExecTls,
+            // Unknown values are treated as general dynamic.
+            _ => ThreadLocalMode::GeneralDynamicTls,
+        }
+    }
+}
+
+/// The `unnamed_addr` specifier.
+#[derive(Debug, PartialEq, IntoPrimitive)]
+#[repr(u64)]
+pub enum UnnamedAddr {
+    /// No `unnamed_addr`.
+    None = 0,
+
+    /// The address of this variable is not significant.
+    Global,
+
+    /// The address of this variable is not significant, but only within the module.
+    Local,
+}
+
+impl From<u64> for UnnamedAddr {
+    fn from(value: u64) -> UnnamedAddr {
+        match value {
+            0 => UnnamedAddr::None,
+            1 => UnnamedAddr::Global,
+            2 => UnnamedAddr::Local,
+            // Unknown values are treated as having no `unnamed_addr` specifier.
+            _ => UnnamedAddr::None,
+        }
+    }
+}
+
+/// The runtime preemption specifier.
+///
+/// See: <https://llvm.org/docs/LangRef.html#runtime-preemption-model>
+#[derive(Debug, PartialEq, IntoPrimitive)]
+#[repr(u64)]
+pub enum RuntimePreemption {
+    /// The function or variable may be replaced by a symbol from outside the linkage
+    /// unit at runtime.
+    DsoPreemptable,
+
+    /// The compiler may assume that the function or variable will resolve to a symbol within
+    /// the same linkage unit.
+    DsoLocal,
+}
+
+impl From<u64> for RuntimePreemption {
+    fn from(value: u64) -> RuntimePreemption {
+        match value {
+            0 => RuntimePreemption::DsoPreemptable,
+            1 => RuntimePreemption::DsoLocal,
+            // Unknown values are treated as `dso_preemptable`.
+            _ => RuntimePreemption::DsoPreemptable,
+        }
+    }
+}

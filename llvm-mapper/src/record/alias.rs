@@ -1,6 +1,11 @@
 //! Functionality for mapping the `MODULE_CODE_ALIAS` record.
 
-use llvm_support::{Linkage, Type};
+use std::convert::TryFrom;
+
+use llvm_support::{
+    DllStorageClass, Linkage, RuntimePreemption, ThreadLocalMode, Type, UnnamedAddr, Visibility,
+};
+use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
 use crate::map::{CtxMappable, MapCtx};
@@ -22,9 +27,17 @@ pub enum AliasError {
     #[error("error while accessing string table")]
     Strtab(#[from] StrtabError),
 
-    /// The function has a bad or unknown type.
+    /// The alias has a bad or unknown type.
     #[error("invalid type table index: {0}")]
     Type(u64),
+
+    /// The alias has an invalid visibility.
+    #[error("invalid visibility")]
+    Visibility(#[from] TryFromPrimitiveError<Visibility>),
+
+    /// The alias has an invalid DLL storage class.
+    #[error("invalid storage class")]
+    DllStorageClass(#[from] TryFromPrimitiveError<DllStorageClass>),
 }
 
 /// Models the `MODULE_CODE_ALIAS` record.
@@ -41,6 +54,21 @@ pub struct Alias<'ctx> {
 
     /// The alias's linkage.
     pub linkage: Linkage,
+
+    /// The alias's visibility.
+    pub visibility: Visibility,
+
+    /// The alias's storage class.
+    pub storage_class: DllStorageClass,
+
+    /// The alias's thread local storage mode.
+    pub tls_mode: ThreadLocalMode,
+
+    /// The alias's `unnamed_addr` specifier.
+    pub unnamed_addr: UnnamedAddr,
+
+    /// The alias's preemption specifier.
+    pub preemption_specifier: RuntimePreemption,
 }
 
 impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Alias<'ctx> {
@@ -68,11 +96,43 @@ impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Alias<'ctx> {
         let value_index = fields[3];
         let linkage = Linkage::from(fields[4]);
 
+        let visibility = fields
+            .get(5)
+            .map_or_else(|| Ok(Visibility::Default), |v| Visibility::try_from(*v))?;
+
+        let storage_class = fields.get(6).map_or_else(
+            || Ok(DllStorageClass::Default),
+            |v| DllStorageClass::try_from(*v),
+        )?;
+
+        let tls_mode = fields
+            .get(7)
+            .copied()
+            .map(ThreadLocalMode::from)
+            .unwrap_or(ThreadLocalMode::NotThreadLocal);
+
+        let unnamed_addr = fields
+            .get(8)
+            .copied()
+            .map(UnnamedAddr::from)
+            .unwrap_or(UnnamedAddr::None);
+
+        let preemption_specifier = fields
+            .get(9)
+            .copied()
+            .map(RuntimePreemption::from)
+            .unwrap_or(RuntimePreemption::DsoPreemptable);
+
         Ok(Alias {
             name,
             ty,
             value_index,
             linkage,
+            visibility,
+            storage_class,
+            tls_mode,
+            unnamed_addr,
+            preemption_specifier,
         })
     }
 }
