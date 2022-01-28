@@ -34,7 +34,7 @@ pub enum MapError {
 
     /// We don't have the appropriate context for a mapping operation.
     #[error("missing context for mapping")]
-    Context(MapCtxError),
+    Context(#[from] MapCtxError),
 }
 
 /// Errors that can occur when accessing a [`MapCtx`](MapCtx).
@@ -43,12 +43,7 @@ pub enum MapCtxError {
     /// The version field is needed, but unavailable.
     #[error("mapping context requires a version for disambiguation, but none is available")]
     NoVersion,
-    /// The string table is needed, but unavailable.
-    #[error("mapping context requires a string table, but none is available")]
-    NoStrtab,
-    /// The attribute group table is needed, but unavailable.
-    #[error("mapping context requires attribute groups, but none are available")]
-    NoAttributeGroups,
+
     /// The type table is needed, but unavailable.
     #[error("mapping context requires types, but none are available")]
     NoTypeTable,
@@ -67,28 +62,23 @@ pub(crate) struct PartialMapCtx {
     pub(crate) section_table: Vec<String>,
     pub(crate) gc_table: Vec<String>,
     pub(crate) strtab: Strtab,
-    pub(crate) attribute_groups: Option<AttributeGroups>,
-    pub(crate) attributes: Option<Attributes>,
+    pub(crate) attribute_groups: AttributeGroups,
+    pub(crate) attributes: Attributes,
     pub(crate) type_table: Option<TypeTable>,
     pub(crate) comdats: Vec<Comdat>,
 }
 
 impl PartialMapCtx {
     pub(crate) fn reify(&self) -> Result<MapCtx, MapCtxError> {
+        log::debug!("reifying {self:?}");
         Ok(MapCtx {
             version: self.version.ok_or(MapCtxError::NoVersion)?,
             datalayout: &self.datalayout,
             section_table: &self.section_table,
             gc_table: &self.gc_table,
             strtab: &self.strtab,
-            attribute_groups: self
-                .attribute_groups
-                .as_ref()
-                .ok_or(MapCtxError::NoAttributeGroups)?,
-            attributes: self
-                .attributes
-                .as_ref()
-                .ok_or(MapCtxError::NoAttributeGroups)?,
+            attribute_groups: &self.attribute_groups,
+            attributes: &self.attributes,
             type_table: self.type_table.as_ref().ok_or(MapCtxError::NoTypeTable)?,
             comdats: &self.comdats,
         })
@@ -102,10 +92,8 @@ impl PartialMapCtx {
     }
 
     /// Returns the attribute groups stored in this context, or an error if not available.
-    pub fn attribute_groups(&self) -> Result<&AttributeGroups, MapCtxError> {
-        self.attribute_groups
-            .as_ref()
-            .ok_or(MapCtxError::NoAttributeGroups)
+    pub fn attribute_groups(&self) -> &AttributeGroups {
+        &self.attribute_groups
     }
 }
 

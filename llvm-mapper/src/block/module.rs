@@ -46,7 +46,7 @@ pub enum ModuleError {
     Alias(#[from] AliasError),
 
     /// A generic mapping error occurred.
-    #[error("mapping error in string table")]
+    #[error("generic mapping error")]
     Map(#[from] MapError),
 }
 
@@ -117,19 +117,25 @@ impl IrBlock for Module {
         // The order here is important: attribute groups must be mapped
         // and stored in the `PartialMapCtx` before the attribute block itself can be mapped.
         // Neither block is mandatory.
-        ctx.attribute_groups = block
+        if let Some(attribute_groups) = block
             .blocks()
             .one_or_none(BlockId::Ir(IrBlockId::ParamAttrGroup))
             .map_err(MapError::Inconsistent)?
             .map(|b| AttributeGroups::try_map(b, ctx))
-            .transpose()?;
+            .transpose()?
+        {
+            ctx.attribute_groups = attribute_groups;
+        }
 
-        ctx.attributes = block
+        if let Some(attributes) = block
             .blocks()
             .one_or_none(BlockId::Ir(IrBlockId::ParamAttr))
             .map_err(MapError::Inconsistent)?
             .map(|b| Attributes::try_map(b, ctx))
-            .transpose()?;
+            .transpose()?
+        {
+            ctx.attributes = attributes;
+        }
 
         // Build the list of COMDATs. We'll reference this later.
         ctx.comdats = block

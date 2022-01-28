@@ -419,7 +419,7 @@ impl Attribute {
 pub struct AttributeEntry(Vec<AttributeGroup>);
 
 /// Maps all attributes in an IR module.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Attributes(Vec<AttributeEntry>);
 
 impl Attributes {
@@ -450,7 +450,6 @@ impl IrBlock for Attributes {
                         log::debug!("group id: {}", group_id);
                         groups.push(
                             ctx.attribute_groups()
-                                .map_err(MapError::Context)?
                                 .get(group_id)
                                 .ok_or(AttributeError::BadAttributeGroup(group_id))?
                                 .clone(),
@@ -501,7 +500,7 @@ pub struct AttributeGroup {
 }
 
 /// Maps all attribute groups in an IR module.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AttributeGroups(HashMap<u32, AttributeGroup>);
 
 impl AttributeGroups {
