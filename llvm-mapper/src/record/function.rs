@@ -3,7 +3,9 @@
 use std::convert::TryFrom;
 
 use llvm_constants::CallingConvention;
-use llvm_support::{AlignError, Linkage, MaybeAlign, Type, Visibility};
+use llvm_support::{
+    AlignError, DllStorageClass, Linkage, MaybeAlign, Type, UnnamedAddr, Visibility,
+};
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
@@ -54,6 +56,10 @@ pub enum FunctionError {
     /// The function has an invalid GC table index.
     #[error("invalid GC table index: {0}")]
     Gc(usize),
+
+    /// The function has an invalid DLL storage class.
+    #[error("invalid storage class")]
+    DllStorageClass(#[from] TryFromPrimitiveError<DllStorageClass>),
 }
 
 /// Models the `MODULE_CODE_FUNCTION` record.
@@ -89,6 +95,12 @@ pub struct Function<'ctx> {
 
     /// The function's garbage collector, if it has one.
     pub gc_name: Option<&'ctx str>,
+
+    /// The function's `unnamed_addr` specifier.
+    pub unnamed_addr: UnnamedAddr,
+
+    /// The function's DLL storage class.
+    pub storage_class: DllStorageClass,
 }
 
 impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
@@ -166,9 +178,19 @@ impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
             })
             .transpose()?;
 
-        // fields[11]: unnamed_addr
+        let unnamed_addr = fields
+            .get(11)
+            .copied()
+            .map(UnnamedAddr::from)
+            .unwrap_or(UnnamedAddr::None);
+
         // fields[12]: prologuedata
-        // fields[13]: dllstorageclass
+
+        let storage_class = fields.get(13).map_or_else(
+            || Ok(DllStorageClass::Default),
+            |v| DllStorageClass::try_from(*v),
+        )?;
+
         // fields[14]: comdat
         // fields[15]: prefixdata
         // fields[16]: personalityfn
@@ -185,6 +207,8 @@ impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
             section,
             visibility,
             gc_name,
+            unnamed_addr,
+            storage_class,
         })
     }
 }
