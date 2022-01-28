@@ -1,6 +1,7 @@
 //! Functionality for mapping the `MODULE_BLOCK` block.
 
-use llvm_constants::{IrBlockId, ModuleCode, TARGET_TRIPLE};
+use llvm_support::bitcodes::{IrBlockId, ModuleCode};
+use llvm_support::TARGET_TRIPLE;
 use thiserror::Error;
 
 use crate::block::attributes::{AttributeError, AttributeGroups, Attributes};

@@ -1,7 +1,7 @@
 //! Errors for `llvm-bitstream`.
 
 use llvm_bitcursor::error::Error as CursorError;
-use llvm_constants::{AbbrevOpEnc, BlockInfoCode};
+use llvm_support::bitcodes::{AbbrevOpEnc, BlockInfoCode};
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error as ThisError;
 

@@ -1,6 +1,6 @@
 //! Functionality for mapping the `IDENTIFICATION_BLOCK` block.
 
-use llvm_constants::{IdentificationCode, IrBlockId};
+use llvm_support::bitcodes::{IdentificationCode, IrBlockId};
 use thiserror::Error;
 
 use crate::block::IrBlock;

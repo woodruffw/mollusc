@@ -2,7 +2,7 @@
 
 use std::convert::TryFrom;
 
-use llvm_constants::{IrBlockId, TypeCode};
+use llvm_support::bitcodes::{IrBlockId, TypeCode};
 use llvm_support::{
     AddressSpace, ArrayTypeError, FunctionTypeError, IntegerTypeError, PointerTypeError,
     StructTypeError, Type, VectorTypeError,

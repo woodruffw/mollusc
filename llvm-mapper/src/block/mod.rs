@@ -9,7 +9,7 @@ pub mod type_table;
 
 use std::convert::TryFrom;
 
-use llvm_constants::{IrBlockId, ReservedBlockId};
+use llvm_support::bitcodes::{IrBlockId, ReservedBlockId};
 use thiserror::Error;
 
 pub use self::attributes::*;

@@ -1,6 +1,6 @@
 //! Functionality for mapping the `SYMTAB_BLOCK` block.
 
-use llvm_constants::{IrBlockId, SymtabCode};
+use llvm_support::bitcodes::{IrBlockId, SymtabCode};
 use thiserror::Error;
 
 use crate::block::IrBlock;

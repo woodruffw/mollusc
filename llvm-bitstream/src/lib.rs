@@ -14,7 +14,7 @@ pub mod record;
 use std::io::{Seek, SeekFrom};
 
 use llvm_bitcursor::BitCursor;
-use llvm_constants::BITCODE_WRAPPER_MAGIC;
+use llvm_support::BITCODE_WRAPPER_MAGIC;
 
 use crate::error::Error;
 use crate::parser::StreamEntry;

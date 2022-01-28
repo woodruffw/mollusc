@@ -5,10 +5,8 @@ use std::convert::TryInto;
 use std::iter;
 
 use llvm_bitcursor::BitCursor;
-use llvm_constants::{
-    BlockInfoCode, ReservedAbbrevId, ReservedBlockId, FIRST_APPLICATION_ABBREV_ID,
-    INITIAL_ABBREV_ID_WIDTH,
-};
+use llvm_support::bitcodes::{BlockInfoCode, ReservedAbbrevId, ReservedBlockId};
+use llvm_support::{FIRST_APPLICATION_ABBREV_ID, INITIAL_ABBREV_ID_WIDTH};
 
 use crate::abbrev::{self, AbbrevId};
 use crate::error::Error;

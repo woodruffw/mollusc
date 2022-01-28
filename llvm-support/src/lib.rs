@@ -8,6 +8,7 @@
 
 pub mod align;
 pub mod attribute;
+pub mod bitcodes;
 pub mod ty;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -15,6 +16,31 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 pub use self::align::*;
 pub use self::attribute::*;
 pub use self::ty::*;
+
+/// The 32-bit magic that indicates a raw LLVM IR bitcode stream.
+pub const LLVM_IR_MAGIC: u32 = 0xdec04342;
+
+/// The 32-bit magic that indicates a bitcode wrapper, which in
+/// turn points to the start of the actual bitcode stream.
+pub const BITCODE_WRAPPER_MAGIC: u32 = 0x0b17c0de;
+
+/// The initial abbreviation ID width in a bitstream.
+pub const INITIAL_ABBREV_ID_WIDTH: u64 = 2;
+
+/// All abbreviation IDs before this are defined by the bitstream format,
+/// rather than the stream itself.
+pub const FIRST_APPLICATION_ABBREV_ID: usize = 4;
+
+/// All block IDs before this have their semantics defined by the bitstream
+/// format, rather than the stream itself.
+pub const FIRST_APPLICATION_BLOCK_ID: u64 = 8;
+
+/// The lookup alphabet for the Char6 operand encoding.
+pub const CHAR6_ALPHABET: &[u8] =
+    b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._";
+
+/// The current toolchain's target triple.
+pub const TARGET_TRIPLE: &str = env!("TARGET_TRIPLE");
 
 /// An exact endianness.
 ///
@@ -236,5 +262,65 @@ impl From<u64> for RuntimePreemption {
             // Unknown values are treated as `dso_preemptable`.
             _ => RuntimePreemption::DsoPreemptable,
         }
+    }
+}
+
+/// Calling conventions supported by LLVM.
+#[non_exhaustive]
+#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[repr(u64)]
+#[allow(missing_docs)]
+pub enum CallingConvention {
+    C = 0,
+    Fast = 8,
+    Cold = 9,
+    GHC = 10,
+    HiPE = 11,
+    WebKitJS = 12,
+    AnyReg = 13,
+    PreserveMost = 14,
+    PreserveAll = 15,
+    Swift = 16,
+    CXXFASTTLS = 17,
+    X86Stdcall = 64,
+    X86Fastcall = 65,
+    ARMAPCS = 66,
+    ARMAAPCS = 67,
+    ARMAAPCSVFP = 68,
+    MSP430INTR = 69,
+    X86ThisCall = 70,
+    PTXKernel = 71,
+    PTXDevice = 72,
+    SPIRFUNC = 75,
+    SPIRKERNEL = 76,
+    IntelOCLBI = 77,
+    X8664SysV = 78,
+    Win64 = 79,
+    X86VectorCall = 80,
+    HHVM = 81,
+    HHVMC = 82,
+    X86INTR = 83,
+    AVRINTR = 84,
+    AVRSIGNAL = 85,
+    AVRBUILTIN = 86,
+    AMDGPUVS = 87,
+    AMDGPUGS = 88,
+    AMDGPUPS = 89,
+    AMDGPUCS = 90,
+    AMDGPUKERNEL = 91,
+    X86RegCall = 92,
+    AMDGPUHS = 93,
+    MSP430BUILTIN = 94,
+    AMDGPULS = 95,
+    AMDGPUES = 96,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_target_triple() {
+        assert!(!TARGET_TRIPLE.is_empty());
     }
 }

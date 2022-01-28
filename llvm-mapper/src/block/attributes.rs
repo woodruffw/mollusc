@@ -3,7 +3,7 @@
 use std::convert::{TryFrom, TryInto};
 
 use hashbrown::HashMap;
-use llvm_constants::{AttributeCode, IrBlockId};
+use llvm_support::bitcodes::{AttributeCode, IrBlockId};
 use llvm_support::{AttributeId, AttributeKind, MaybeAlign};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 use thiserror::Error;

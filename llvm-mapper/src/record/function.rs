@@ -2,9 +2,9 @@
 
 use std::convert::TryFrom;
 
-use llvm_constants::CallingConvention;
 use llvm_support::{
-    AlignError, DllStorageClass, Linkage, MaybeAlign, Type, UnnamedAddr, Visibility,
+    AlignError, CallingConvention, DllStorageClass, Linkage, MaybeAlign, Type, UnnamedAddr,
+    Visibility,
 };
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;

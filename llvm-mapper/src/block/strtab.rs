@@ -2,7 +2,7 @@
 
 use std::str::Utf8Error;
 
-use llvm_constants::{IrBlockId, StrtabCode};
+use llvm_support::bitcodes::{IrBlockId, StrtabCode};
 use llvm_support::StrtabRef;
 use thiserror::Error;
 

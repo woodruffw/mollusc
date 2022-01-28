@@ -3,7 +3,8 @@
 use std::convert::{From, TryFrom, TryInto};
 
 use llvm_bitcursor::BitCursor;
-use llvm_constants::{AbbrevOpEnc, ReservedAbbrevId, CHAR6_ALPHABET};
+use llvm_support::bitcodes::{AbbrevOpEnc, ReservedAbbrevId};
+use llvm_support::CHAR6_ALPHABET;
 
 use crate::error::Error;
 use crate::record::Fields;

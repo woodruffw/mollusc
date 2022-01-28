@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 use llvm_bitstream::parser::StreamEntry;
 use llvm_bitstream::record::{Block, Record};
 use llvm_bitstream::Bitstream;
-use llvm_constants::IrBlockId;
+use llvm_support::bitcodes::IrBlockId;
 use thiserror::Error;
 
 use crate::block::{BlockId, BlockMapError, Identification, Module, Strtab, Symtab};
