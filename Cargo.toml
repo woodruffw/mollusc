@@ -3,7 +3,8 @@
 members = [
   "llvm-bitcursor",
   "llvm-bitstream",
-  "llvm-constants",
+  # Subsumed within llvm-support.
+  # "llvm-constants",
   "llvm-support",
   "llvm-mapper",
 ]
