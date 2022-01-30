@@ -4,7 +4,7 @@ use std::fs;
 use anyhow::Result;
 use clap::{App, Arg};
 use llvm_bitstream::Bitstream;
-use llvm_mapper::unroll::UnrolledBitcode;
+use llvm_mapper::unroll::Bitcode;
 
 fn app<'a>() -> App<'a> {
     App::new(env!("CARGO_PKG_NAME"))
@@ -29,7 +29,7 @@ fn main() -> Result<()> {
 
     let (_, bitstream) = Bitstream::from(&input)?;
 
-    let unrolled = UnrolledBitcode::try_from(bitstream)?;
+    let unrolled = Bitcode::try_from(bitstream)?;
     println!("{:#?}", unrolled);
 
     Ok(())

@@ -233,30 +233,30 @@ impl Block {
 
 /// A fully unrolled bitcode structure, taken from a bitstream.
 ///
-/// Every `UnrolledBitcode` has a list of `BitstreamModule`s that it contains, each of
+/// Every `Bitcode` has a list of `BitstreamModule`s that it contains, each of
 /// which corresponds to a single LLVM IR module. In the simplest case, there will only be one.
 #[derive(Debug)]
-pub struct UnrolledBitcode {
+pub struct Bitcode {
     /// The modules present in this bitcode stream.
     pub modules: Vec<BitcodeModule>,
 }
 
-impl TryFrom<&[u8]> for UnrolledBitcode {
+impl TryFrom<&[u8]> for Bitcode {
     type Error = Error;
 
-    /// Attempt to map the given buffer into an `UnrolledBitcode`.
-    fn try_from(buf: &[u8]) -> Result<UnrolledBitcode, Self::Error> {
+    /// Attempt to map the given buffer into an `Bitcode`.
+    fn try_from(buf: &[u8]) -> Result<Bitcode, Self::Error> {
         let (_, bitstream) = Bitstream::from(buf)?;
 
         bitstream.try_into()
     }
 }
 
-impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
+impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for Bitcode {
     type Error = Error;
 
-    /// Attempt to map the given bitstream into an `UnrolledBitcode`.
-    fn try_from(mut bitstream: Bitstream<T>) -> Result<UnrolledBitcode, Self::Error> {
+    /// Attempt to map the given bitstream into an `Bitcode`.
+    fn try_from(mut bitstream: Bitstream<T>) -> Result<Bitcode, Self::Error> {
         fn enter_block<T: AsRef<[u8]>>(
             bitstream: &mut Bitstream<T>,
             block: BsBlock,
@@ -297,7 +297,7 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
 
         let mut partial_modules = Vec::new();
 
-        // Unrolling a bitstream into an `UnrolledBitcode` is a little involved:
+        // Unrolling a bitstream into a `Bitcode` is a little involved:
         //
         // 1. There are multiple top-level blocks, each of which needs to be consumed.
         // 2. Certain top-level blocks need to be grouped together to form a single BitcodeModule.
@@ -405,7 +405,7 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
             .into_iter()
             .map(|p| p.reify())
             .collect::<Result<Vec<_>, _>>()?;
-        let unrolled = UnrolledBitcode { modules };
+        let unrolled = Bitcode { modules };
 
         Ok(unrolled)
     }
