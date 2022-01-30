@@ -842,6 +842,15 @@ mod tests {
     }
 
     #[test]
+    fn test_maybe_align() {
+        assert_eq!(MaybeAlign(None), MaybeAlign::try_from(0).unwrap());
+        assert_eq!(
+            MaybeAlign(Align::from_shift(0).ok()),
+            MaybeAlign::try_from(1).unwrap()
+        );
+    }
+
+    #[test]
     fn test_aligned_type_width() {
         for i in 1..(1 << 15) {
             assert!(AlignedTypeWidth::try_from(i).is_ok());
