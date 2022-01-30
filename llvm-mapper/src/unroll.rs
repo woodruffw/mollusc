@@ -247,6 +247,7 @@ pub struct UnrolledBitcode {
 impl TryFrom<&[u8]> for UnrolledBitcode {
     type Error = Error;
 
+    /// Attempt to map the given buffer into an `UnrolledBitcode`.
     fn try_from(buf: &[u8]) -> Result<UnrolledBitcode, Self::Error> {
         let (_, bitstream) = Bitstream::from(buf)?;
 
@@ -257,6 +258,7 @@ impl TryFrom<&[u8]> for UnrolledBitcode {
 impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
     type Error = Error;
 
+    /// Attempt to map the given bitstream into an `UnrolledBitcode`.
     fn try_from(mut bitstream: Bitstream<T>) -> Result<UnrolledBitcode, Self::Error> {
         fn enter_block<T: AsRef<[u8]>>(
             bitstream: &mut Bitstream<T>,
