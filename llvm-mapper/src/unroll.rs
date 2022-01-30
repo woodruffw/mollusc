@@ -189,10 +189,7 @@ impl Blocks {
 
     /// Return an option of one block matching the given code or `None`, or an
     /// `Err` variant if more than one matching block is present.
-    pub(crate) fn one_or_none(
-        &self,
-        id: BlockId,
-    ) -> Result<Option<&Block>, ConsistencyError> {
+    pub(crate) fn one_or_none(&self, id: BlockId) -> Result<Option<&Block>, ConsistencyError> {
         let mut blocks = self.by_id(id);
 
         match blocks.next() {

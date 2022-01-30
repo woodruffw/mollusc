@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use crate::block::IrBlock;
 use crate::map::{MapError, PartialMapCtx};
-use crate::unroll::{Record, Block};
+use crate::unroll::{Block, Record};
 
 /// Errors that can occur when mapping attribute blocks.
 #[derive(Debug, Error)]

@@ -9,7 +9,7 @@ use thiserror::Error;
 use crate::block::IrBlock;
 use crate::map::{MapError, PartialMapCtx};
 use crate::record::RecordBlobError;
-use crate::unroll::{Record, Block};
+use crate::unroll::{Block, Record};
 
 /// Errors that can occur when accessing a string table.
 #[derive(Debug, Error)]
