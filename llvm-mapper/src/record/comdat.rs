@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use crate::block::strtab::StrtabError;
 use crate::map::{MapError, PartialCtxMappable, PartialMapCtx};
-use crate::unroll::UnrolledRecord;
+use crate::unroll::Record;
 
 /// Errors that can occur when mapping a COMDAT record.
 #[non_exhaustive]
@@ -64,10 +64,10 @@ pub struct Comdat {
     pub name: String,
 }
 
-impl PartialCtxMappable<UnrolledRecord> for Comdat {
+impl PartialCtxMappable<Record> for Comdat {
     type Error = ComdatError;
 
-    fn try_map(record: &UnrolledRecord, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_map(record: &Record, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         if !ctx.use_strtab().map_err(MapError::Context)? {
             return Err(ComdatError::V1Unsupported);
         }

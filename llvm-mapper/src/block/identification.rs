@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::block::IrBlock;
 use crate::map::{MapError, PartialMapCtx};
-use crate::unroll::UnrolledBlock;
+use crate::unroll::Block;
 
 /// Errors that can occur while mapping the identification block.
 #[derive(Debug, Error)]
@@ -42,7 +42,7 @@ impl IrBlock for Identification {
 
     const BLOCK_ID: IrBlockId = IrBlockId::Identification;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_map_inner(block: &Block, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let producer = block
             .records
             .one(IdentificationCode::ProducerString as u64)

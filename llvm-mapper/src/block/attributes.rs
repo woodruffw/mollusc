@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use crate::block::IrBlock;
 use crate::map::{MapError, PartialMapCtx};
-use crate::unroll::{UnrolledBlock, UnrolledRecord};
+use crate::unroll::{Record, Block};
 
 /// Errors that can occur when mapping attribute blocks.
 #[derive(Debug, Error)]
@@ -337,7 +337,7 @@ pub enum Attribute {
 impl Attribute {
     /// Parse a new `Attribute` from the given record at the given start index, returning
     /// a tuple of the number of fields consumed and the parsed result.
-    fn from_record(start: usize, record: &UnrolledRecord) -> Result<(usize, Self), AttributeError> {
+    fn from_record(start: usize, record: &Record) -> Result<(usize, Self), AttributeError> {
         let mut fieldcount = 0;
 
         // You might ask: why are these macros?
@@ -433,7 +433,7 @@ impl IrBlock for Attributes {
 
     const BLOCK_ID: IrBlockId = IrBlockId::ParamAttr;
 
-    fn try_map_inner(block: &UnrolledBlock, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_map_inner(block: &Block, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let mut entries = vec![];
 
         for record in &block.records {
@@ -514,7 +514,7 @@ impl IrBlock for AttributeGroups {
 
     const BLOCK_ID: IrBlockId = IrBlockId::ParamAttrGroup;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_map_inner(block: &Block, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let mut groups = HashMap::new();
 
         for record in &block.records {

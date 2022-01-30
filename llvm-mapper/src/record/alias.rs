@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use crate::map::{CtxMappable, MapCtx};
 use crate::record::StrtabError;
-use crate::unroll::UnrolledRecord;
+use crate::unroll::Record;
 
 /// Errors that can occur while mapping an alias record.
 #[derive(Debug, Error)]
@@ -71,10 +71,10 @@ pub struct Alias<'ctx> {
     pub preemption_specifier: RuntimePreemption,
 }
 
-impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Alias<'ctx> {
+impl<'ctx> CtxMappable<'ctx, Record> for Alias<'ctx> {
     type Error = AliasError;
 
-    fn try_map(record: &UnrolledRecord, ctx: &'ctx MapCtx) -> Result<Self, Self::Error> {
+    fn try_map(record: &Record, ctx: &'ctx MapCtx) -> Result<Self, Self::Error> {
         let fields = record.fields();
 
         if !ctx.use_strtab() {

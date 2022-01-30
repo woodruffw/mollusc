@@ -9,7 +9,7 @@ use thiserror::Error;
 use crate::block::IrBlock;
 use crate::map::{MapError, PartialMapCtx};
 use crate::record::RecordBlobError;
-use crate::unroll::{UnrolledBlock, UnrolledRecord};
+use crate::unroll::{Record, Block};
 
 /// Errors that can occur when accessing a string table.
 #[derive(Debug, Error)]
@@ -50,7 +50,7 @@ impl IrBlock for Strtab {
 
     const BLOCK_ID: IrBlockId = IrBlockId::Strtab;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_map_inner(block: &Block, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         // TODO(ww): The docs also claim that there's only one STRTAB_BLOB per STRTAB_BLOCK,
         // but at least one person has reported otherwise here:
         // https://lists.llvm.org/pipermail/llvm-dev/2020-August/144327.html
@@ -96,7 +96,7 @@ impl Strtab {
     /// the string's offset and length into the string table.
     ///
     /// Panic safety: precondition: `record.fields().len() >= 2`
-    pub(crate) fn read_name(&self, record: &UnrolledRecord) -> Result<&str, StrtabError> {
+    pub(crate) fn read_name(&self, record: &Record) -> Result<&str, StrtabError> {
         let fields = record.fields();
 
         self.try_get(&(fields[0], fields[1]).into())

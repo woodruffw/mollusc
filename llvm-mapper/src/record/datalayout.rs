@@ -13,7 +13,7 @@ use thiserror::Error;
 
 use crate::map::{PartialCtxMappable, PartialMapCtx};
 use crate::record::RecordStringError;
-use crate::unroll::UnrolledRecord;
+use crate::unroll::Record;
 
 /// Potential errors when parsing an LLVM datalayout string.
 #[derive(Debug, Error)]
@@ -250,10 +250,10 @@ impl FromStr for DataLayout {
     }
 }
 
-impl PartialCtxMappable<UnrolledRecord> for DataLayout {
+impl PartialCtxMappable<Record> for DataLayout {
     type Error = DataLayoutError;
 
-    fn try_map(record: &UnrolledRecord, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_map(record: &Record, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let datalayout = record.try_string(0)?;
         datalayout.parse::<Self>()
     }
