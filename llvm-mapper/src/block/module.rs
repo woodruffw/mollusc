@@ -72,7 +72,7 @@ impl IrBlock for Module {
         // so we can reify it into a `MapCtx` for subsequent steps.
         ctx.version = Some({
             let version = block
-                .records()
+                .records
                 .exactly_one(ModuleCode::Version)
                 .map_err(MapError::Inconsistent)?;
 
@@ -81,7 +81,7 @@ impl IrBlock for Module {
 
         // Each module *should* have a datalayout record, but doesn't necessarily.
         if let Some(record) = block
-            .records()
+            .records
             .one_or_none(ModuleCode::DataLayout)
             .map_err(MapError::Inconsistent)?
         {
@@ -90,7 +90,7 @@ impl IrBlock for Module {
 
         // Build the section table. We'll reference this later.
         ctx.section_table = block
-            .records()
+            .records
             .by_code(ModuleCode::SectionName)
             .map(|rec| rec.try_string(0))
             .collect::<Result<Vec<_>, _>>()
@@ -98,7 +98,7 @@ impl IrBlock for Module {
 
         // Build the GC table. We'll reference this later.
         ctx.gc_table = block
-            .records()
+            .records
             .by_code(ModuleCode::GcName)
             .map(|rec| rec.try_string(0))
             .collect::<Result<Vec<_>, _>>()
@@ -107,7 +107,7 @@ impl IrBlock for Module {
         // Build the type table.
         ctx.type_table = Some(TypeTable::try_map(
             block
-                .blocks()
+                .blocks
                 .exactly_one(BlockId::Ir(IrBlockId::Type))
                 .map_err(MapError::Inconsistent)?,
             ctx,
@@ -118,7 +118,7 @@ impl IrBlock for Module {
         // and stored in the `PartialMapCtx` before the attribute block itself can be mapped.
         // Neither block is mandatory.
         if let Some(attribute_groups) = block
-            .blocks()
+            .blocks
             .one_or_none(BlockId::Ir(IrBlockId::ParamAttrGroup))
             .map_err(MapError::Inconsistent)?
             .map(|b| AttributeGroups::try_map(b, ctx))
@@ -128,7 +128,7 @@ impl IrBlock for Module {
         }
 
         if let Some(attributes) = block
-            .blocks()
+            .blocks
             .one_or_none(BlockId::Ir(IrBlockId::ParamAttr))
             .map_err(MapError::Inconsistent)?
             .map(|b| Attributes::try_map(b, ctx))
@@ -139,7 +139,7 @@ impl IrBlock for Module {
 
         // Build the list of COMDATs. We'll reference this later.
         ctx.comdats = block
-            .records()
+            .records
             .by_code(ModuleCode::Comdat)
             .map(|rec| Comdat::try_map(rec, ctx))
             .collect::<Result<Vec<_>, _>>()?;
@@ -149,7 +149,7 @@ impl IrBlock for Module {
 
         // Each module *should* have a target triple, but doesn't necessarily.
         let triple = match block
-            .records()
+            .records
             .one_or_none(ModuleCode::Triple)
             .map_err(MapError::Inconsistent)?
         {
@@ -159,7 +159,7 @@ impl IrBlock for Module {
 
         // Each module has zero or exactly one MODULE_CODE_ASM records.
         let asm = match block
-            .records()
+            .records
             .one_or_none(ModuleCode::Asm)
             .map_err(MapError::Inconsistent)?
         {
@@ -174,7 +174,7 @@ impl IrBlock for Module {
 
         // Deplib records are deprecated, but we might be parsing an older bitstream.
         let deplibs = block
-            .records()
+            .records
             .by_code(ModuleCode::DepLib)
             .map(|rec| rec.try_string(0))
             .collect::<Result<Vec<_>, _>>()
@@ -182,7 +182,7 @@ impl IrBlock for Module {
 
         // Collect the function records and blocks in this module.
         let functions = block
-            .records()
+            .records
             .by_code(ModuleCode::Function)
             .map(|rec| FunctionRecord::try_map(rec, &ctx))
             .collect::<Result<Vec<_>, _>>()?;
@@ -191,7 +191,7 @@ impl IrBlock for Module {
         log::debug!("functions: {:?}", functions);
 
         let aliases = block
-            .records()
+            .records
             .by_code(ModuleCode::Alias)
             .map(|rec| Alias::try_map(rec, &ctx))
             .collect::<Result<Vec<_>, _>>()?;

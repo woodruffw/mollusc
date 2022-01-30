@@ -217,10 +217,10 @@ pub struct UnrolledBlock {
     // kinds of records. Doing so correctly is tricky: even with an order-preserving
     // structure like IndexMap, we'd lose the correct order as we insert each record
     // into its bucket.
-    records: UnrolledRecords,
+    pub(crate) records: UnrolledRecords,
     /// The blocks directly contained by this block, mapped by their IDs. Like with records,
     /// a block can contain multiple sub-blocks of the same ID.
-    blocks: UnrolledBlocks,
+    pub(crate) blocks: UnrolledBlocks,
 }
 
 impl UnrolledBlock {
@@ -231,16 +231,6 @@ impl UnrolledBlock {
             // TODO(ww): Figure out a default capacity here.
             blocks: UnrolledBlocks::default(),
         }
-    }
-
-    /// Return a reference to all of the records in this block.
-    pub fn records(&self) -> &UnrolledRecords {
-        &self.records
-    }
-
-    /// Return a reference to all of the sub-blocks of this block.
-    pub fn blocks(&self) -> &UnrolledBlocks {
-        &self.blocks
     }
 }
 

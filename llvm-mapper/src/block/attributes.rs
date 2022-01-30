@@ -436,7 +436,7 @@ impl IrBlock for Attributes {
     fn try_map_inner(block: &UnrolledBlock, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let mut entries = vec![];
 
-        for record in block.records() {
+        for record in &block.records {
             let code = AttributeCode::try_from(record.code()).map_err(AttributeError::from)?;
 
             match code {
@@ -517,7 +517,7 @@ impl IrBlock for AttributeGroups {
     fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let mut groups = HashMap::new();
 
-        for record in block.records() {
+        for record in &block.records {
             let code = AttributeCode::try_from(record.code()).map_err(AttributeError::from)?;
 
             if code != AttributeCode::GroupCodeEntry {

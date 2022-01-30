@@ -56,7 +56,7 @@ impl IrBlock for Strtab {
         // https://lists.llvm.org/pipermail/llvm-dev/2020-August/144327.html
         // Needs investigation.
         let strtab = block
-            .records()
+            .records
             .one(StrtabCode::Blob as u64)
             .ok_or(StrtabError::MissingBlob)
             .and_then(|r| r.try_blob(0).map_err(StrtabError::from))?;

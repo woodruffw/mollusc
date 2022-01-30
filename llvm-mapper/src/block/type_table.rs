@@ -296,7 +296,7 @@ impl IrBlock for TypeTable {
     fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         // Figure out how many type entries we have, and reserve the space for them up-front.
         let numentries = *block
-            .records()
+            .records
             .one(TypeCode::NumEntry)
             .ok_or(TypeTableError::BadTable)
             .and_then(|r| r.fields().get(0).ok_or(TypeTableError::BadTable))?
@@ -311,7 +311,7 @@ impl IrBlock for TypeTable {
         //    fully owned and expanded `Type`s.
         let mut partial_types = PartialTypeTable::new(numentries);
         let mut last_type_name = String::new();
-        for record in block.records() {
+        for record in &block.records {
             // A convenience macro for turning a type record field access into an error on failure.
             macro_rules! type_field {
                 ($n:literal) => {

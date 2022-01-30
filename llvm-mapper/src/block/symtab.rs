@@ -44,7 +44,7 @@ impl IrBlock for Symtab {
 
     fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let symtab = block
-            .records()
+            .records
             .one(SymtabCode::Blob as u64)
             .ok_or(SymtabError::MissingBlob)
             .and_then(|r| r.try_blob(0).map_err(SymtabError::from))?;

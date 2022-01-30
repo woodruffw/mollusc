@@ -44,7 +44,7 @@ impl IrBlock for Identification {
 
     fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let producer = block
-            .records()
+            .records
             .one(IdentificationCode::ProducerString as u64)
             .ok_or(IdentificationError::MissingProducer)
             .and_then(|r| {
@@ -53,7 +53,7 @@ impl IrBlock for Identification {
             })?;
 
         let epoch = *block
-            .records()
+            .records
             .one(IdentificationCode::Epoch as u64)
             .ok_or(IdentificationError::MissingEpoch)
             .and_then(|r| r.fields().get(0).ok_or(IdentificationError::MissingEpoch))?;
