@@ -12,4 +12,4 @@ pub mod map;
 pub mod record;
 pub mod unroll;
 
-pub use unroll::UnrolledBitcode;
+pub use unroll::Bitcode;

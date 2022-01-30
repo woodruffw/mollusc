@@ -12,7 +12,7 @@ use thiserror::Error;
 use crate::block::attributes::AttributeEntry;
 use crate::map::{CtxMappable, MapCtx};
 use crate::record::StrtabError;
-use crate::unroll::UnrolledRecord;
+use crate::unroll::Record;
 
 /// Errors that can occur when mapping a function record.
 #[derive(Debug, Error)]
@@ -103,10 +103,10 @@ pub struct Function<'ctx> {
     pub storage_class: DllStorageClass,
 }
 
-impl<'ctx> CtxMappable<'ctx, UnrolledRecord> for Function<'ctx> {
+impl<'ctx> CtxMappable<'ctx, Record> for Function<'ctx> {
     type Error = FunctionError;
 
-    fn try_map(record: &UnrolledRecord, ctx: &'ctx MapCtx) -> Result<Self, Self::Error> {
+    fn try_map(record: &Record, ctx: &'ctx MapCtx) -> Result<Self, Self::Error> {
         let fields = record.fields();
 
         if !ctx.use_strtab() {

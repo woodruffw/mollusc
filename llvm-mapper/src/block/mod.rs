@@ -19,7 +19,7 @@ pub use self::strtab::*;
 pub use self::symtab::*;
 pub use self::type_table::*;
 use crate::map::{MapError, PartialCtxMappable, PartialMapCtx};
-use crate::unroll::UnrolledBlock;
+use crate::unroll::Block;
 
 /// Potential errors when mapping a single bitstream block.
 #[non_exhaustive]
@@ -75,16 +75,16 @@ pub(crate) trait IrBlock: Sized {
     /// Attempt to map the given block to the implementing type, returning an error if mapping fails.
     ///
     /// This is an interior trait that shouldn't be used directly.
-    fn try_map_inner(block: &UnrolledBlock, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error>;
+    fn try_map_inner(block: &Block, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error>;
 }
 
-impl<T: IrBlock> PartialCtxMappable<UnrolledBlock> for T
+impl<T: IrBlock> PartialCtxMappable<Block> for T
 where
     T::Error: From<MapError>,
 {
     type Error = T::Error;
 
-    fn try_map(block: &UnrolledBlock, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_map(block: &Block, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         if block.id != BlockId::Ir(T::BLOCK_ID) {
             return Err(MapError::BadBlockMap(format!(
                 "can't map {:?} into {:?}",

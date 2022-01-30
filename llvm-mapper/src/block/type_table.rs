@@ -12,7 +12,7 @@ use thiserror::Error;
 
 use crate::block::IrBlock;
 use crate::map::{MapError, PartialMapCtx};
-use crate::unroll::UnrolledBlock;
+use crate::unroll::Block;
 
 /// Errors that can occur when mapping the type table.
 #[derive(Debug, Error)]
@@ -293,7 +293,7 @@ impl IrBlock for TypeTable {
 
     const BLOCK_ID: IrBlockId = IrBlockId::Type;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_map_inner(block: &Block, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         // Figure out how many type entries we have, and reserve the space for them up-front.
         let numentries = *block
             .records

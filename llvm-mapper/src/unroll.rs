@@ -5,7 +5,7 @@ use std::convert::{TryFrom, TryInto};
 
 use indexmap::IndexMap;
 use llvm_bitstream::parser::StreamEntry;
-use llvm_bitstream::record::{Block, Record};
+use llvm_bitstream::record::{Block as BsBlock, Record as BsRecord};
 use llvm_bitstream::Bitstream;
 use llvm_support::bitcodes::IrBlockId;
 use thiserror::Error;
@@ -19,9 +19,9 @@ use crate::record::{RecordBlobError, RecordStringError};
 /// [`Record`](llvm_bitstream::record::Record), but is newtyped to enforce proper
 /// isolation of concerns.
 #[derive(Clone, Debug)]
-pub struct UnrolledRecord(Record);
+pub struct Record(BsRecord);
 
-impl UnrolledRecord {
+impl Record {
     /// Returns this record's code.
     pub fn code(&self) -> u64 {
         self.0.code
@@ -94,9 +94,9 @@ pub enum ConsistencyError {
 
 /// Represents a collection of unrolled records.
 #[derive(Clone, Debug, Default)]
-pub struct UnrolledRecords(Vec<UnrolledRecord>);
+pub struct Records(Vec<Record>);
 
-impl UnrolledRecords {
+impl Records {
     /// Return an iterator for all records that share the given code. Records
     /// are iterated in the order of insertion.
     ///
@@ -104,7 +104,7 @@ impl UnrolledRecords {
     pub(crate) fn by_code<'a>(
         &'a self,
         code: impl Into<u64> + 'a,
-    ) -> impl Iterator<Item = &UnrolledRecord> + 'a {
+    ) -> impl Iterator<Item = &Record> + 'a {
         let code = code.into();
         self.0.iter().filter(move |r| r.code() == code)
     }
@@ -113,7 +113,7 @@ impl UnrolledRecords {
     /// no matches.
     ///
     /// Ignores any subsequent matches.
-    pub(crate) fn one<'a>(&'a self, code: impl Into<u64> + 'a) -> Option<&UnrolledRecord> {
+    pub(crate) fn one<'a>(&'a self, code: impl Into<u64> + 'a) -> Option<&Record> {
         self.by_code(code).next()
     }
 
@@ -122,7 +122,7 @@ impl UnrolledRecords {
     pub(crate) fn exactly_one<'a>(
         &'a self,
         code: impl Into<u64> + 'a,
-    ) -> Result<&UnrolledRecord, ConsistencyError> {
+    ) -> Result<&Record, ConsistencyError> {
         let code = code.into();
         let mut records = self.by_code(code);
 
@@ -140,7 +140,7 @@ impl UnrolledRecords {
     pub(crate) fn one_or_none<'a>(
         &'a self,
         code: impl Into<u64> + 'a,
-    ) -> Result<Option<&UnrolledRecord>, ConsistencyError> {
+    ) -> Result<Option<&Record>, ConsistencyError> {
         let code = code.into();
         let mut records = self.by_code(code);
 
@@ -154,9 +154,9 @@ impl UnrolledRecords {
     }
 }
 
-impl<'a> IntoIterator for &'a UnrolledRecords {
-    type Item = &'a UnrolledRecord;
-    type IntoIter = std::slice::Iter<'a, UnrolledRecord>;
+impl<'a> IntoIterator for &'a Records {
+    type Item = &'a Record;
+    type IntoIter = std::slice::Iter<'a, Record>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
@@ -165,17 +165,17 @@ impl<'a> IntoIterator for &'a UnrolledRecords {
 
 /// Represents a collection of unrolled blocks.
 #[derive(Clone, Debug, Default)]
-pub struct UnrolledBlocks(IndexMap<BlockId, Vec<UnrolledBlock>>);
+pub struct Blocks(IndexMap<BlockId, Vec<Block>>);
 
-impl UnrolledBlocks {
+impl Blocks {
     /// Return an iterator over all sub-blocks within this block that share the given ID.
     ///
     /// The returned iterator is empty if the block doesn't have any matching sub-blocks.
-    pub(crate) fn by_id(&self, id: BlockId) -> impl Iterator<Item = &UnrolledBlock> + '_ {
+    pub(crate) fn by_id(&self, id: BlockId) -> impl Iterator<Item = &Block> + '_ {
         self.0.get(&id).into_iter().flatten()
     }
 
-    pub(crate) fn exactly_one(&self, id: BlockId) -> Result<&UnrolledBlock, ConsistencyError> {
+    pub(crate) fn exactly_one(&self, id: BlockId) -> Result<&Block, ConsistencyError> {
         let mut blocks = self.by_id(id);
 
         match blocks.next() {
@@ -189,10 +189,7 @@ impl UnrolledBlocks {
 
     /// Return an option of one block matching the given code or `None`, or an
     /// `Err` variant if more than one matching block is present.
-    pub(crate) fn one_or_none(
-        &self,
-        id: BlockId,
-    ) -> Result<Option<&UnrolledBlock>, ConsistencyError> {
+    pub(crate) fn one_or_none(&self, id: BlockId) -> Result<Option<&Block>, ConsistencyError> {
         let mut blocks = self.by_id(id);
 
         match blocks.next() {
@@ -208,63 +205,63 @@ impl UnrolledBlocks {
 /// A fully unrolled block within the bitstream, with potential records
 /// and sub-blocks.
 #[derive(Clone, Debug)]
-pub struct UnrolledBlock {
+pub struct Block {
     /// This block's ID.
     pub id: BlockId,
-    /// The [`UnrolledRecord`](UnrolledRecord)s directly contained by this block.
+    /// The [`Record`](Record)s directly contained by this block.
     // NOTE(ww): It would be nice if we could map this list of records by their codes,
     // since that would save us some time when scanning blocks for particular
     // kinds of records. Doing so correctly is tricky: even with an order-preserving
     // structure like IndexMap, we'd lose the correct order as we insert each record
     // into its bucket.
-    pub(crate) records: UnrolledRecords,
+    pub(crate) records: Records,
     /// The blocks directly contained by this block, mapped by their IDs. Like with records,
     /// a block can contain multiple sub-blocks of the same ID.
-    pub(crate) blocks: UnrolledBlocks,
+    pub(crate) blocks: Blocks,
 }
 
-impl UnrolledBlock {
+impl Block {
     pub(self) fn new(id: u64) -> Self {
         Self {
             id: id.into(),
-            records: UnrolledRecords::default(),
+            records: Records::default(),
             // TODO(ww): Figure out a default capacity here.
-            blocks: UnrolledBlocks::default(),
+            blocks: Blocks::default(),
         }
     }
 }
 
 /// A fully unrolled bitcode structure, taken from a bitstream.
 ///
-/// Every `UnrolledBitcode` has a list of `BitstreamModule`s that it contains, each of
+/// Every `Bitcode` has a list of `BitstreamModule`s that it contains, each of
 /// which corresponds to a single LLVM IR module. In the simplest case, there will only be one.
 #[derive(Debug)]
-pub struct UnrolledBitcode {
+pub struct Bitcode {
     /// The modules present in this bitcode stream.
     pub modules: Vec<BitcodeModule>,
 }
 
-impl TryFrom<&[u8]> for UnrolledBitcode {
+impl TryFrom<&[u8]> for Bitcode {
     type Error = Error;
 
-    /// Attempt to map the given buffer into an `UnrolledBitcode`.
-    fn try_from(buf: &[u8]) -> Result<UnrolledBitcode, Self::Error> {
+    /// Attempt to map the given buffer into an `Bitcode`.
+    fn try_from(buf: &[u8]) -> Result<Bitcode, Self::Error> {
         let (_, bitstream) = Bitstream::from(buf)?;
 
         bitstream.try_into()
     }
 }
 
-impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
+impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for Bitcode {
     type Error = Error;
 
-    /// Attempt to map the given bitstream into an `UnrolledBitcode`.
-    fn try_from(mut bitstream: Bitstream<T>) -> Result<UnrolledBitcode, Self::Error> {
+    /// Attempt to map the given bitstream into an `Bitcode`.
+    fn try_from(mut bitstream: Bitstream<T>) -> Result<Bitcode, Self::Error> {
         fn enter_block<T: AsRef<[u8]>>(
             bitstream: &mut Bitstream<T>,
-            block: Block,
-        ) -> Result<UnrolledBlock, Error> {
-            let mut unrolled_block = UnrolledBlock::new(block.block_id);
+            block: BsBlock,
+        ) -> Result<Block, Error> {
+            let mut unrolled_block = Block::new(block.block_id);
 
             // Once we're in a block, we do the following:
             // 1. Take records, and add them to the current unrolled block;
@@ -278,9 +275,7 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
                     .ok_or_else(|| Error::Unroll("unexpected stream end during unroll".into()))?;
 
                 match entry? {
-                    StreamEntry::Record(record) => {
-                        unrolled_block.records.0.push(UnrolledRecord(record))
-                    }
+                    StreamEntry::Record(record) => unrolled_block.records.0.push(Record(record)),
                     StreamEntry::SubBlock(block) => {
                         let unrolled_child = enter_block(bitstream, block)?;
                         unrolled_block
@@ -302,7 +297,7 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
 
         let mut partial_modules = Vec::new();
 
-        // Unrolling a bitstream into an `UnrolledBitcode` is a little involved:
+        // Unrolling a bitstream into a `Bitcode` is a little involved:
         //
         // 1. There are multiple top-level blocks, each of which needs to be consumed.
         // 2. Certain top-level blocks need to be grouped together to form a single BitcodeModule.
@@ -410,7 +405,7 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
             .into_iter()
             .map(|p| p.reify())
             .collect::<Result<Vec<_>, _>>()?;
-        let unrolled = UnrolledBitcode { modules };
+        let unrolled = Bitcode { modules };
 
         Ok(unrolled)
     }
@@ -420,15 +415,15 @@ impl<T: AsRef<[u8]>> TryFrom<Bitstream<T>> for UnrolledBitcode {
 /// to avoid polluting the `BitcodeModule` structure with optional types.
 #[derive(Debug)]
 struct PartialBitcodeModule {
-    identification: UnrolledBlock,
-    module: Option<UnrolledBlock>,
-    strtab: Option<UnrolledBlock>,
-    symtab: Option<UnrolledBlock>,
+    identification: Block,
+    module: Option<Block>,
+    strtab: Option<Block>,
+    symtab: Option<Block>,
 }
 
 impl PartialBitcodeModule {
     /// Create a new `PartialBitcodeModule`.
-    pub(self) fn new(identification: UnrolledBlock) -> Self {
+    pub(self) fn new(identification: Block) -> Self {
         Self {
             identification: identification,
             module: None,
@@ -510,7 +505,7 @@ mod tests {
 
     #[test]
     fn test_unrolled_record_try_string() {
-        let record = UnrolledRecord(Record {
+        let record = Record(BsRecord {
             abbrev_id: None,
             code: 0,
             fields: b"\xff\xffvalid string!".iter().map(|b| *b as u64).collect(),
@@ -526,7 +521,7 @@ mod tests {
 
     #[test]
     fn test_unrolled_record_try_blob() {
-        let record = UnrolledRecord(Record {
+        let record = Record(BsRecord {
             abbrev_id: None,
             code: 0,
             fields: b"\xff\xffvalid string!".iter().map(|b| *b as u64).collect(),

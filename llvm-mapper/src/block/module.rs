@@ -12,7 +12,7 @@ use crate::record::{
     Alias, AliasError, Comdat, ComdatError, DataLayout, DataLayoutError,
     Function as FunctionRecord, FunctionError as FunctionRecordError,
 };
-use crate::unroll::UnrolledBlock;
+use crate::unroll::Block;
 
 /// Errors that can occur while mapping a module.
 #[derive(Debug, Error)]
@@ -67,7 +67,7 @@ impl IrBlock for Module {
 
     const BLOCK_ID: IrBlockId = IrBlockId::Module;
 
-    fn try_map_inner(block: &UnrolledBlock, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_map_inner(block: &Block, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         // Mapping the module requires us to fill in the `PartialMapCtx` first,
         // so we can reify it into a `MapCtx` for subsequent steps.
         ctx.version = Some({

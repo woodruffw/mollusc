@@ -6,7 +6,7 @@ use thiserror::Error;
 use crate::block::IrBlock;
 use crate::map::{MapError, PartialMapCtx};
 use crate::record::RecordBlobError;
-use crate::unroll::UnrolledBlock;
+use crate::unroll::Block;
 
 /// Errors that can occur when accessing a symbol table.
 #[derive(Debug, Error)]
@@ -42,7 +42,7 @@ impl IrBlock for Symtab {
 
     const BLOCK_ID: IrBlockId = IrBlockId::Symtab;
 
-    fn try_map_inner(block: &UnrolledBlock, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_map_inner(block: &Block, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
         let symtab = block
             .records
             .one(SymtabCode::Blob as u64)
