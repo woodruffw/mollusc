@@ -208,7 +208,7 @@ impl Blocks {
 pub struct Block {
     /// This block's ID.
     pub id: BlockId,
-    /// The [`UnrolledRecord`](UnrolledRecord)s directly contained by this block.
+    /// The [`Record`](Record)s directly contained by this block.
     // NOTE(ww): It would be nice if we could map this list of records by their codes,
     // since that would save us some time when scanning blocks for particular
     // kinds of records. Doing so correctly is tricky: even with an order-preserving
