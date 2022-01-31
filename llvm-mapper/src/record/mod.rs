@@ -46,24 +46,3 @@ pub enum RecordBlobError {
     #[error("impossible byte value in blob: {0}")]
     BadByte(#[from] TryFromIntError),
 }
-
-/// Potential errors when mapping a single bitstream record.
-#[non_exhaustive]
-#[derive(Debug, Error)]
-pub enum RecordMapError {
-    /// Mapping a COMDAT record failed.
-    #[error("error while mapping COMDAT record: {0}")]
-    Comdat(#[from] ComdatError),
-
-    /// Parsing the datalayout specification failed.
-    #[error("error while parsing datalayout: {0}")]
-    DataLayout(#[from] DataLayoutError),
-
-    /// Mapping a function record failed.
-    #[error("error while mapping function record: {0}")]
-    Function(#[from] FunctionError),
-
-    /// We encountered a string we couldn't extract.
-    #[error("error while extracting string: {0}")]
-    BadRecordString(#[from] RecordStringError),
-}
