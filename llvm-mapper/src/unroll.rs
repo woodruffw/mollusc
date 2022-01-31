@@ -171,11 +171,13 @@ impl Blocks {
     /// Return an iterator over all sub-blocks within this block that share the given ID.
     ///
     /// The returned iterator is empty if the block doesn't have any matching sub-blocks.
-    pub(crate) fn by_id(&self, id: BlockId) -> impl Iterator<Item = &Block> + '_ {
+    pub(crate) fn by_id(&self, id: impl Into<BlockId>) -> impl Iterator<Item = &Block> + '_ {
+        let id = id.into();
         self.0.get(&id).into_iter().flatten()
     }
 
-    pub(crate) fn exactly_one(&self, id: BlockId) -> Result<&Block, ConsistencyError> {
+    pub(crate) fn exactly_one(&self, id: impl Into<BlockId>) -> Result<&Block, ConsistencyError> {
+        let id = id.into();
         let mut blocks = self.by_id(id);
 
         match blocks.next() {
@@ -189,7 +191,11 @@ impl Blocks {
 
     /// Return an option of one block matching the given code or `None`, or an
     /// `Err` variant if more than one matching block is present.
-    pub(crate) fn one_or_none(&self, id: BlockId) -> Result<Option<&Block>, ConsistencyError> {
+    pub(crate) fn one_or_none(
+        &self,
+        id: impl Into<BlockId>,
+    ) -> Result<Option<&Block>, ConsistencyError> {
+        let id = id.into();
         let mut blocks = self.by_id(id);
 
         match blocks.next() {

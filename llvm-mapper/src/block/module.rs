@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::block::attributes::{AttributeError, AttributeGroups, Attributes};
 use crate::block::type_table::{TypeTable, TypeTableError};
-use crate::block::{BlockId, IrBlock};
+use crate::block::IrBlock;
 use crate::map::{CtxMappable, MapError, PartialCtxMappable, PartialMapCtx};
 use crate::record::{
     Alias, AliasError, Comdat, ComdatError, DataLayout, DataLayoutError,
@@ -108,7 +108,7 @@ impl IrBlock for Module {
         ctx.type_table = Some(TypeTable::try_map(
             block
                 .blocks
-                .exactly_one(BlockId::Ir(IrBlockId::Type))
+                .exactly_one(IrBlockId::Type)
                 .map_err(MapError::Inconsistent)?,
             ctx,
         )?);
@@ -119,7 +119,7 @@ impl IrBlock for Module {
         // Neither block is mandatory.
         if let Some(attribute_groups) = block
             .blocks
-            .one_or_none(BlockId::Ir(IrBlockId::ParamAttrGroup))
+            .one_or_none(IrBlockId::ParamAttrGroup)
             .map_err(MapError::Inconsistent)?
             .map(|b| AttributeGroups::try_map(b, ctx))
             .transpose()?
@@ -129,7 +129,7 @@ impl IrBlock for Module {
 
         if let Some(attributes) = block
             .blocks
-            .one_or_none(BlockId::Ir(IrBlockId::ParamAttr))
+            .one_or_none(IrBlockId::ParamAttr)
             .map_err(MapError::Inconsistent)?
             .map(|b| Attributes::try_map(b, ctx))
             .transpose()?

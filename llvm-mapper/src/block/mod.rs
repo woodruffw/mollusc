@@ -53,6 +53,18 @@ pub enum BlockId {
     Unknown(u64),
 }
 
+impl From<ReservedBlockId> for BlockId {
+    fn from(v: ReservedBlockId) -> Self {
+        Self::Reserved(v)
+    }
+}
+
+impl From<IrBlockId> for BlockId {
+    fn from(v: IrBlockId) -> Self {
+        Self::Ir(v)
+    }
+}
+
 impl From<u64> for BlockId {
     fn from(value: u64) -> Self {
         // Try to turn `value` into each of our known kinds of block IDs, in order
