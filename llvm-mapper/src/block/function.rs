@@ -15,10 +15,10 @@ pub enum FunctionError {}
 #[derive(Debug)]
 pub struct Function {}
 
-impl<'a, 'ctx> TryFrom<(&'a Block, &'ctx MapCtx<'_>)> for Function {
+impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
     type Error = FunctionError;
 
-    fn try_from((_block, _ctx): (&'a Block, &'ctx MapCtx)) -> Result<Self, Self::Error> {
+    fn try_from((_block, _ctx): (&'_ Block, &'_ MapCtx)) -> Result<Self, Self::Error> {
         unimplemented!()
     }
 }

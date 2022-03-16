@@ -458,7 +458,7 @@ impl PartialBitcodeModule {
 
         ctx.strtab = strtab;
 
-        let identification = Identification::try_map(&self.identification, &mut ctx)
+        let identification = Identification::try_from((&self.identification, &ctx))
             .map_err(BlockMapError::Identification)?;
 
         let module = Module::try_map(

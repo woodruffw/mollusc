@@ -1,9 +1,10 @@
 //! Functionality for mapping the `IDENTIFICATION_BLOCK` block.
 
-use llvm_support::bitcodes::{IdentificationCode, IrBlockId};
+use std::convert::TryFrom;
+
+use llvm_support::bitcodes::IdentificationCode;
 use thiserror::Error;
 
-use crate::block::IrBlock;
 use crate::map::{MapError, PartialMapCtx};
 use crate::unroll::Block;
 
@@ -37,12 +38,10 @@ pub struct Identification {
     pub epoch: u64,
 }
 
-impl IrBlock for Identification {
+impl TryFrom<(&'_ Block, &'_ PartialMapCtx)> for Identification {
     type Error = IdentificationError;
 
-    const BLOCK_ID: IrBlockId = IrBlockId::Identification;
-
-    fn try_map_inner(block: &Block, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_from((block, _ctx): (&'_ Block, &'_ PartialMapCtx)) -> Result<Self, Self::Error> {
         let producer = block
             .records
             .one(IdentificationCode::ProducerString as u64)

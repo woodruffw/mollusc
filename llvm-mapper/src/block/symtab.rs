@@ -38,10 +38,10 @@ impl AsRef<[u8]> for Symtab {
     }
 }
 
-impl<'a, 'ctx> TryFrom<(&'a Block, &'ctx PartialMapCtx)> for Symtab {
+impl TryFrom<(&'_ Block, &'_ PartialMapCtx)> for Symtab {
     type Error = SymtabError;
 
-    fn try_from((block, _ctx): (&'a Block, &'ctx PartialMapCtx)) -> Result<Self, Self::Error> {
+    fn try_from((block, _ctx): (&'_ Block, &'_ PartialMapCtx)) -> Result<Self, Self::Error> {
         let symtab = block
             .records
             .one(SymtabCode::Blob as u64)

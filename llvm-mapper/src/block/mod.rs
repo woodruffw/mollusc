@@ -102,7 +102,7 @@ where
             return Err(MapError::BadBlockMap(format!(
                 "can't map {:?} into {:?}",
                 block.id,
-                Identification::BLOCK_ID
+                T::BLOCK_ID
             ))
             .into());
         }
