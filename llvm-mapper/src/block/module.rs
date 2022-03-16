@@ -128,7 +128,7 @@ impl IrBlock for Module {
             .blocks
             .one_or_none(IrBlockId::ParamAttrGroup)
             .map_err(MapError::Inconsistent)?
-            .map(|b| AttributeGroups::try_map(b, ctx))
+            .map(|b| AttributeGroups::try_from(b))
             .transpose()?
         {
             ctx.attribute_groups = attribute_groups;
@@ -138,7 +138,7 @@ impl IrBlock for Module {
             .blocks
             .one_or_none(IrBlockId::ParamAttr)
             .map_err(MapError::Inconsistent)?
-            .map(|b| Attributes::try_map(b, ctx))
+            .map(|b| Attributes::try_from((b, &*ctx)))
             .transpose()?
         {
             ctx.attributes = attributes;

@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use llvm_support::bitcodes::SymtabCode;
 use thiserror::Error;
 
-use crate::map::{MapError, PartialMapCtx};
+use crate::map::MapError;
 use crate::record::RecordBlobError;
 use crate::unroll::Block;
 
@@ -38,10 +38,10 @@ impl AsRef<[u8]> for Symtab {
     }
 }
 
-impl TryFrom<(&'_ Block, &'_ PartialMapCtx)> for Symtab {
+impl TryFrom<&'_ Block> for Symtab {
     type Error = SymtabError;
 
-    fn try_from((block, _ctx): (&'_ Block, &'_ PartialMapCtx)) -> Result<Self, Self::Error> {
+    fn try_from(block: &'_ Block) -> Result<Self, Self::Error> {
         let symtab = block
             .records
             .one(SymtabCode::Blob as u64)
