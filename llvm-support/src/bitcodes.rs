@@ -264,3 +264,62 @@ pub enum AttributeCode {
     /// PARAMATTR_GRP_CODE_ENTRY: `[grpid, idx, attr0, attr1, ...]`
     GroupCodeEntry,
 }
+
+/// Codes for each record in `FUNCTION_BLOCK`.
+///
+/// See: `FunctionCodes` in `LLVMBitCodes.h`.
+#[allow(missing_docs)]
+#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[repr(u64)]
+pub enum FunctionCode {
+    DeclareBlocks = 1,
+    InstBinop = 2,
+    InstCast = 3,
+    InstGepOld = 4,
+    InstSelect = 5,
+    InstExtractelt = 6,
+    InstInsertelt = 7,
+    InstShufflevec = 8,
+    InstCmp = 9,
+    InstRet = 10,
+    InstBr = 11,
+    InstSwitch = 12,
+    InstInvoke = 13,
+    InstUnreachable = 15,
+    InstPhi = 16,
+    InstAlloca = 19,
+    InstLoad = 20,
+    InstVaarg = 23,
+    InstStoreOld = 24,
+    InstExtractval = 26,
+    InstInsertval = 27,
+    InstCmp2 = 28,
+    InstVselect = 29,
+    InstInboundsGepOld = 30,
+    InstIndirectbr = 31,
+    DebugLocAgain = 33,
+    InstCall = 34,
+    DebugLoc = 35,
+    InstFence = 36,
+    InstCmpxchgOld = 37,
+    InstAtomicrmwOld = 38,
+    InstResume = 39,
+    InstLandingpadOld = 40,
+    InstLoadatomic = 41,
+    InstStoreatomicOld = 42,
+    InstGep = 43,
+    InstStore = 44,
+    InstStoreatomic = 45,
+    InstCmpxchg = 46,
+    InstLandingpad = 47,
+    InstCleanupret = 48,
+    InstCatchret = 49,
+    InstCatchpad = 50,
+    InstCleanuppad = 51,
+    InstCatchswitch = 52,
+    OperandBundle = 55,
+    InstUnop = 56,
+    Instcallbr = 57,
+    InstFreeze = 58,
+    InstAtomicrmw = 59,
+}
