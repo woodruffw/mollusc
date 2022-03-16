@@ -1,9 +1,10 @@
 //! Functionality for mapping the `SYMTAB_BLOCK` block.
 
-use llvm_support::bitcodes::{IrBlockId, SymtabCode};
+use std::convert::TryFrom;
+
+use llvm_support::bitcodes::SymtabCode;
 use thiserror::Error;
 
-use crate::block::IrBlock;
 use crate::map::{MapError, PartialMapCtx};
 use crate::record::RecordBlobError;
 use crate::unroll::Block;
@@ -37,12 +38,10 @@ impl AsRef<[u8]> for Symtab {
     }
 }
 
-impl IrBlock for Symtab {
+impl<'a, 'ctx> TryFrom<(&'a Block, &'ctx PartialMapCtx)> for Symtab {
     type Error = SymtabError;
 
-    const BLOCK_ID: IrBlockId = IrBlockId::Symtab;
-
-    fn try_map_inner(block: &Block, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_from((block, _ctx): (&'a Block, &'ctx PartialMapCtx)) -> Result<Self, Self::Error> {
         let symtab = block
             .records
             .one(SymtabCode::Blob as u64)

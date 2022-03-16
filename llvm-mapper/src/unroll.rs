@@ -471,7 +471,7 @@ impl PartialBitcodeModule {
 
         let symtab = self
             .symtab
-            .map(|s| Symtab::try_map(&s, &mut ctx))
+            .map(|s| Symtab::try_from((&s, &ctx)))
             .transpose()
             .map_err(BlockMapError::Symtab)?;
 

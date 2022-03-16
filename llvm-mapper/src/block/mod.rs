@@ -1,6 +1,7 @@
 //! Functionality for mapping individual blocks.
 
 pub mod attributes;
+pub mod function;
 pub mod identification;
 pub mod module;
 pub mod strtab;

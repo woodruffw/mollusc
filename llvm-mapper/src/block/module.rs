@@ -1,10 +1,13 @@
 //! Functionality for mapping the `MODULE_BLOCK` block.
 
+use std::convert::TryFrom;
+
 use llvm_support::bitcodes::{IrBlockId, ModuleCode};
 use llvm_support::TARGET_TRIPLE;
 use thiserror::Error;
 
 use crate::block::attributes::{AttributeError, AttributeGroups, Attributes};
+use crate::block::function::{Function as FunctionBlock, FunctionError as FunctionBlockError};
 use crate::block::type_table::{TypeTable, TypeTableError};
 use crate::block::IrBlock;
 use crate::map::{CtxMappable, MapError, PartialCtxMappable, PartialMapCtx};
@@ -40,6 +43,10 @@ pub enum ModuleError {
     /// An error occurred while mapping a function record.
     #[error("invalid function record")]
     FunctionRecord(#[from] FunctionRecordError),
+
+    /// An error occurred while mapping a function block.
+    #[error("invalid function block")]
+    FunctionBlock(#[from] FunctionBlockError),
 
     /// An error occurred while mapping an alias record.
     #[error("invalid alias record")]
@@ -181,14 +188,20 @@ impl IrBlock for Module {
             .map_err(MapError::RecordString)?;
 
         // Collect the function records and blocks in this module.
-        let functions = block
+        let function_records = block
             .records
             .by_code(ModuleCode::Function)
             .map(|rec| FunctionRecord::try_map(rec, &ctx))
             .collect::<Result<Vec<_>, _>>()?;
 
+        let _function_blocks = block
+            .blocks
+            .by_id(IrBlockId::Function)
+            .map(|block| FunctionBlock::try_from((block, &ctx)))
+            .collect::<Result<Vec<_>, _>>()?;
+
         // TODO: Handle function blocks as well.
-        log::debug!("functions: {:?}", functions);
+        log::debug!("functions: {:?}", function_records);
 
         let aliases = block
             .records
