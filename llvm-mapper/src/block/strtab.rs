@@ -1,13 +1,13 @@
 //! Functionality for mapping the `STRTAB_BLOCK` block.
 
+use std::convert::TryFrom;
 use std::str::Utf8Error;
 
-use llvm_support::bitcodes::{IrBlockId, StrtabCode};
+use llvm_support::bitcodes::StrtabCode;
 use llvm_support::StrtabRef;
 use thiserror::Error;
 
-use crate::block::IrBlock;
-use crate::map::{MapError, PartialMapCtx};
+use crate::map::MapError;
 use crate::record::RecordBlobError;
 use crate::unroll::{Block, Record};
 
@@ -45,12 +45,10 @@ impl AsRef<[u8]> for Strtab {
     }
 }
 
-impl IrBlock for Strtab {
+impl TryFrom<&'_ Block> for Strtab {
     type Error = StrtabError;
 
-    const BLOCK_ID: IrBlockId = IrBlockId::Strtab;
-
-    fn try_map_inner(block: &Block, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_from(block: &'_ Block) -> Result<Self, Self::Error> {
         // TODO(ww): The docs also claim that there's only one STRTAB_BLOB per STRTAB_BLOCK,
         // but at least one person has reported otherwise here:
         // https://lists.llvm.org/pipermail/llvm-dev/2020-August/144327.html

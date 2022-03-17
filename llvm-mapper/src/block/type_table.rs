@@ -2,7 +2,7 @@
 
 use std::convert::TryFrom;
 
-use llvm_support::bitcodes::{IrBlockId, TypeCode};
+use llvm_support::bitcodes::TypeCode;
 use llvm_support::{
     AddressSpace, ArrayTypeError, FunctionTypeError, IntegerTypeError, PointerTypeError,
     StructTypeError, Type, VectorTypeError,
@@ -10,8 +10,7 @@ use llvm_support::{
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
-use crate::block::IrBlock;
-use crate::map::{MapError, PartialMapCtx};
+use crate::map::MapError;
 use crate::unroll::Block;
 
 /// Errors that can occur when mapping the type table.
@@ -288,12 +287,10 @@ impl TypeTable {
     }
 }
 
-impl IrBlock for TypeTable {
+impl TryFrom<&'_ Block> for TypeTable {
     type Error = TypeTableError;
 
-    const BLOCK_ID: IrBlockId = IrBlockId::Type;
-
-    fn try_map_inner(block: &Block, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_from(block: &Block) -> Result<Self, Self::Error> {
         // Figure out how many type entries we have, and reserve the space for them up-front.
         let numentries = *block
             .records

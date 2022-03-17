@@ -9,7 +9,6 @@ use thiserror::Error;
 use crate::block::attributes::{AttributeError, AttributeGroups, Attributes};
 use crate::block::function::{Function as FunctionBlock, FunctionError as FunctionBlockError};
 use crate::block::type_table::{TypeTable, TypeTableError};
-use crate::block::IrBlock;
 use crate::map::{CtxMappable, MapError, PartialCtxMappable, PartialMapCtx};
 use crate::record::{
     Alias, AliasError, Comdat, ComdatError, DataLayout, DataLayoutError,
@@ -69,12 +68,10 @@ pub struct Module {
     pub deplibs: Vec<String>,
 }
 
-impl IrBlock for Module {
+impl TryFrom<(&'_ Block, &'_ mut PartialMapCtx)> for Module {
     type Error = ModuleError;
 
-    const BLOCK_ID: IrBlockId = IrBlockId::Module;
-
-    fn try_map_inner(block: &Block, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_from((block, ctx): (&'_ Block, &'_ mut PartialMapCtx)) -> Result<Self, Self::Error> {
         // Mapping the module requires us to fill in the `PartialMapCtx` first,
         // so we can reify it into a `MapCtx` for subsequent steps.
         ctx.version = Some({
@@ -112,12 +109,11 @@ impl IrBlock for Module {
             .map_err(MapError::RecordString)?;
 
         // Build the type table.
-        ctx.type_table = Some(TypeTable::try_map(
+        ctx.type_table = Some(TypeTable::try_from(
             block
                 .blocks
                 .exactly_one(IrBlockId::Type)
                 .map_err(MapError::Inconsistent)?,
-            ctx,
         )?);
 
         // Collect all attribute groups and individual attribute references.

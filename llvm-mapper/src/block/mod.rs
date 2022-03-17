@@ -19,8 +19,6 @@ pub use self::module::*;
 pub use self::strtab::*;
 pub use self::symtab::*;
 pub use self::type_table::*;
-use crate::map::{MapError, PartialCtxMappable, PartialMapCtx};
-use crate::unroll::Block;
 
 /// Potential errors when mapping a single bitstream block.
 #[non_exhaustive]
@@ -74,40 +72,6 @@ impl From<u64> for BlockId {
             |_| IrBlockId::try_from(value).map_or_else(|_| BlockId::Unknown(value), BlockId::Ir),
             BlockId::Reserved,
         )
-    }
-}
-
-/// A trait implemented by all blocks that correspond to IR models, allowing them
-/// to be mapped into their corresponding model.
-pub(crate) trait IrBlock: Sized {
-    type Error;
-
-    /// The `IrBlockId` that corresponds to this IR model.
-    const BLOCK_ID: IrBlockId;
-
-    /// Attempt to map the given block to the implementing type, returning an error if mapping fails.
-    ///
-    /// This is an interior trait that shouldn't be used directly.
-    fn try_map_inner(block: &Block, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error>;
-}
-
-impl<T: IrBlock> PartialCtxMappable<Block> for T
-where
-    T::Error: From<MapError>,
-{
-    type Error = T::Error;
-
-    fn try_map(block: &Block, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
-        if block.id != BlockId::Ir(T::BLOCK_ID) {
-            return Err(MapError::BadBlockMap(format!(
-                "can't map {:?} into {:?}",
-                block.id,
-                T::BLOCK_ID
-            ))
-            .into());
-        }
-
-        IrBlock::try_map_inner(block, ctx)
     }
 }
 
