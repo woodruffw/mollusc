@@ -172,7 +172,7 @@ pub enum OtherOp {
     UserOp1,
     /// Internal pass opcode.
     UserOp2,
-    /// `vaarg`
+    /// `va_arg`
     VAArg,
     /// `extractelement`
     ExtractElement,

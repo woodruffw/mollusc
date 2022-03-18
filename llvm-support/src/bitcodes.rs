@@ -1,4 +1,7 @@
-//! Enum constants for `llvm-constants`.
+//! Core bitcode constants.
+//!
+//! These correspond directly to many of the block IDs, record codes, and
+//! other special constants in LLVM bitcode streams.
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
@@ -322,4 +325,47 @@ pub enum FunctionCode {
     Instcallbr = 57,
     InstFreeze = 58,
     InstAtomicrmw = 59,
+}
+
+/// Codes for each binary operation in binary instructions.
+///
+/// See: `BinaryOpcodes` in `LLVMBitCodes.h`.
+#[allow(missing_docs)]
+#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[repr(u64)]
+pub enum BinaryOpcode {
+    Add = 0,
+    Sub,
+    Mul,
+    UDiv,
+    SDiv,
+    URem,
+    SRem,
+    Shl,
+    LShr,
+    AShr,
+    And,
+    Or,
+    Xor,
+}
+
+/// AtomicRMW operations.
+/// See: `RMWOperations` in `LLVMBitCodes.h`.
+#[allow(missing_docs)]
+#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[repr(u64)]
+pub enum RMWOperation {
+    Xchg = 0,
+    Add,
+    Sub,
+    And,
+    Nand,
+    Or,
+    Xor,
+    Max,
+    Min,
+    UMax,
+    UMin,
+    FAdd,
+    FSub,
 }

@@ -27,6 +27,10 @@ pub enum FunctionError {
     #[error("unknown function code")]
     UnknownFunctionCode(#[from] TryFromPrimitiveError<FunctionCode>),
 
+    /// An invalid instruction encoding was seen.
+    #[error("invalid instruction encoding: {0}")]
+    BadInst(String),
+
     /// A generic mapping error occurred.
     #[error("generic mapping error")]
     Map(#[from] MapError),
@@ -67,6 +71,18 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
         for record in block.records.into_iter() {
             let code = FunctionCode::try_from(record.code())?;
 
+            macro_rules! check_fields {
+                ($n:literal) => {
+                    if record.fields().len() < $n {
+                        return Err(FunctionError::BadInst(format!(
+                            "bad {code:?}: expected {} fields, got {}",
+                            $n,
+                            record.fields().len()
+                        )));
+                    }
+                };
+            }
+
             // Function codes fall into a few general categories:
             //
             // * State machine management (`DECLAREBLOCKS`)
@@ -87,8 +103,14 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
                 FunctionCode::DebugLocAgain => unimplemented!(),
 
                 // The big one: all instructions.
-                FunctionCode::InstBinop => todo!(),
-                FunctionCode::InstCast => todo!(),
+                FunctionCode::InstBinop => {
+                    // [opval, ty, opval, opcode]
+                    check_fields!(4);
+                }
+                FunctionCode::InstCast => {
+                    // [opval, opty, destty, castopc]
+                    check_fields!(4);
+                }
                 FunctionCode::InstGepOld => todo!(),
                 FunctionCode::InstSelect => todo!(),
                 FunctionCode::InstExtractelt => todo!(),
