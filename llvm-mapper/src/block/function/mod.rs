@@ -11,10 +11,8 @@ use llvm_support::bitcodes::FunctionCode;
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
-use crate::{
-    map::{MapCtx, MapError},
-    unroll::Block,
-};
+use crate::map::{MapCtx, MapError};
+use crate::unroll::Block;
 
 /// Errors that can occur when mapping function blocks.
 #[derive(Debug, Error)]
