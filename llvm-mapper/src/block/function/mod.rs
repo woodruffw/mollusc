@@ -45,7 +45,7 @@ pub struct Function {
 impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
     type Error = FunctionError;
 
-    fn try_from((block, _ctx): (&'_ Block, &'_ MapCtx)) -> Result<Self, Self::Error> {
+    fn try_from((block, ctx): (&'_ Block, &'_ MapCtx)) -> Result<Self, Self::Error> {
         // TODO: Handle each `MODULE_CODE_FUNCTION`'s sub-blocks.
 
         // A function block should have exactly one DECLAREBLOCKS record.
@@ -69,15 +69,26 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
         for record in block.records.into_iter() {
             let code = FunctionCode::try_from(record.code())?;
 
-            macro_rules! check_fields {
+            macro_rules! unpack_fields {
                 ($n:literal) => {
-                    if record.fields().len() < $n {
-                        return Err(FunctionError::BadInst(format!(
+                    <[u64; $n]>::try_from(record.fields()).map_err(|_| {
+                        FunctionError::BadInst(format!(
                             "bad {code:?}: expected {} fields, got {}",
                             $n,
                             record.fields().len()
-                        )));
-                    }
+                        ))
+                    })
+                };
+            }
+
+            macro_rules! get_type {
+                ($ty:ident) => {
+                    ctx.type_table.get($ty).ok_or_else(|| {
+                        FunctionError::BadInst(format!(
+                            "bad {code:?}: invalid type table reference: {}",
+                            $ty
+                        ))
+                    })
                 };
             }
 
@@ -103,11 +114,12 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
                 // The big one: all instructions.
                 FunctionCode::InstBinop => {
                     // [opval, ty, opval, opcode]
-                    check_fields!(4);
+                    let [lhs, ty, rhs, opcode] = unpack_fields!(4)?;
+                    let ty = get_type!(ty)?;
                 }
                 FunctionCode::InstCast => {
                     // [opval, opty, destty, castopc]
-                    check_fields!(4);
+                    let [opval, opty, destty, castopc] = unpack_fields!(4)?;
                 }
                 FunctionCode::InstGepOld => todo!(),
                 FunctionCode::InstSelect => todo!(),
