@@ -3,12 +3,11 @@
 use std::convert::{TryFrom, TryInto};
 
 use hashbrown::HashMap;
-use llvm_support::bitcodes::{AttributeCode, IrBlockId};
+use llvm_support::bitcodes::AttributeCode;
 use llvm_support::{AttributeId, AttributeKind, MaybeAlign};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 use thiserror::Error;
 
-use crate::block::IrBlock;
 use crate::map::{MapError, PartialMapCtx};
 use crate::unroll::{Block, Record};
 
@@ -428,12 +427,10 @@ impl Attributes {
     }
 }
 
-impl IrBlock for Attributes {
+impl TryFrom<(&'_ Block, &'_ PartialMapCtx)> for Attributes {
     type Error = AttributeError;
 
-    const BLOCK_ID: IrBlockId = IrBlockId::ParamAttr;
-
-    fn try_map_inner(block: &Block, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_from((block, ctx): (&'_ Block, &'_ PartialMapCtx)) -> Result<Self, Self::Error> {
         let mut entries = vec![];
 
         for record in &block.records {
@@ -509,12 +506,10 @@ impl AttributeGroups {
     }
 }
 
-impl IrBlock for AttributeGroups {
+impl TryFrom<&'_ Block> for AttributeGroups {
     type Error = AttributeError;
 
-    const BLOCK_ID: IrBlockId = IrBlockId::ParamAttrGroup;
-
-    fn try_map_inner(block: &Block, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_from(block: &'_ Block) -> Result<Self, Self::Error> {
         let mut groups = HashMap::new();
 
         for record in &block.records {

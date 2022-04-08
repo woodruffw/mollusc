@@ -9,12 +9,14 @@
 pub mod align;
 pub mod attribute;
 pub mod bitcodes;
+pub mod opcode;
 pub mod ty;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 pub use self::align::*;
 pub use self::attribute::*;
+pub use self::opcode::*;
 pub use self::ty::*;
 
 /// The 32-bit magic that indicates a raw LLVM IR bitcode stream.
@@ -54,7 +56,7 @@ pub enum Endian {
     Big,
 }
 
-/// An "inexact" endianness, i.e. one supports an unspecified system endianness.
+/// An "inexact" endianness, i.e. one that supports an unspecified system endianness.
 #[derive(Debug)]
 pub enum InexactEndian {
     /// Either big-endian or little-endian.
