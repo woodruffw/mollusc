@@ -56,7 +56,7 @@ pub enum Endian {
     Big,
 }
 
-/// An "inexact" endianness, i.e. one supports an unspecified system endianness.
+/// An "inexact" endianness, i.e. one that supports an unspecified system endianness.
 #[derive(Debug)]
 pub enum InexactEndian {
     /// Either big-endian or little-endian.

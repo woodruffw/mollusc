@@ -1,5 +1,12 @@
 //! Support code for instruction opcodes.
 
+use std::convert::TryFrom;
+
+use num_enum::TryFromPrimitiveError;
+use thiserror::Error;
+
+use crate::{bitcodes::BinaryOpcode, Type};
+
 /// Represents the different classes of LLVM opcodes.
 #[derive(Clone, Copy, Debug)]
 pub enum Opcode {
@@ -94,6 +101,64 @@ pub enum BinaryOp {
     Or,
     /// `xor`
     Xor,
+}
+
+/// Errors that can occur when constructing a `BinaryOp`.
+#[derive(Debug, Error)]
+pub enum BinaryOpError {
+    /// The specified type isn't valid for binary operations.
+    #[error("invalid type for binary op: {0:?}")]
+    InvalidType(Type),
+
+    /// The specified type is incompatible with the operation.
+    #[error("incompatible type for op: {0:?}")]
+    IncompatibleType(Type),
+
+    /// The opcode given doesn't correspond to a known operation.
+    #[error("unknown opcode")]
+    Opcode(#[from] TryFromPrimitiveError<BinaryOpcode>),
+}
+
+impl TryFrom<(u64, &Type)> for BinaryOp {
+    type Error = BinaryOpError;
+
+    fn try_from((opc, ty): (u64, &Type)) -> Result<Self, Self::Error> {
+        let opc = BinaryOpcode::try_from(opc)?;
+
+        let is_fp = ty.is_floating_or_floating_vector();
+
+        // Binary operations are only valid on integer/fp types or vectors thereof.
+        if !is_fp || !ty.is_integer_or_integer_vector() {
+            return Err(BinaryOpError::InvalidType(ty.clone()));
+        }
+
+        Ok(match (opc, is_fp) {
+            (BinaryOpcode::Add, false) => BinaryOp::Add,
+            (BinaryOpcode::Add, true) => BinaryOp::FAdd,
+            (BinaryOpcode::Sub, false) => BinaryOp::Sub,
+            (BinaryOpcode::Sub, true) => BinaryOp::FSub,
+            (BinaryOpcode::Mul, false) => BinaryOp::Mul,
+            (BinaryOpcode::Mul, true) => BinaryOp::FMul,
+            (BinaryOpcode::UDiv, false) => BinaryOp::UDiv,
+            // `udiv` can't be used with floating-point types.
+            (BinaryOpcode::UDiv, true) => return Err(BinaryOpError::IncompatibleType(ty.clone())),
+            (BinaryOpcode::SDiv, false) => BinaryOp::SDiv,
+            (BinaryOpcode::SDiv, true) => BinaryOp::FDiv,
+            (BinaryOpcode::URem, false) => BinaryOp::URem,
+            // `urem` can't be used with floating-point types.
+            (BinaryOpcode::URem, true) => return Err(BinaryOpError::IncompatibleType(ty.clone())),
+            (BinaryOpcode::SRem, false) => BinaryOp::SRem,
+            (BinaryOpcode::SRem, true) => BinaryOp::FRem,
+            // The rest are all integer-type only.
+            (BinaryOpcode::Shl, true) => BinaryOp::Shl,
+            (BinaryOpcode::LShr, true) => BinaryOp::LShr,
+            (BinaryOpcode::AShr, true) => BinaryOp::AShr,
+            (BinaryOpcode::And, true) => BinaryOp::And,
+            (BinaryOpcode::Or, true) => BinaryOp::Or,
+            (BinaryOpcode::Xor, true) => BinaryOp::Xor,
+            (_, false) => return Err(BinaryOpError::IncompatibleType(ty.clone())),
+        })
+    }
 }
 
 /// Memory opcodes.

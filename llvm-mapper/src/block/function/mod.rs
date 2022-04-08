@@ -8,6 +8,7 @@ use std::convert::TryFrom;
 pub use basic_block::*;
 pub use instruction::*;
 use llvm_support::bitcodes::FunctionCode;
+use llvm_support::{BinaryOp, BinaryOpError};
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
@@ -28,6 +29,10 @@ pub enum FunctionError {
     /// An invalid instruction encoding was seen.
     #[error("invalid instruction encoding: {0}")]
     BadInst(String),
+
+    /// An invalid binary opcode was seen.
+    #[error("invalid binary opcode")]
+    BadBinOp(#[from] BinaryOpError),
 
     /// A generic mapping error occurred.
     #[error("generic mapping error")]
@@ -116,6 +121,7 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
                     // [opval, ty, opval, opcode]
                     let [lhs, ty, rhs, opcode] = unpack_fields!(4)?;
                     let ty = get_type!(ty)?;
+                    let opcode = BinaryOp::try_from((opcode, ty))?;
                 }
                 FunctionCode::InstCast => {
                     // [opval, opty, destty, castopc]
