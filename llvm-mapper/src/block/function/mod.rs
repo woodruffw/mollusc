@@ -68,8 +68,8 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
 
         // Like the type table, we need a little bit of a state machine to
         // construct each function's basic blocks and constituent instructions.
-        let mut bbs: Vec<BasicBlock> = Vec::with_capacity(nblocks as usize);
-        let mut bb = BasicBlock::default();
+        let mut _bbs: Vec<BasicBlock> = Vec::with_capacity(nblocks as usize);
+        let mut _bb = BasicBlock::default();
 
         for record in block.records.into_iter() {
             let code = FunctionCode::try_from(record.code())?;
@@ -119,13 +119,13 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
                 // The big one: all instructions.
                 FunctionCode::InstBinop => {
                     // [opval, ty, opval, opcode]
-                    let [lhs, ty, rhs, opcode] = unpack_fields!(4)?;
+                    let [_lhs, ty, _rhs, opcode] = unpack_fields!(4)?;
                     let ty = get_type!(ty)?;
-                    let opcode = BinaryOp::try_from((opcode, ty))?;
+                    let _opcode = BinaryOp::try_from((opcode, ty))?;
                 }
                 FunctionCode::InstCast => {
                     // [opval, opty, destty, castopc]
-                    let [opval, opty, destty, castopc] = unpack_fields!(4)?;
+                    let [_opval, _opty, _destty, _castopc] = unpack_fields!(4)?;
                 }
                 FunctionCode::InstGepOld => todo!(),
                 FunctionCode::InstSelect => todo!(),

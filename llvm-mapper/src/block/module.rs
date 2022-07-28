@@ -124,7 +124,7 @@ impl TryFrom<(&'_ Block, &'_ mut PartialMapCtx)> for Module {
             .blocks
             .one_or_none(IrBlockId::ParamAttrGroup)
             .map_err(MapError::Inconsistent)?
-            .map(|b| AttributeGroups::try_from(b))
+            .map(AttributeGroups::try_from)
             .transpose()?
         {
             ctx.attribute_groups = attribute_groups;
