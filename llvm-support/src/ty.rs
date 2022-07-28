@@ -202,13 +202,13 @@ impl Type {
                 num_elements: _,
                 element_type,
                 ..
-            }) => &element_type,
+            }) => element_type,
             Type::FixedVector(VectorType {
                 num_elements: _,
                 element_type,
                 ..
-            }) => &element_type,
-            _ => &self,
+            }) => element_type,
+            _ => self,
         }
     }
 
