@@ -5,7 +5,10 @@ use std::convert::TryFrom;
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
-use crate::{bitcodes::BinaryOpcode, Type};
+use crate::{
+    bitcodes::{BinaryOpcode, UnaryOpcode},
+    Type,
+};
 
 /// Represents the different classes of LLVM opcodes.
 #[derive(Clone, Copy, Debug)]
@@ -60,6 +63,30 @@ pub enum TermOp {
 pub enum UnaryOp {
     /// `fneg`
     FNeg,
+}
+
+/// Errors that can occur when constructing a `BinaryOp`.
+#[derive(Debug, Error)]
+pub enum UnaryOpError {
+    /// The opcode given doesn't correspond to a known operation.
+    #[error("unknown opcode")]
+    Opcode(#[from] TryFromPrimitiveError<UnaryOpcode>),
+}
+
+impl TryFrom<u64> for UnaryOp {
+    type Error = UnaryOpError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Ok(UnaryOpcode::try_from(value)?.into())
+    }
+}
+
+impl From<UnaryOpcode> for UnaryOp {
+    fn from(value: UnaryOpcode) -> Self {
+        match value {
+            UnaryOpcode::FNeg => UnaryOp::FNeg,
+        }
+    }
 }
 
 /// Binary opcodes.

@@ -327,6 +327,16 @@ pub enum FunctionCode {
     InstAtomicrmw = 59,
 }
 
+/// Codes for each unary operation in unary instructions.
+///
+/// See: `UnaryOpcodes` in `LLVMBitCodes.h`.
+#[allow(missing_docs)]
+#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[repr(u64)]
+pub enum UnaryOpcode {
+    FNeg = 0,
+}
+
 /// Codes for each binary operation in binary instructions.
 ///
 /// See: `BinaryOpcodes` in `LLVMBitCodes.h`.

@@ -8,7 +8,7 @@ use std::convert::TryFrom;
 pub use basic_block::*;
 pub use instruction::*;
 use llvm_support::bitcodes::FunctionCode;
-use llvm_support::{BinaryOp, BinaryOpError};
+use llvm_support::{BinaryOp, BinaryOpError, UnaryOp, UnaryOpError};
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
@@ -29,6 +29,10 @@ pub enum FunctionError {
     /// An invalid instruction encoding was seen.
     #[error("invalid instruction encoding: {0}")]
     BadInst(String),
+
+    /// An invalid unary opcode was seen.
+    #[error("invalid unary opcode")]
+    BadUnOp(#[from] UnaryOpError),
 
     /// An invalid binary opcode was seen.
     #[error("invalid binary opcode")]
@@ -167,7 +171,12 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
                 FunctionCode::InstCatchpad => todo!(),
                 FunctionCode::InstCleanuppad => todo!(),
                 FunctionCode::InstCatchswitch => todo!(),
-                FunctionCode::InstUnop => todo!(),
+                FunctionCode::InstUnop => {
+                    // [opval, ty, opcode]
+                    let [_opval, ty, opcode] = unpack_fields!(3)?;
+                    let _ty = get_type!(ty)?;
+                    let _opcode = UnaryOp::try_from(opcode)?;
+                }
                 FunctionCode::Instcallbr => todo!(),
                 FunctionCode::InstFreeze => todo!(),
                 FunctionCode::InstAtomicrmw => todo!(),
