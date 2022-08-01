@@ -7,6 +7,7 @@ pub mod module;
 pub mod strtab;
 pub mod symtab;
 pub mod type_table;
+pub mod vst;
 
 use std::convert::TryFrom;
 
