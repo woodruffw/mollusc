@@ -13,13 +13,32 @@ use crate::unroll::Block;
 #[derive(Debug, Error)]
 pub enum VstError {}
 
+/// A ZST representing a "module-style" VST.
+///
+/// This is a ZST instead of an enum variant to make dispatch on the "style" of VST
+/// being parsed slightly more static and readable.
+pub struct ModuleStyleVst;
+
+/// A ZST reprsenting a "function-style" VST.
+///
+/// See [`ModuleStyleVst`] for the design justification here.
+pub struct FunctionStyleVst;
+
 /// Represents a single value symbol table ("VST") in a bitcode module.
 pub struct Vst {}
 
-impl TryFrom<&'_ Block> for Vst {
+impl TryFrom<(&'_ Block, ModuleStyleVst)> for Vst {
     type Error = VstError;
 
-    fn try_from(_block: &'_ Block) -> Result<Self, Self::Error> {
+    fn try_from((_block, _): (&'_ Block, ModuleStyleVst)) -> Result<Self, Self::Error> {
+        unimplemented!();
+    }
+}
+
+impl TryFrom<(&'_ Block, FunctionStyleVst)> for Vst {
+    type Error = VstError;
+
+    fn try_from((_block, _): (&'_ Block, FunctionStyleVst)) -> Result<Self, Self::Error> {
         unimplemented!();
     }
 }

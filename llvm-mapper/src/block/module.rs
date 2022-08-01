@@ -9,6 +9,7 @@ use thiserror::Error;
 use crate::block::attributes::{AttributeError, AttributeGroups, Attributes};
 use crate::block::function::{Function as FunctionBlock, FunctionError as FunctionBlockError};
 use crate::block::type_table::{TypeTable, TypeTableError};
+use crate::block::vst::{ModuleStyleVst, Vst, VstError};
 use crate::map::{CtxMappable, MapError, PartialCtxMappable, PartialMapCtx};
 use crate::record::{
     Alias, AliasError, Comdat, ComdatError, DataLayout, DataLayoutError,
@@ -30,6 +31,10 @@ pub enum ModuleError {
     /// An error occurred while mapping the type table block.
     #[error("invalid type table block")]
     TypeTableBlock(#[from] TypeTableError),
+
+    /// An error occurred while mapping a value symbol table.
+    #[error("invalid value symbol table")]
+    VstBlock(#[from] VstError),
 
     /// An error occurred while mapping one of the attribute blocks.
     #[error("invalid attribute block")]
@@ -115,6 +120,15 @@ impl TryFrom<(&'_ Block, &'_ mut PartialMapCtx)> for Module {
                 .exactly_one(IrBlockId::Type)
                 .map_err(MapError::Inconsistent)?,
         )?);
+
+        // Build the module-level VST. We'll reference this later.
+        Vst::try_from((
+            block
+                .blocks
+                .exactly_one(IrBlockId::ValueSymtab)
+                .map_err(MapError::Inconsistent)?,
+            ModuleStyleVst {},
+        ))?;
 
         // Collect all attribute groups and individual attribute references.
         // The order here is important: attribute groups must be mapped
