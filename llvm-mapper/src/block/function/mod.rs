@@ -143,8 +143,14 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
                 FunctionCode::InstInvoke => todo!(),
                 FunctionCode::InstUnreachable => todo!(),
                 FunctionCode::InstPhi => todo!(),
-                FunctionCode::InstAlloca => todo!(),
-                FunctionCode::InstLoad => todo!(),
+                FunctionCode::InstAlloca => {
+                    // [instty, opty, op, align]
+                    let [_instty, _opty, _op, _align] = unpack_fields!(4)?;
+                }
+                FunctionCode::InstLoad => {
+                    // [opty, op, align, vol]
+                    let [_opty, _op, _align, _vol] = unpack_fields!(4)?;
+                }
                 FunctionCode::InstVaarg => todo!(),
                 FunctionCode::InstStoreOld => todo!(),
                 FunctionCode::InstExtractval => todo!(),
@@ -162,7 +168,12 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
                 FunctionCode::InstLoadatomic => todo!(),
                 FunctionCode::InstStoreatomicOld => todo!(),
                 FunctionCode::InstGep => todo!(),
-                FunctionCode::InstStore => todo!(),
+                FunctionCode::InstStore => {
+                    // [ptrty, ptr, valty, val, align, vol]
+                    let [_ptrty, _ptr, _valty, _val] = unpack_fields!(4)?;
+
+                    // NOTE: Two more optional fields: align and vol.
+                }
                 FunctionCode::InstStoreatomic => todo!(),
                 FunctionCode::InstCmpxchg => todo!(),
                 FunctionCode::InstLandingpad => todo!(),

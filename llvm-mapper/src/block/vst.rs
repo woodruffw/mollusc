@@ -31,7 +31,8 @@ impl TryFrom<(&'_ Block, ModuleStyleVst)> for Vst {
     type Error = VstError;
 
     fn try_from((_block, _): (&'_ Block, ModuleStyleVst)) -> Result<Self, Self::Error> {
-        unimplemented!();
+        Ok(Vst {})
+        // unimplemented!();
     }
 }
 
@@ -39,6 +40,7 @@ impl TryFrom<(&'_ Block, FunctionStyleVst)> for Vst {
     type Error = VstError;
 
     fn try_from((_block, _): (&'_ Block, FunctionStyleVst)) -> Result<Self, Self::Error> {
-        unimplemented!();
+        Ok(Vst {})
+        // unimplemented!();
     }
 }
