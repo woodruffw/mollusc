@@ -55,7 +55,7 @@ impl TryFrom<&'_ Block> for Identification {
             .records
             .one(IdentificationCode::Epoch as u64)
             .ok_or(IdentificationError::MissingEpoch)
-            .and_then(|r| r.fields().get(0).ok_or(IdentificationError::MissingEpoch))?;
+            .and_then(|r| r.fields().first().ok_or(IdentificationError::MissingEpoch))?;
 
         Ok(Self { producer, epoch })
     }

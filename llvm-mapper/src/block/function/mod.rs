@@ -65,8 +65,7 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
                 .map_err(MapError::Inconsistent)?;
 
             *declareblocks
-                .fields()
-                .get(0)
+                .fields().first()
                 .ok_or(FunctionError::InvalidBlockCount)?
         };
 

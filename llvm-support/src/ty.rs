@@ -343,7 +343,7 @@ pub enum IntegerTypeError {
 ///
 /// The validity of the internal width is correct by construction.
 #[non_exhaustive]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IntegerType {
     /// The width of this integral type, in bits.
     bit_width: u32,

@@ -65,7 +65,7 @@ pub enum AttributeError {
 
 /// Represents the "enum" attributes, i.e. those with a single integer identifier.
 #[non_exhaustive]
-#[derive(Copy, Clone, Debug, PartialEq, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum EnumAttribute {
     /// `alwaysinline`
@@ -226,7 +226,7 @@ impl TryFrom<AttributeId> for EnumAttribute {
 
 /// Represents an integral attribute, i.e. an attribute that carries (at least) one integer value with it.
 #[non_exhaustive]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum IntAttribute {
     /// `align(<n>)`
     Alignment(MaybeAlign),
@@ -321,7 +321,7 @@ impl TryFrom<(AttributeId, u64)> for IntAttribute {
 
 /// Represents a single, concrete LLVM attribute.
 #[non_exhaustive]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Attribute {
     /// An enumerated attribute.
     Enum(EnumAttribute),

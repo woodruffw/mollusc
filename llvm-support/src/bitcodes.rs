@@ -77,7 +77,7 @@ pub enum IrBlockId {
 }
 
 /// Abbreviation IDs that are reserved by LLVM.
-#[derive(Clone, Copy, Debug, PartialEq, TryFromPrimitive)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum ReservedAbbrevId {
     /// Identifies an `END_BLOCK` record.
@@ -91,7 +91,7 @@ pub enum ReservedAbbrevId {
 }
 
 /// Codes for each operand encoding type supported by `DEFINE_ABBREV`.
-#[derive(Clone, Copy, Debug, PartialEq, TryFromPrimitive)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum AbbrevOpEnc {
     /// A fixed-length, unsigned operand.
@@ -108,7 +108,7 @@ pub enum AbbrevOpEnc {
 
 /// Codes for each `UNABBREV_RECORD` in `BLOCKINFO`.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum BlockInfoCode {
     /// SETBID: `[blockid]`
@@ -121,7 +121,7 @@ pub enum BlockInfoCode {
 
 /// Codes for each record in `IDENTIFICATION_BLOCK`.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum IdentificationCode {
     /// IDENTIFICATION_CODE_STRING: `[...string...]`
@@ -132,7 +132,7 @@ pub enum IdentificationCode {
 
 /// Codes for each record in `MODULE_BLOCK`.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum ModuleCode {
     /// MODULE_CODE_VERSION: `[version#]`
@@ -181,7 +181,7 @@ pub enum ModuleCode {
 }
 
 /// Codes for each record in `TYPE_BLOCK` (i.e., `TYPE_BLOCK_ID_NEW`).
-#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum TypeCode {
     /// TYPE_CODE_NUMENTRY: `[numentries]`
@@ -238,7 +238,7 @@ pub enum TypeCode {
 
 /// Codes for each record in `STRTAB_BLOCK`.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum StrtabCode {
     /// STRTAB_BLOB: `[...string...]`
@@ -247,7 +247,7 @@ pub enum StrtabCode {
 
 /// Codes for each record in `SYMTAB_BLOCK`.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum SymtabCode {
     /// SYMTAB_BLOB: `[...data...]`
@@ -257,7 +257,7 @@ pub enum SymtabCode {
 /// Codes for each record in `PARAMATTR_BLOCK` or `PARAMATTR_GROUP_BLOCK`.
 // NOTE(ww): For whatever reason, these two blocks share the same enum for
 /// record codes.
-#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum AttributeCode {
     /// PARAMATTR_CODE_ENTRY_OLD: `[paramidx0, attr0, paramidx1, attr1...]`
@@ -272,7 +272,7 @@ pub enum AttributeCode {
 ///
 /// See: `FunctionCodes` in `LLVMBitCodes.h`.
 #[allow(missing_docs)]
-#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum FunctionCode {
     DeclareBlocks = 1,
@@ -331,7 +331,7 @@ pub enum FunctionCode {
 ///
 /// See: `UnaryOpcodes` in `LLVMBitCodes.h`.
 #[allow(missing_docs)]
-#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum UnaryOpcode {
     FNeg = 0,
@@ -341,7 +341,7 @@ pub enum UnaryOpcode {
 ///
 /// See: `BinaryOpcodes` in `LLVMBitCodes.h`.
 #[allow(missing_docs)]
-#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum BinaryOpcode {
     Add = 0,
@@ -362,7 +362,7 @@ pub enum BinaryOpcode {
 /// AtomicRMW operations.
 /// See: `RMWOperations` in `LLVMBitCodes.h`.
 #[allow(missing_docs)]
-#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum RMWOperation {
     Xchg = 0,

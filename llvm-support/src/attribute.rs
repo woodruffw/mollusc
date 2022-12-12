@@ -3,7 +3,7 @@
 use num_enum::TryFromPrimitive;
 
 /// Represents the different kinds of attributes.
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum AttributeKind {
     /// A well-known enum attribute.
@@ -19,7 +19,7 @@ pub enum AttributeKind {
 
 /// Represents the IDs of different specific attributes.
 #[non_exhaustive]
-#[derive(Copy, Clone, Debug, PartialEq, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum AttributeId {
     /// `align(<n>)`

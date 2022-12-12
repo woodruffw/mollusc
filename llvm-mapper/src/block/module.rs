@@ -85,7 +85,7 @@ impl TryFrom<(&'_ Block, &'_ mut PartialMapCtx)> for Module {
                 .exactly_one(ModuleCode::Version)
                 .map_err(MapError::Inconsistent)?;
 
-            *version.fields().get(0).ok_or(ModuleError::MissingVersion)?
+            *version.fields().first().ok_or(ModuleError::MissingVersion)?
         });
 
         // Each module *should* have a datalayout record, but doesn't necessarily.

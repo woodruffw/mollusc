@@ -296,7 +296,7 @@ impl TryFrom<&'_ Block> for TypeTable {
             .records
             .one(TypeCode::NumEntry)
             .ok_or(TypeTableError::BadTable)
-            .and_then(|r| r.fields().get(0).ok_or(TypeTableError::BadTable))?
+            .and_then(|r| r.fields().first().ok_or(TypeTableError::BadTable))?
             as usize;
 
         // To map the type table, we perform two passes:
