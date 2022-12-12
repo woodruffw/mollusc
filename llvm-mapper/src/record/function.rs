@@ -3,8 +3,8 @@
 use std::convert::TryFrom;
 
 use llvm_support::{
-    AlignError, CallingConvention, DllStorageClass, Linkage, MaybeAlign, Type, UnnamedAddr,
-    Visibility,
+    AlignError, CallingConvention, DllStorageClass, FunctionType, Linkage, MaybeAlign, Type,
+    UnnamedAddr, Visibility,
 };
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
@@ -33,9 +33,13 @@ pub enum FunctionError {
     #[error("unknown calling convention")]
     CallingConvention(#[from] TryFromPrimitiveError<CallingConvention>),
 
-    /// The function has a bad or unknown type.
+    /// The function has a bad or unknown type ID.
     #[error("invalid type table index: {0}")]
-    Type(u64),
+    TypeId(u64),
+
+    /// The function has a non-function type.
+    #[error("non-function type for function")]
+    Type,
 
     /// The function has an invalid attribute entry ID.
     #[error("invalid attribute entry ID: {0}")]
@@ -70,7 +74,7 @@ pub struct Function<'ctx> {
     pub name: &'ctx str,
 
     /// A reference to the function's type in the type table.
-    pub ty: &'ctx Type,
+    pub ty: &'ctx FunctionType,
 
     /// The function's calling convention.
     pub calling_convention: CallingConvention,
@@ -121,10 +125,12 @@ impl<'ctx> CtxMappable<'ctx, Record> for Function<'ctx> {
         }
 
         let name = ctx.strtab.read_name(record)?;
-        let ty = ctx
+        let Type::Function(ty) = ctx
             .type_table
             .get(fields[2])
-            .ok_or(FunctionError::Type(fields[2]))?;
+            .ok_or(FunctionError::TypeId(fields[2]))? else {
+                return Err(FunctionError::Type);
+            };
         let calling_convention = CallingConvention::try_from(fields[3])?;
         let is_declaration = fields[4] != 0;
         let linkage = Linkage::from(fields[5]);

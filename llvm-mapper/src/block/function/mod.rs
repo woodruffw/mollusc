@@ -92,6 +92,8 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
 
             macro_rules! get_type {
                 ($ty:ident) => {
+                    // TODO: This is wrong; the lookup here needs to be
+                    // aware of forward references.
                     ctx.type_table.get($ty).ok_or_else(|| {
                         FunctionError::BadInst(format!(
                             "bad {code:?}: invalid type table reference: {}",
