@@ -3,12 +3,11 @@
 use std::convert::{TryFrom, TryInto};
 
 use hashbrown::HashMap;
-use llvm_support::bitcodes::{AttributeCode, IrBlockId};
+use llvm_support::bitcodes::AttributeCode;
 use llvm_support::{AttributeId, AttributeKind, MaybeAlign};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 use thiserror::Error;
 
-use crate::block::IrBlock;
 use crate::map::{MapError, PartialMapCtx};
 use crate::unroll::{Block, Record};
 
@@ -66,7 +65,7 @@ pub enum AttributeError {
 
 /// Represents the "enum" attributes, i.e. those with a single integer identifier.
 #[non_exhaustive]
-#[derive(Copy, Clone, Debug, PartialEq, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, TryFromPrimitive)]
 #[repr(u64)]
 pub enum EnumAttribute {
     /// `alwaysinline`
@@ -227,7 +226,7 @@ impl TryFrom<AttributeId> for EnumAttribute {
 
 /// Represents an integral attribute, i.e. an attribute that carries (at least) one integer value with it.
 #[non_exhaustive]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum IntAttribute {
     /// `align(<n>)`
     Alignment(MaybeAlign),
@@ -322,7 +321,7 @@ impl TryFrom<(AttributeId, u64)> for IntAttribute {
 
 /// Represents a single, concrete LLVM attribute.
 #[non_exhaustive]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Attribute {
     /// An enumerated attribute.
     Enum(EnumAttribute),
@@ -428,12 +427,10 @@ impl Attributes {
     }
 }
 
-impl IrBlock for Attributes {
+impl TryFrom<(&'_ Block, &'_ PartialMapCtx)> for Attributes {
     type Error = AttributeError;
 
-    const BLOCK_ID: IrBlockId = IrBlockId::ParamAttr;
-
-    fn try_map_inner(block: &Block, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_from((block, ctx): (&'_ Block, &'_ PartialMapCtx)) -> Result<Self, Self::Error> {
         let mut entries = vec![];
 
         for record in &block.records {
@@ -509,12 +506,10 @@ impl AttributeGroups {
     }
 }
 
-impl IrBlock for AttributeGroups {
+impl TryFrom<&'_ Block> for AttributeGroups {
     type Error = AttributeError;
 
-    const BLOCK_ID: IrBlockId = IrBlockId::ParamAttrGroup;
-
-    fn try_map_inner(block: &Block, _ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_from(block: &'_ Block) -> Result<Self, Self::Error> {
         let mut groups = HashMap::new();
 
         for record in &block.records {

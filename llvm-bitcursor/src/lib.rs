@@ -415,7 +415,7 @@ mod tests {
     use super::*;
 
     fn cursor(buf: &[u8]) -> BitCursor<&[u8]> {
-        BitCursor::new(&buf)
+        BitCursor::new(buf)
     }
 
     #[test]
@@ -671,7 +671,7 @@ mod tests {
     #[cfg(feature = "vbr")]
     #[test]
     fn test_vbr6_basic() {
-        let mut cur = cursor(&[0b00_010000]);
+        let mut cur = cursor(&[0b0001_0000]);
         assert_eq!(cur.read_vbr(6).unwrap(), 16);
         assert_eq!(cur.tell_bit(), 6);
     }
@@ -679,7 +679,7 @@ mod tests {
     #[cfg(feature = "vbr")]
     #[test]
     fn test_vbr6_continuation() {
-        let mut cur = cursor(&[0b01_100001, 0b0011_1001, 0b100111_00]);
+        let mut cur = cursor(&[0b0110_0001, 0b0011_1001, 0b100111_00]);
         assert_eq!(cur.read_vbr(6).unwrap(), 3233);
         assert_eq!(cur.read(3).unwrap(), 0b111);
         assert_eq!(cur.read(3).unwrap(), 0b100);
@@ -790,9 +790,9 @@ mod tests {
         // assuming abbrev id width=2
         #[rustfmt::skip]
         let mut cur = cursor(&[
-            0b0001_01_11, 0b000001_00, 0b00_000110, 0xFF,
-            0b0001_01_11, 0b000001_00, 0b00_000110, 0b11111111,
-            0b1_01_11_101, 0b001_00000, 0b00000_000, 0b00000011,
+            0b0001_01_11, 0b000001_00, 0b0000_0110, 0xFF,
+            0b0001_01_11, 0b000001_00, 0b0000_0110, 0b11111111,
+            0b1011_1101, 0b0010_0000, 0b0000_0000, 0b00000011,
         ]);
 
         assert_eq!(cur.read_vbr(2).unwrap(), 3); // DEFINE_UNABBREV
@@ -808,7 +808,7 @@ mod tests {
         assert_eq!(cur.read_vbr(6).unwrap(), 6); // value 6
 
         assert_eq!(cur.tell_bit(), 54);
-        assert_eq!(cur.read(13).unwrap(), 0b101_11111111_00);
+        assert_eq!(cur.read(13).unwrap(), 0b1_0111_1111_1100);
         assert_eq!(cur.read_vbr(2).unwrap(), 3); // DEFINE_UNABBREV
         assert_eq!(cur.read_vbr(6).unwrap(), 1); // code 1
         assert_eq!(cur.read_vbr(6).unwrap(), 1); // 1 field

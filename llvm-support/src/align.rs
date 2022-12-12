@@ -135,7 +135,7 @@ pub enum AlignedTypeWidthError {
 }
 
 /// Represents a potentially unknown (unspecified) alignment.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct MaybeAlign(Option<Align>);
 
 impl TryFrom<u8> for MaybeAlign {
@@ -458,7 +458,7 @@ impl TypeAlignSpec {
 }
 
 /// Represents a sorted collection of [`TypeAlignSpec`](TypeAlignSpec)s.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct TypeAlignSpecs(Vec<TypeAlignSpec>);
 
 impl Default for TypeAlignSpecs {
@@ -684,7 +684,7 @@ impl PointerAlignSpec {
 }
 
 /// A model for function pointer alignment behavior.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum FunctionPointerAlign {
     /// The alignment of function pointers is independent of the alignment
     /// of functions, and is a multiple of the associated ABI alignment.

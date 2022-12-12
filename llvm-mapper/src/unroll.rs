@@ -12,7 +12,7 @@ use thiserror::Error;
 
 use crate::block::{BlockId, BlockMapError, Identification, Module, Strtab, Symtab};
 use crate::error::Error;
-use crate::map::{PartialCtxMappable, PartialMapCtx};
+use crate::map::PartialMapCtx;
 use crate::record::{RecordBlobError, RecordStringError};
 
 /// An "unrolled" record. This is internally indistinguishable from a raw bitstream
@@ -448,30 +448,29 @@ impl PartialBitcodeModule {
 
         // Grab the string table early, so that we can move it into our mapping context and
         // use it for the remainder of the mapping phase.
-        let strtab = Strtab::try_map(
+        let strtab = Strtab::try_from(
             &self
                 .strtab
                 .ok_or_else(|| Error::Unroll("missing STRTAB_BLOCK for bitcode module".into()))?,
-            &mut ctx,
         )
         .map_err(BlockMapError::Strtab)?;
 
         ctx.strtab = strtab;
 
-        let identification = Identification::try_map(&self.identification, &mut ctx)
+        let identification = Identification::try_from(&self.identification)
             .map_err(BlockMapError::Identification)?;
 
-        let module = Module::try_map(
+        let module = Module::try_from((
             &self
                 .module
                 .ok_or_else(|| Error::Unroll("missing MODULE_BLOCK for bitcode module".into()))?,
             &mut ctx,
-        )
+        ))
         .map_err(BlockMapError::Module)?;
 
         let symtab = self
             .symtab
-            .map(|s| Symtab::try_map(&s, &mut ctx))
+            .map(|s| Symtab::try_from(&s))
             .transpose()
             .map_err(BlockMapError::Symtab)?;
 

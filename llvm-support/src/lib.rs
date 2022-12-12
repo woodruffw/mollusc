@@ -9,12 +9,14 @@
 pub mod align;
 pub mod attribute;
 pub mod bitcodes;
+pub mod opcode;
 pub mod ty;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 pub use self::align::*;
 pub use self::attribute::*;
+pub use self::opcode::*;
 pub use self::ty::*;
 
 /// The 32-bit magic that indicates a raw LLVM IR bitcode stream.
@@ -46,7 +48,7 @@ pub const TARGET_TRIPLE: &str = env!("TARGET_TRIPLE");
 ///
 /// For an inexact endianness model (i.e., one that supports a notion of "system" endianness),
 /// see [`InexactEndian`](InexactEndian)
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Endian {
     /// Little-endian.
     Little,
@@ -54,7 +56,7 @@ pub enum Endian {
     Big,
 }
 
-/// An "inexact" endianness, i.e. one supports an unspecified system endianness.
+/// An "inexact" endianness, i.e. one that supports an unspecified system endianness.
 #[derive(Debug)]
 pub enum InexactEndian {
     /// Either big-endian or little-endian.
@@ -64,7 +66,7 @@ pub enum InexactEndian {
 }
 
 /// Symbol mangling styles supported by LLVM.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Mangling {
     /// ELF-style mangling.
     Elf,
@@ -84,7 +86,7 @@ pub enum Mangling {
 ///
 /// See: <https://llvm.org/docs/LangRef.html#linkage-types>
 #[non_exhaustive]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[repr(u64)]
 #[allow(missing_docs)]
 pub enum Linkage {
@@ -147,7 +149,7 @@ impl From<(u64, u64)> for StrtabRef {
 /// Valid visibility styles.
 ///
 /// See: <https://llvm.org/docs/LangRef.html#visibility-styles>
-#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum Visibility {
     /// Default visibility.
@@ -163,7 +165,7 @@ pub enum Visibility {
 /// DLL storage classes.
 ///
 /// See: <https://llvm.org/docs/LangRef.html#dllstorageclass>
-#[derive(Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum DllStorageClass {
     /// The default storage class.
@@ -180,7 +182,7 @@ pub enum DllStorageClass {
 ///
 /// See: <https://llvm.org/docs/LangRef.html#thread-local-storage-models>
 /// See also: <https://www.akkadia.org/drepper/tls.pdf>
-#[derive(Debug, PartialEq, IntoPrimitive)]
+#[derive(Debug, PartialEq, Eq, IntoPrimitive)]
 #[repr(u64)]
 pub enum ThreadLocalMode {
     /// Not thread local.
@@ -214,7 +216,7 @@ impl From<u64> for ThreadLocalMode {
 }
 
 /// The `unnamed_addr` specifier.
-#[derive(Debug, PartialEq, IntoPrimitive)]
+#[derive(Debug, PartialEq, Eq, IntoPrimitive)]
 #[repr(u64)]
 pub enum UnnamedAddr {
     /// No `unnamed_addr`.
@@ -242,7 +244,7 @@ impl From<u64> for UnnamedAddr {
 /// The runtime preemption specifier.
 ///
 /// See: <https://llvm.org/docs/LangRef.html#runtime-preemption-model>
-#[derive(Debug, PartialEq, IntoPrimitive)]
+#[derive(Debug, PartialEq, Eq, IntoPrimitive)]
 #[repr(u64)]
 pub enum RuntimePreemption {
     /// The function or variable may be replaced by a symbol from outside the linkage
@@ -267,7 +269,7 @@ impl From<u64> for RuntimePreemption {
 
 /// Calling conventions supported by LLVM.
 #[non_exhaustive]
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, TryFromPrimitive)]
 #[repr(u64)]
 #[allow(missing_docs)]
 pub enum CallingConvention {

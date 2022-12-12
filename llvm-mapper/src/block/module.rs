@@ -1,12 +1,15 @@
 //! Functionality for mapping the `MODULE_BLOCK` block.
 
+use std::convert::TryFrom;
+
 use llvm_support::bitcodes::{IrBlockId, ModuleCode};
 use llvm_support::TARGET_TRIPLE;
 use thiserror::Error;
 
 use crate::block::attributes::{AttributeError, AttributeGroups, Attributes};
+use crate::block::function::{Function as FunctionBlock, FunctionError as FunctionBlockError};
 use crate::block::type_table::{TypeTable, TypeTableError};
-use crate::block::IrBlock;
+use crate::block::vst::{ModuleStyleVst, Vst, VstError};
 use crate::map::{CtxMappable, MapError, PartialCtxMappable, PartialMapCtx};
 use crate::record::{
     Alias, AliasError, Comdat, ComdatError, DataLayout, DataLayoutError,
@@ -29,6 +32,10 @@ pub enum ModuleError {
     #[error("invalid type table block")]
     TypeTableBlock(#[from] TypeTableError),
 
+    /// An error occurred while mapping a value symbol table.
+    #[error("invalid value symbol table")]
+    VstBlock(#[from] VstError),
+
     /// An error occurred while mapping one of the attribute blocks.
     #[error("invalid attribute block")]
     AttributeBlock(#[from] AttributeError),
@@ -40,6 +47,10 @@ pub enum ModuleError {
     /// An error occurred while mapping a function record.
     #[error("invalid function record")]
     FunctionRecord(#[from] FunctionRecordError),
+
+    /// An error occurred while mapping a function block.
+    #[error("invalid function block")]
+    FunctionBlock(#[from] FunctionBlockError),
 
     /// An error occurred while mapping an alias record.
     #[error("invalid alias record")]
@@ -62,12 +73,10 @@ pub struct Module {
     pub deplibs: Vec<String>,
 }
 
-impl IrBlock for Module {
+impl TryFrom<(&'_ Block, &'_ mut PartialMapCtx)> for Module {
     type Error = ModuleError;
 
-    const BLOCK_ID: IrBlockId = IrBlockId::Module;
-
-    fn try_map_inner(block: &Block, ctx: &mut PartialMapCtx) -> Result<Self, Self::Error> {
+    fn try_from((block, ctx): (&'_ Block, &'_ mut PartialMapCtx)) -> Result<Self, Self::Error> {
         // Mapping the module requires us to fill in the `PartialMapCtx` first,
         // so we can reify it into a `MapCtx` for subsequent steps.
         ctx.version = Some({
@@ -76,7 +85,10 @@ impl IrBlock for Module {
                 .exactly_one(ModuleCode::Version)
                 .map_err(MapError::Inconsistent)?;
 
-            *version.fields().get(0).ok_or(ModuleError::MissingVersion)?
+            *version
+                .fields()
+                .first()
+                .ok_or(ModuleError::MissingVersion)?
         });
 
         // Each module *should* have a datalayout record, but doesn't necessarily.
@@ -105,13 +117,21 @@ impl IrBlock for Module {
             .map_err(MapError::RecordString)?;
 
         // Build the type table.
-        ctx.type_table = Some(TypeTable::try_map(
+        ctx.type_table = Some(TypeTable::try_from(
             block
                 .blocks
                 .exactly_one(IrBlockId::Type)
                 .map_err(MapError::Inconsistent)?,
-            ctx,
         )?);
+
+        // Build the module-level VST. We'll reference this later.
+        Vst::try_from((
+            block
+                .blocks
+                .exactly_one(IrBlockId::ValueSymtab)
+                .map_err(MapError::Inconsistent)?,
+            ModuleStyleVst {},
+        ))?;
 
         // Collect all attribute groups and individual attribute references.
         // The order here is important: attribute groups must be mapped
@@ -121,7 +141,7 @@ impl IrBlock for Module {
             .blocks
             .one_or_none(IrBlockId::ParamAttrGroup)
             .map_err(MapError::Inconsistent)?
-            .map(|b| AttributeGroups::try_map(b, ctx))
+            .map(AttributeGroups::try_from)
             .transpose()?
         {
             ctx.attribute_groups = attribute_groups;
@@ -131,7 +151,7 @@ impl IrBlock for Module {
             .blocks
             .one_or_none(IrBlockId::ParamAttr)
             .map_err(MapError::Inconsistent)?
-            .map(|b| Attributes::try_map(b, ctx))
+            .map(|b| Attributes::try_from((b, &*ctx)))
             .transpose()?
         {
             ctx.attributes = attributes;
@@ -181,14 +201,20 @@ impl IrBlock for Module {
             .map_err(MapError::RecordString)?;
 
         // Collect the function records and blocks in this module.
-        let functions = block
+        let function_records = block
             .records
             .by_code(ModuleCode::Function)
             .map(|rec| FunctionRecord::try_map(rec, &ctx))
             .collect::<Result<Vec<_>, _>>()?;
 
+        let _function_blocks = block
+            .blocks
+            .by_id(IrBlockId::Function)
+            .map(|block| FunctionBlock::try_from((block, &ctx)))
+            .collect::<Result<Vec<_>, _>>()?;
+
         // TODO: Handle function blocks as well.
-        log::debug!("functions: {:?}", functions);
+        log::debug!("functions: {:?}", function_records);
 
         let aliases = block
             .records

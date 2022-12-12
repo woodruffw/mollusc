@@ -112,6 +112,11 @@ impl Type {
         )
     }
 
+    /// Returns whether this type is an integer type.
+    pub fn is_integer(&self) -> bool {
+        matches!(self, Type::Integer(_))
+    }
+
     /// Returns whether this type is a valid "pointee" type, i.e. suitable as the inner type
     /// for a pointer type.
     pub fn is_pointee(&self) -> bool {
@@ -186,6 +191,37 @@ impl Type {
     /// within a function type.
     pub fn is_return(&self) -> bool {
         !matches!(self, Type::Function(_) | Type::Label | Type::Metadata)
+    }
+
+    /// Return the scalar type for this type.
+    ///
+    /// This is always the identity type for non-vector types, and the element type for vector types.
+    pub fn scalar_type(&self) -> &Self {
+        match &self {
+            Type::ScalableVector(VectorType {
+                num_elements: _,
+                element_type,
+                ..
+            }) => element_type,
+            Type::FixedVector(VectorType {
+                num_elements: _,
+                element_type,
+                ..
+            }) => element_type,
+            _ => self,
+        }
+    }
+
+    /// Returns whether this type is a floating-point type or a vector type
+    /// of floating points.
+    pub fn is_floating_or_floating_vector(&self) -> bool {
+        self.scalar_type().is_floating()
+    }
+
+    /// Returns whether this type is a integer type or a vector type
+    /// of integers.
+    pub fn is_integer_or_integer_vector(&self) -> bool {
+        self.scalar_type().is_integer()
     }
 
     /// Create a new struct type with the given fields.
@@ -307,7 +343,7 @@ pub enum IntegerTypeError {
 ///
 /// The validity of the internal width is correct by construction.
 #[non_exhaustive]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IntegerType {
     /// The width of this integral type, in bits.
     bit_width: u32,
