@@ -1,7 +1,7 @@
 mollusc
 =======
 
-[![Build Status](https://img.shields.io/github/workflow/status/woodruffw/mollusc/CI/main)](https://github.com/woodruffw/mollusc/actions?query=workflow%3ACI)
+[![CI](https://github.com/woodruffw/mollusc/actions/workflows/ci.yml/badge.svg)](https://github.com/woodruffw/mollusc/actions/workflows/ci.yml)
 
 ⚠️This is a work in progress! Many parts are incomplete or only partially functional!⚠️
 
