@@ -327,6 +327,22 @@ pub enum FunctionCode {
     InstAtomicrmw = 59,
 }
 
+/// Codes for each record in `VALUE_SYMTAB_BLOCK`.
+///
+/// See: `FunctionCodes` in `LLVMBitCodes.h`.
+#[derive(Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
+#[repr(u64)]
+pub enum ValueSymtabCode {
+    /// VST_CODE_ENTRY: `[valueid, namechar x N]`
+    Entry = 1,
+    /// VST_CODE_BBENTRY: `[bbid, namechar x N]`
+    BbEntry = 2,
+    /// VST_CODE_FNENTRY: `[valueid, offset, namechar x N]`
+    FnEntry = 3,
+    /// VST_CODE_COMBINED_ENTRY: `[valueid, refguid]`
+    CombinedEntry = 5,
+}
+
 /// Codes for each unary operation in unary instructions.
 ///
 /// See: `UnaryOpcodes` in `LLVMBitCodes.h`.
