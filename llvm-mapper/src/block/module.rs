@@ -165,7 +165,7 @@ impl TryFrom<(&'_ Block, &'_ mut PartialMapCtx)> for Module {
             .collect::<Result<Vec<_>, _>>()?;
 
         // After this point, `ctx` refers to a fully reified `MapCtx`.
-        let ctx = ctx.reify().map_err(MapError::Context)?;
+        let mut ctx = ctx.reify().map_err(MapError::Context)?;
 
         // Each module *should* have a target triple, but doesn't necessarily.
         let triple = match block
@@ -200,17 +200,17 @@ impl TryFrom<(&'_ Block, &'_ mut PartialMapCtx)> for Module {
             .collect::<Result<Vec<_>, _>>()
             .map_err(MapError::RecordString)?;
 
-        // Collect the function records and blocks in this module.
+        // Collect the function blocks and records in this module.
+        let _function_blocks = block
+            .blocks
+            .by_id(IrBlockId::Function)
+            .map(|block| FunctionBlock::try_from((block, &mut ctx)))
+            .collect::<Result<Vec<_>, _>>()?;
+
         let function_records = block
             .records
             .by_code(ModuleCode::Function)
             .map(|rec| FunctionRecord::try_map(rec, &ctx))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let _function_blocks = block
-            .blocks
-            .by_id(IrBlockId::Function)
-            .map(|block| FunctionBlock::try_from((block, &ctx)))
             .collect::<Result<Vec<_>, _>>()?;
 
         // TODO: Handle function blocks as well.

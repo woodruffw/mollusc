@@ -57,10 +57,10 @@ pub struct Function {
     pub blocks: Vec<BasicBlock>,
 }
 
-impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
+impl TryFrom<(&'_ Block, &'_ mut MapCtx<'_>)> for Function {
     type Error = FunctionError;
 
-    fn try_from((block, ctx): (&'_ Block, &'_ MapCtx)) -> Result<Self, Self::Error> {
+    fn try_from((block, ctx): (&'_ Block, &'_ mut MapCtx)) -> Result<Self, Self::Error> {
         // TODO: Handle each `MODULE_CODE_FUNCTION`'s sub-blocks.
 
         // A function block may have a VST sub-block, which we need to
@@ -71,6 +71,8 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
             .map_err(MapError::Inconsistent)?
             .map(|b| Vst::try_from((b, FunctionStyleVst {})))
             .transpose()?;
+
+        log::debug!("function-level vst: {vst:?}");
 
         // A function block should have exactly one DECLAREBLOCKS record.
         let nblocks = {
@@ -141,7 +143,7 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
                 FunctionCode::InstBinop => {
                     // [opval, ty, opval, opcode]
                     let [lhs, ty, rhs, opcode] = unpack_fields!(4)?;
-                    log::debug!("lhs: {lhs}, rhs: {rhs}");
+                    log::debug!("binop: lhs valno: {lhs}, rhs valno: {rhs}");
                     let ty = get_type!(ty)?;
                     let _opcode = BinaryOp::try_from((opcode, ty))?;
                 }
@@ -190,6 +192,7 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
                     // [ptrty, ptr, valty, val, align, vol]
                     let [_ptrty, _ptr, _valty, _val] = unpack_fields!(4)?;
 
+                    log::debug!("store valno: {_val}");
                     // NOTE: Two more optional fields: align and vol.
                 }
                 FunctionCode::InstStoreatomic => todo!(),
