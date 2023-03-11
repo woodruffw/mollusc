@@ -357,7 +357,7 @@ pub enum UnaryOpcode {
 ///
 /// See: `BinaryOpcodes` in `LLVMBitCodes.h`.
 #[allow(missing_docs)]
-#[derive(Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u64)]
 pub enum BinaryOpcode {
     Add = 0,

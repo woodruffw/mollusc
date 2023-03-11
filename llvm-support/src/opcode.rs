@@ -134,12 +134,12 @@ pub enum BinaryOp {
 #[derive(Debug, Error)]
 pub enum BinaryOpError {
     /// The specified type isn't valid for binary operations.
-    #[error("invalid type for binary op: {0:?}")]
-    InvalidType(Type),
+    #[error("invalid type for binary op {0:?}: {1:?}")]
+    InvalidType(BinaryOpcode, Type),
 
     /// The specified type is incompatible with the operation.
-    #[error("incompatible type for op: {0:?}")]
-    IncompatibleType(Type),
+    #[error("incompatible type for op {0:?}: {1:?}")]
+    IncompatibleType(BinaryOpcode, Type),
 
     /// The opcode given doesn't correspond to a known operation.
     #[error("unknown opcode")]
@@ -156,7 +156,7 @@ impl TryFrom<(u64, &Type)> for BinaryOp {
 
         // Binary operations are only valid on integer/fp types or vectors thereof.
         if !is_fp || !ty.is_integer_or_integer_vector() {
-            return Err(BinaryOpError::InvalidType(ty.clone()));
+            return Err(BinaryOpError::InvalidType(opc, ty.clone()));
         }
 
         Ok(match (opc, is_fp) {
@@ -168,12 +168,16 @@ impl TryFrom<(u64, &Type)> for BinaryOp {
             (BinaryOpcode::Mul, true) => BinaryOp::FMul,
             (BinaryOpcode::UDiv, false) => BinaryOp::UDiv,
             // `udiv` can't be used with floating-point types.
-            (BinaryOpcode::UDiv, true) => return Err(BinaryOpError::IncompatibleType(ty.clone())),
+            (BinaryOpcode::UDiv, true) => {
+                return Err(BinaryOpError::IncompatibleType(opc, ty.clone()))
+            }
             (BinaryOpcode::SDiv, false) => BinaryOp::SDiv,
             (BinaryOpcode::SDiv, true) => BinaryOp::FDiv,
             (BinaryOpcode::URem, false) => BinaryOp::URem,
             // `urem` can't be used with floating-point types.
-            (BinaryOpcode::URem, true) => return Err(BinaryOpError::IncompatibleType(ty.clone())),
+            (BinaryOpcode::URem, true) => {
+                return Err(BinaryOpError::IncompatibleType(opc, ty.clone()))
+            }
             (BinaryOpcode::SRem, false) => BinaryOp::SRem,
             (BinaryOpcode::SRem, true) => BinaryOp::FRem,
             // The rest are all integer-type only.
@@ -183,7 +187,7 @@ impl TryFrom<(u64, &Type)> for BinaryOp {
             (BinaryOpcode::And, true) => BinaryOp::And,
             (BinaryOpcode::Or, true) => BinaryOp::Or,
             (BinaryOpcode::Xor, true) => BinaryOp::Xor,
-            (_, false) => return Err(BinaryOpError::IncompatibleType(ty.clone())),
+            (_, false) => return Err(BinaryOpError::IncompatibleType(opc, ty.clone())),
         })
     }
 }
