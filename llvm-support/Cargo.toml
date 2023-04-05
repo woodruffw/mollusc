@@ -14,4 +14,4 @@ version = "0.0.3"
 [dependencies]
 paste = "1.0"
 thiserror = "1.0"
-num_enum = "0.5.3"
+num_enum = "0.6.0"
