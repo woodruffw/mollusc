@@ -213,6 +213,7 @@ impl FromStr for DataLayout {
                         Some('i') => {
                             datalayout.non_integral_address_spaces = body[1..]
                                 .split(':')
+                                .filter(|s| s.len() > 0)
                                 .map(|s| {
                                     s.parse::<u32>()
                                         .map_err(DataLayoutError::from)
