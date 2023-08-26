@@ -248,7 +248,7 @@ impl TryFrom<(AttributeId, u64)> for IntAttribute {
     fn try_from((key, value): (AttributeId, u64)) -> Result<Self, Self::Error> {
         // Test if it's an enum attribute. If it is, we know it can't be an integer attribute
         // and any fallthrough in our match below is unsupported rather than malformed.
-        if EnumAttribute::try_from(key).is_err() {
+        if EnumAttribute::try_from(key).is_ok() {
             return Err(AttributeError::AttributeMalformed(
                 "expected int attribute, but given enum ID",
                 key,
@@ -535,6 +535,7 @@ impl TryFrom<&'_ Block> for AttributeGroups {
             let mut fieldidx = 2;
             let mut attributes = vec![];
             while fieldidx < record.fields().len() {
+                // debug!("{:#?}", groups);
                 let (count, attr) = Attribute::from_record(fieldidx, record)?;
                 attributes.push(attr);
                 fieldidx += count;
