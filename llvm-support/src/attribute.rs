@@ -86,7 +86,7 @@ pub enum AttributeId {
     SanitizeThread = 31,
     /// `sanitize_memory`
     SanitizeMemory = 32,
-    /// `uwtable` ([variant])
+    /// `uwtable ([variant])`
     UwTable = 33,
     /// `zeroext`
     ZExt = 34,
