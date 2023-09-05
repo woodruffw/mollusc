@@ -498,7 +498,7 @@ impl TypeAlignSpecs {
                 true => {
                     // Unwrap safety: `pos` is a valid index returned above.
                     #[allow(clippy::unwrap_used)]
-                    let mut other = self.0.get_mut(pos).unwrap();
+                    let other = self.0.get_mut(pos).unwrap();
 
                     other.abi_alignment = spec.abi_alignment;
                     other.preferred_alignment = spec.preferred_alignment;
@@ -726,7 +726,7 @@ impl PointerAlignSpecs {
                 true => {
                     // Unwrap safety: `pos` is a valid index returned above.
                     #[allow(clippy::unwrap_used)]
-                    let mut other = self.0.get_mut(pos).unwrap();
+                    let other = self.0.get_mut(pos).unwrap();
 
                     other.abi_alignment = spec.abi_alignment;
                     other.preferred_alignment = spec.preferred_alignment;
