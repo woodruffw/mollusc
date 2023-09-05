@@ -212,6 +212,16 @@ pub enum EnumAttribute {
     ElementType = AttributeId::ElementType as u64,
     /// `disable_sanitizer_instrumentation`
     DisableSanitizerInstrumentation = AttributeId::DisableSanitizerInstrumentation as u64,
+    /// ``allocalign`
+    AllocAlign = AttributeId::AllocAlign as u64,
+    /// `allocptr`
+    AllocatedPointer = AttributeId::AllocatedPointer as u64,
+    /// `presplitcoroutine`
+    PresplitCoroutine = AttributeId::PresplitCoroutine as u64,
+    /// `fn_ret_thunk_extern`
+    FnretthunkExtern = AttributeId::FnretthunkExtern as u64,
+    /// `skipprofile`
+    SkipProfile = AttributeId::SkipProfile as u64,
 }
 
 impl TryFrom<AttributeId> for EnumAttribute {
@@ -222,6 +232,18 @@ impl TryFrom<AttributeId> for EnumAttribute {
             .try_into()
             .map_err(|_| AttributeError::AttributeMalformed("non-enum attribute ID given", value))
     }
+}
+
+/// Represent unwind table variant
+#[derive(Copy, Clone, Debug, PartialEq, Eq, TryFromPrimitive)]
+#[repr(u64)]
+pub enum UwTableVariant {
+    /// No unwind table requested
+    None = 0,
+    /// Synchronous unwinding table
+    Sync = 1,
+    /// Asynchronous unwinding table
+    Async = 2,
 }
 
 /// Represents an integral attribute, i.e. an attribute that carries (at least) one integer value with it.
@@ -240,6 +262,12 @@ pub enum IntAttribute {
     AllocSize(u32, Option<u32>),
     /// `vscale_range(<Min>[, <Max>])`
     VScaleRange(u32, u32),
+    /// `uwTable ([variant])`
+    UwTable(UwTableVariant),
+    /// `allockind (<KindBitset>)`
+    AllocKind(u64),
+    /// `memory (<memoryEffectBitset>)`
+    MemoryKind(u64),
 }
 
 impl TryFrom<(AttributeId, u64)> for IntAttribute {
@@ -248,7 +276,8 @@ impl TryFrom<(AttributeId, u64)> for IntAttribute {
     fn try_from((key, value): (AttributeId, u64)) -> Result<Self, Self::Error> {
         // Test if it's an enum attribute. If it is, we know it can't be an integer attribute
         // and any fallthrough in our match below is unsupported rather than malformed.
-        if EnumAttribute::try_from(key).is_err() {
+        // UwTable is special because it is both enum attribute and integer attirbute
+        if EnumAttribute::try_from(key).is_ok() && key != AttributeId::UwTable {
             return Err(AttributeError::AttributeMalformed(
                 "expected int attribute, but given enum ID",
                 key,
@@ -314,6 +343,13 @@ impl TryFrom<(AttributeId, u64)> for IntAttribute {
 
                 IntAttribute::VScaleRange(max, min)
             }
+            AttributeId::UwTable => {
+                IntAttribute::UwTable(UwTableVariant::try_from(value).map_err(|_| {
+                    AttributeError::AttributeMalformed("Unwind table variant error", key)
+                })?)
+            }
+            AttributeId::AllocKind => IntAttribute::AllocKind(value),
+            AttributeId::Memory => IntAttribute::MemoryKind(value),
             o => return Err(AttributeError::IntAttributeUnsupported(o)),
         })
     }
@@ -387,6 +423,7 @@ impl Attribute {
             AttributeKind::Enum => {
                 // Enum attributes: one key field, nothing else.
                 let key = AttributeId::try_from(next!()?)?;
+                // TODO: deal with UwTable attribute's default value
                 Ok((fieldcount, Attribute::Enum(key.try_into()?)))
             }
             AttributeKind::IntKeyValue => {
@@ -535,6 +572,7 @@ impl TryFrom<&'_ Block> for AttributeGroups {
             let mut fieldidx = 2;
             let mut attributes = vec![];
             while fieldidx < record.fields().len() {
+                // debug!("{:#?}", groups);
                 let (count, attr) = Attribute::from_record(fieldidx, record)?;
                 attributes.push(attr);
                 fieldidx += count;

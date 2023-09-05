@@ -86,7 +86,7 @@ pub enum AttributeId {
     SanitizeThread = 31,
     /// `sanitize_memory`
     SanitizeMemory = 32,
-    /// `uwtable`
+    /// `uwtable ([variant])`
     UwTable = 33,
     /// `zeroext`
     ZExt = 34,
@@ -178,4 +178,20 @@ pub enum AttributeId {
     ElementType = 77,
     /// `disable_sanitizer_instrumentation`
     DisableSanitizerInstrumentation = 78,
+    /// `nosanitize_bounds`
+    NoSanitizeBounds = 79,
+    /// `allocalign`
+    AllocAlign = 80,
+    /// `allocptr`
+    AllocatedPointer = 81,
+    /// `allockind (<KindBitset>)`
+    AllocKind = 82,
+    /// `presplitcoroutine`
+    PresplitCoroutine = 83,
+    /// `fn_ret_thunk_extern`
+    FnretthunkExtern = 84,
+    /// `skipprofile`
+    SkipProfile = 85,
+    /// `memory (<LayoutBitset>)`
+    Memory = 86,
 }
