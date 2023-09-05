@@ -211,7 +211,12 @@ impl FromStr for DataLayout {
                     // 'n' marks the start of either an 'n' or an 'ni' block.
                     match body.chars().next() {
                         Some('i') => {
-                            datalayout.non_integral_address_spaces = body[1..]
+                            if body.len() <= 1 {
+                                return Err(DataLayoutError::BadSpecParse(
+                                    "cannot find address space 0".into(),
+                                ));
+                            }
+                            datalayout.non_integral_address_spaces = body[2..]
                                 .split(':')
                                 .map(|s| {
                                     s.parse::<u32>()
@@ -405,20 +410,20 @@ mod tests {
         }
 
         {
-            let dl = "ni1:2:3".parse::<DataLayout>().unwrap();
+            let dl = "ni:1:10:20".parse::<DataLayout>().unwrap();
 
             assert_eq!(
                 dl.non_integral_address_spaces,
                 vec![
                     AddressSpace::try_from(1_u32).unwrap(),
-                    AddressSpace::try_from(2_u32).unwrap(),
-                    AddressSpace::try_from(3_u32).unwrap()
+                    AddressSpace::try_from(10_u32).unwrap(),
+                    AddressSpace::try_from(20_u32).unwrap()
                 ]
             );
         }
 
         {
-            let dl = "ni1".parse::<DataLayout>().unwrap();
+            let dl = "ni:1".parse::<DataLayout>().unwrap();
 
             assert_eq!(
                 dl.non_integral_address_spaces,
@@ -429,12 +434,12 @@ mod tests {
         {
             assert_eq!(
                 "ni".parse::<DataLayout>().unwrap_err().to_string(),
-                "couldn't parse spec field: cannot parse integer from empty string"
+                "couldn't parse spec: cannot find address space 0"
             );
 
             assert_eq!(
                 "ni0".parse::<DataLayout>().unwrap_err().to_string(),
-                "couldn't parse spec: address space 0 cannot be non-integral"
+                "couldn't parse spec field: cannot parse integer from empty string"
             );
         }
     }
