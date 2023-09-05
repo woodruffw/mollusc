@@ -7,13 +7,15 @@ use std::convert::TryFrom;
 
 pub use basic_block::*;
 pub use instruction::*;
-use llvm_support::bitcodes::FunctionCode;
+use llvm_support::bitcodes::{FunctionCode, IrBlockId};
 use llvm_support::{BinaryOp, BinaryOpError, UnaryOp, UnaryOpError};
 use num_enum::TryFromPrimitiveError;
 use thiserror::Error;
 
 use crate::map::{MapCtx, MapError};
 use crate::unroll::Block;
+
+use super::vst::{FunctionStyleVst, Vst, VstError};
 
 /// Errors that can occur when mapping function blocks.
 #[derive(Debug, Error)]
@@ -41,6 +43,10 @@ pub enum FunctionError {
     /// A generic mapping error occurred.
     #[error("generic mapping error")]
     Map(#[from] MapError),
+
+    /// A VST mapping error occured.
+    #[error("value symtab mapping error")]
+    Vst(#[from] VstError),
 }
 
 /// Models the `MODULE_CODE_FUNCTION` record.
@@ -51,11 +57,22 @@ pub struct Function {
     pub blocks: Vec<BasicBlock>,
 }
 
-impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
+impl TryFrom<(&'_ Block, &'_ mut MapCtx<'_>)> for Function {
     type Error = FunctionError;
 
-    fn try_from((block, ctx): (&'_ Block, &'_ MapCtx)) -> Result<Self, Self::Error> {
+    fn try_from((block, ctx): (&'_ Block, &'_ mut MapCtx)) -> Result<Self, Self::Error> {
         // TODO: Handle each `MODULE_CODE_FUNCTION`'s sub-blocks.
+
+        // A function block may have a VST sub-block, which we need to
+        // parse up-front in order to resolve values.
+        let vst = block
+            .blocks
+            .one_or_none(IrBlockId::ValueSymtab)
+            .map_err(MapError::Inconsistent)?
+            .map(|b| Vst::try_from((b, FunctionStyleVst {})))
+            .transpose()?;
+
+        log::debug!("function-level vst: {vst:?}");
 
         // A function block should have exactly one DECLAREBLOCKS record.
         let nblocks = {
@@ -125,7 +142,8 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
                 // The big one: all instructions.
                 FunctionCode::InstBinop => {
                     // [opval, ty, opval, opcode]
-                    let [_lhs, ty, _rhs, opcode] = unpack_fields!(4)?;
+                    let [lhs, ty, rhs, opcode] = unpack_fields!(4)?;
+                    log::debug!("binop: lhs valno: {lhs}, rhs valno: {rhs}");
                     let ty = get_type!(ty)?;
                     let _opcode = BinaryOp::try_from((opcode, ty))?;
                 }
@@ -174,6 +192,7 @@ impl TryFrom<(&'_ Block, &'_ MapCtx<'_>)> for Function {
                     // [ptrty, ptr, valty, val, align, vol]
                     let [_ptrty, _ptr, _valty, _val] = unpack_fields!(4)?;
 
+                    log::debug!("store valno: {_val}");
                     // NOTE: Two more optional fields: align and vol.
                 }
                 FunctionCode::InstStoreatomic => todo!(),
