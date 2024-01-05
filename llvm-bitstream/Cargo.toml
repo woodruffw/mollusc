@@ -19,7 +19,7 @@ llvm-bitcursor = { version = "0.0.3", path = "../llvm-bitcursor" }
 llvm-support = { version = "0.0.3", path = "../llvm-support" }
 log = "0.4"
 num = "0.4"
-num_enum = "0.6"
+num_enum = "0.7"
 thiserror = "1.0"
 
 [dev-dependencies]
